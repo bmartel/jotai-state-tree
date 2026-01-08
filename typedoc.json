@@ -1,0 +1,36 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["src/index.ts", "src/react.ts"],
+  "out": "docs",
+  "name": "jotai-state-tree",
+  "readme": "README.md",
+  "includeVersion": true,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeInternal": true,
+  "excludeExternals": true,
+  "disableSources": false,
+  "navigationLinks": {
+    "GitHub": "https://github.com/bmartel/jotai-state-tree"
+  },
+  "plugin": [],
+  "theme": "default",
+  "categorizeByGroup": true,
+  "categoryOrder": [
+    "Types",
+    "Model Registry",
+    "Tree Utilities",
+    "React Integration",
+    "Lifecycle",
+    "Undo/Redo",
+    "Compatibility",
+    "*"
+  ],
+  "sort": ["source-order", "alphabetical"],
+  "visibilityFilters": {
+    "protected": false,
+    "private": false,
+    "inherited": true,
+    "external": false
+  }
+}

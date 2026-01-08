@@ -27,14 +27,14 @@ export type {
   IRefinementType,
   IIdentifierType,
   IIdentifierNumberType,
-  
+
   // Instance types
   IStateTreeNode,
   IMSTArray,
   IMSTMap,
   ModelInstance,
   ModelProperties,
-  
+
   // Utility types
   SnapshotIn,
   SnapshotOut,
@@ -42,24 +42,24 @@ export type {
   IAnyType,
   IAnyModelType,
   IAnyComplexType,
-  
+
   // Patch types
   IJsonPatch,
   IReversibleJsonPatch,
-  
+
   // Validation types
   IValidationContext,
   IValidationResult,
   IValidationError,
-  
+
   // Options types
   ReferenceOptions,
   UnionOptions,
   CustomTypeOptions,
-  
+
   // Disposer
   IDisposer,
-} from './types';
+} from "./types";
 
 // ============================================================================
 // Primitive Types
@@ -81,20 +81,20 @@ import {
   custom,
   finite,
   float,
-} from './primitives';
+} from "./primitives";
 
 // ============================================================================
 // Model Type
 // ============================================================================
 
-import { model, compose } from './model';
+import { model, compose } from "./model";
 
 // ============================================================================
 // Collection Types
 // ============================================================================
 
-import { array } from './array';
-import { map } from './map';
+import { array } from "./array";
+import { map } from "./map";
 
 // ============================================================================
 // Utility Types
@@ -110,7 +110,7 @@ import {
   reference,
   safeReference,
   snapshotProcessor,
-} from './utilities';
+} from "./utilities";
 
 // ============================================================================
 // Types Namespace (MST Compatible)
@@ -131,45 +131,45 @@ export const types = {
   undefined: undefinedType,
   finite,
   float,
-  
+
   // Identifiers
   identifier,
   identifierNumber,
-  
+
   // Literals & Enums
   literal,
   enumeration,
-  
+
   // Frozen
   frozen,
-  
+
   // Custom
   custom,
-  
+
   // Model
   model,
   compose,
-  
+
   // Collections
   array,
   map,
-  
+
   // Optionality
   optional,
   maybe,
   maybeNull,
-  
+
   // Union & Late
   union,
   late,
-  
+
   // References
   reference,
   safeReference,
-  
+
   // Refinement
   refinement,
-  
+
   // Snapshot processing
   snapshotProcessor,
 };
@@ -186,45 +186,45 @@ export {
   undefinedType,
   finite,
   float,
-  
+
   // Identifiers
   identifier,
   identifierNumber,
-  
+
   // Literals & Enums
   literal,
   enumeration,
-  
+
   // Frozen
   frozen,
-  
+
   // Custom
   custom,
-  
+
   // Model
   model,
   compose,
-  
+
   // Collections
   array,
   map,
-  
+
   // Optionality
   optional,
   maybe,
   maybeNull,
-  
+
   // Union & Late
   union,
   late,
-  
+
   // References
   reference,
   safeReference,
-  
+
   // Refinement
   refinement,
-  
+
   // Snapshot processing
   snapshotProcessor,
 };
@@ -242,7 +242,7 @@ export {
   applyPatch,
   recordPatches,
   onAction,
-  
+
   // Tree navigation
   getRoot,
   getParent,
@@ -254,30 +254,31 @@ export {
   getEnv,
   getType,
   getIdentifier,
-  
+
   // Node state
   isAlive,
   isRoot,
   isStateTreeNode,
-  
+
   // Tree manipulation
   destroy,
   detach,
   clone,
   walk,
-  
+
   // Resolution
   resolvePath,
   tryResolve,
   resolveIdentifier,
-  
+
   // Members
   getMembers,
-  
+
   // Store management
   getGlobalStore,
   setGlobalStore,
-  
+  resetGlobalStore,
+
   // Advanced tree utilities
   getRelativePath,
   isAncestor,
@@ -291,7 +292,15 @@ export {
   freeze,
   isFrozen,
   unfreeze,
-} from './tree';
+
+  // Registry utilities (for testing and debugging)
+  getRegistryStats,
+  cleanupStaleEntries,
+  clearAllRegistries,
+
+  // Lifecycle subscriptions
+  onLifecycleChange,
+} from "./tree";
 
 // ============================================================================
 // Lifecycle & Middleware
@@ -300,28 +309,28 @@ export {
 export {
   // Middleware
   addMiddleware,
-  
+
   // Action recording/replay
   recordActions,
   applyAction,
-  
+
   // Protection
   protect,
   unprotect,
   isProtected,
-  
+
   // Path utilities
   escapeJsonPath,
   unescapeJsonPath,
   splitJsonPath,
   joinJsonPath,
-} from './lifecycle';
+} from "./lifecycle";
 
 export type {
   IMiddlewareEvent,
   IMiddlewareHandler,
   ISerializedActionCall,
-} from './lifecycle';
+} from "./lifecycle";
 
 // ============================================================================
 // Compatibility Utilities
@@ -332,33 +341,33 @@ export {
   isType,
   isPrimitiveType,
   getTypeName,
-  
+
   // Snapshot utilities
   isValidSnapshot,
   getValidationError,
-  
+
   // Instance utilities
   isInstanceOf,
   getOrCreate,
-  
+
   // Debugging
   getDebugInfo,
   printTree,
-  
+
   // Identifier utilities
   hasIdentifier,
   getIdentifierAttribute,
-  
+
   // Type composition
   nullable,
-  
+
   // Safe creation
   safeCreate,
   createWithDefaults,
-  
+
   // Frozen clone
   cloneFrozen,
-} from './compat';
+} from "./compat";
 
 // ============================================================================
 // Flow (Async Actions)
@@ -369,13 +378,13 @@ export {
  * Compatible with MST's flow().
  */
 export function flow<Args extends unknown[], R>(
-  generator: (...args: Args) => Generator<Promise<unknown>, R, unknown>
+  generator: (...args: Args) => Generator<Promise<unknown>, R, unknown>,
 ): (...args: Args) => Promise<R> {
   return function flowAction(...args: Args): Promise<R> {
     const gen = generator(...args);
 
     function step(
-      nextFn: () => IteratorResult<Promise<unknown>, R>
+      nextFn: () => IteratorResult<Promise<unknown>, R>,
     ): Promise<R> {
       let result: IteratorResult<Promise<unknown>, R>;
       try {
@@ -390,7 +399,7 @@ export function flow<Args extends unknown[], R>(
 
       return Promise.resolve(result.value).then(
         (value) => step(() => gen.next(value)),
-        (error) => step(() => gen.throw(error))
+        (error) => step(() => gen.throw(error)),
       );
     }
 
@@ -417,7 +426,7 @@ export function castToSnapshot<T>(value: T): T {
  * Cast a value to a reference snapshot (identifier).
  */
 export function castToReferenceSnapshot<T>(value: T): string | number {
-  const { getIdentifier } = require('./tree');
+  const { getIdentifier } = require("./tree");
   return getIdentifier(value) ?? (value as unknown as string | number);
 }
 
@@ -429,14 +438,14 @@ export function castToReferenceSnapshot<T>(value: T): string | number {
  * Check if a value is a valid identifier.
  */
 export function isIdentifierType(
-  type: unknown
+  type: unknown,
 ): type is typeof identifier | typeof identifierNumber {
   return (
     type !== null &&
-    typeof type === 'object' &&
-    '_kind' in type &&
-    ((type as { _kind: string })._kind === 'identifier' ||
-      (type as { _kind: string })._kind === 'identifierNumber')
+    typeof type === "object" &&
+    "_kind" in type &&
+    ((type as { _kind: string })._kind === "identifier" ||
+      (type as { _kind: string })._kind === "identifierNumber")
   );
 }
 
@@ -446,9 +455,9 @@ export function isIdentifierType(
 export function isModelType(type: unknown): boolean {
   return (
     type !== null &&
-    typeof type === 'object' &&
-    '_kind' in type &&
-    (type as { _kind: string })._kind === 'model'
+    typeof type === "object" &&
+    "_kind" in type &&
+    (type as { _kind: string })._kind === "model"
   );
 }
 
@@ -458,9 +467,9 @@ export function isModelType(type: unknown): boolean {
 export function isArrayType(type: unknown): boolean {
   return (
     type !== null &&
-    typeof type === 'object' &&
-    '_kind' in type &&
-    (type as { _kind: string })._kind === 'array'
+    typeof type === "object" &&
+    "_kind" in type &&
+    (type as { _kind: string })._kind === "array"
   );
 }
 
@@ -470,9 +479,9 @@ export function isArrayType(type: unknown): boolean {
 export function isMapType(type: unknown): boolean {
   return (
     type !== null &&
-    typeof type === 'object' &&
-    '_kind' in type &&
-    (type as { _kind: string })._kind === 'map'
+    typeof type === "object" &&
+    "_kind" in type &&
+    (type as { _kind: string })._kind === "map"
   );
 }
 
@@ -482,10 +491,10 @@ export function isMapType(type: unknown): boolean {
 export function isReferenceType(type: unknown): boolean {
   return (
     type !== null &&
-    typeof type === 'object' &&
-    '_kind' in type &&
-    ((type as { _kind: string })._kind === 'reference' ||
-      (type as { _kind: string })._kind === 'safeReference')
+    typeof type === "object" &&
+    "_kind" in type &&
+    ((type as { _kind: string })._kind === "reference" ||
+      (type as { _kind: string })._kind === "safeReference")
   );
 }
 
@@ -495,9 +504,9 @@ export function isReferenceType(type: unknown): boolean {
 export function isUnionType(type: unknown): boolean {
   return (
     type !== null &&
-    typeof type === 'object' &&
-    '_kind' in type &&
-    (type as { _kind: string })._kind === 'union'
+    typeof type === "object" &&
+    "_kind" in type &&
+    (type as { _kind: string })._kind === "union"
   );
 }
 
@@ -507,11 +516,11 @@ export function isUnionType(type: unknown): boolean {
 export function isOptionalType(type: unknown): boolean {
   return (
     type !== null &&
-    typeof type === 'object' &&
-    '_kind' in type &&
-    ((type as { _kind: string })._kind === 'optional' ||
-      (type as { _kind: string })._kind === 'maybe' ||
-      (type as { _kind: string })._kind === 'maybeNull')
+    typeof type === "object" &&
+    "_kind" in type &&
+    ((type as { _kind: string })._kind === "optional" ||
+      (type as { _kind: string })._kind === "maybe" ||
+      (type as { _kind: string })._kind === "maybeNull")
   );
 }
 
@@ -521,9 +530,9 @@ export function isOptionalType(type: unknown): boolean {
 export function isLateType(type: unknown): boolean {
   return (
     type !== null &&
-    typeof type === 'object' &&
-    '_kind' in type &&
-    (type as { _kind: string })._kind === 'late'
+    typeof type === "object" &&
+    "_kind" in type &&
+    (type as { _kind: string })._kind === "late"
   );
 }
 
@@ -533,9 +542,9 @@ export function isLateType(type: unknown): boolean {
 export function isFrozenType(type: unknown): boolean {
   return (
     type !== null &&
-    typeof type === 'object' &&
-    '_kind' in type &&
-    (type as { _kind: string })._kind === 'frozen'
+    typeof type === "object" &&
+    "_kind" in type &&
+    (type as { _kind: string })._kind === "frozen"
   );
 }
 
@@ -545,16 +554,19 @@ export function isFrozenType(type: unknown): boolean {
 export function isLiteralType(type: unknown): boolean {
   return (
     type !== null &&
-    typeof type === 'object' &&
-    '_kind' in type &&
-    (type as { _kind: string })._kind === 'literal'
+    typeof type === "object" &&
+    "_kind" in type &&
+    (type as { _kind: string })._kind === "literal"
   );
 }
 
 /**
  * Get the type of a value, or undefined if not a state tree node.
  */
-export function typecheck<T>(type: { is(v: unknown): v is T }, value: unknown): void {
+export function typecheck<T>(
+  type: { is(v: unknown): v is T },
+  value: unknown,
+): void {
   if (!type.is(value)) {
     throw new Error(`[jotai-state-tree] Value does not match type`);
   }
@@ -568,7 +580,7 @@ export {
   createUndoManager,
   createTimeTravelManager,
   createActionRecorder,
-} from './undo';
+} from "./undo";
 
 export type {
   IUndoManager,
@@ -577,7 +589,7 @@ export type {
   ITimeTravelManager,
   IActionRecorder,
   IActionRecording,
-} from './undo';
+} from "./undo";
 
 // ============================================================================
 // Re-export for convenience

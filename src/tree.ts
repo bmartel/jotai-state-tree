@@ -1,9 +1,15 @@
 /**
  * Tree node management system
  * Handles tree structure, parent/child relationships, and node lifecycle
+ *
+ * MEMORY MANAGEMENT:
+ * - Uses WeakRef for node registry to allow garbage collection
+ * - Uses FinalizationRegistry for automatic cleanup of abandoned nodes
+ * - Uses WeakMap where possible to avoid preventing GC
+ * - Properly cleans up all registries on node destruction
  */
 
-import { atom, createStore, type Atom, type WritableAtom } from 'jotai';
+import { atom, createStore, type WritableAtom } from "jotai";
 import type {
   IStateTreeNode,
   IType,
@@ -12,7 +18,7 @@ import type {
   IJsonPatch,
   IReversibleJsonPatch,
   IDisposer,
-} from './types';
+} from "./types";
 
 // Re-export IDisposer for convenience
 export type { IDisposer };
@@ -34,26 +40,98 @@ export function setGlobalStore(store: ReturnType<typeof createStore>) {
   globalStore = store;
 }
 
+/** Reset the global store (useful for testing) */
+export function resetGlobalStore() {
+  globalStore = createStore();
+}
+
 // ============================================================================
-// Node Registry
+// Node Registry with Weak References
 // ============================================================================
 
 interface NodeEntry {
-  node: StateTreeNode;
-  instance: unknown;
+  node: WeakRef<StateTreeNode>;
+  instance: WeakRef<object> | null;
 }
 
-/** Registry mapping node IDs to their entries */
+/**
+ * Registry mapping node IDs to their entries using WeakRef
+ * This allows nodes to be garbage collected when no longer referenced
+ */
 const nodeRegistry = new Map<string, NodeEntry>();
 
-/** Registry for identifier lookups (type -> identifier -> node) */
-const identifierRegistry = new Map<string, Map<string | number, StateTreeNode>>();
+/**
+ * FinalizationRegistry for automatic cleanup when nodes are garbage collected
+ * This ensures the nodeRegistry doesn't accumulate stale entries
+ */
+const nodeFinalizationRegistry = new FinalizationRegistry((nodeId: string) => {
+  nodeRegistry.delete(nodeId);
+});
+
+/**
+ * Registry for identifier lookups (type -> identifier -> WeakRef<node>)
+ * Uses WeakRef to allow garbage collection of nodes
+ */
+const identifierRegistry = new Map<
+  string,
+  Map<string | number, WeakRef<StateTreeNode>>
+>();
+
+/**
+ * FinalizationRegistry for identifier cleanup
+ */
+const identifierFinalizationRegistry = new FinalizationRegistry(
+  (info: { typeName: string; identifier: string | number }) => {
+    const typeMap = identifierRegistry.get(info.typeName);
+    if (typeMap) {
+      typeMap.delete(info.identifier);
+      // Clean up empty type maps
+      if (typeMap.size === 0) {
+        identifierRegistry.delete(info.typeName);
+      }
+    }
+  },
+);
 
 /** Counter for generating unique node IDs */
 let nodeIdCounter = 0;
 
 function generateNodeId(): string {
   return `node_${++nodeIdCounter}_${Date.now().toString(36)}`;
+}
+
+// ============================================================================
+// Lifecycle Change Listeners (for useIsAlive and other subscribers)
+// ============================================================================
+
+/** WeakMap to store lifecycle listeners per node - allows GC of nodes */
+const lifecycleListeners = new WeakMap<
+  StateTreeNode,
+  Set<(isAlive: boolean) => void>
+>();
+
+/** Subscribe to lifecycle changes of a node */
+export function onLifecycleChange(
+  node: StateTreeNode,
+  listener: (isAlive: boolean) => void,
+): IDisposer {
+  let listeners = lifecycleListeners.get(node);
+  if (!listeners) {
+    listeners = new Set();
+    lifecycleListeners.set(node, listeners);
+  }
+  listeners.add(listener);
+  return () => {
+    listeners?.delete(listener);
+  };
+}
+
+/** Notify lifecycle listeners */
+function notifyLifecycleChange(node: StateTreeNode, isAlive: boolean) {
+  const listeners = lifecycleListeners.get(node);
+  if (listeners) {
+    listeners.forEach((listener) => listener(isAlive));
+  }
 }
 
 // ============================================================================
@@ -64,11 +142,11 @@ export class StateTreeNode implements IStateTreeNode {
   readonly $id: string;
   readonly $type: IAnyType;
   $parent: StateTreeNode | null = null;
-  $path: string = '';
+  $path: string = "";
   $env: unknown;
   $isAlive: boolean = true;
 
-  /** Child nodes */
+  /** Child nodes - uses Map but children are explicitly destroyed */
   private children = new Map<string, StateTreeNode>();
 
   /** Atom storing the raw value/snapshot */
@@ -78,7 +156,9 @@ export class StateTreeNode implements IStateTreeNode {
   private snapshotListeners = new Set<(snapshot: unknown) => void>();
 
   /** Patch listeners */
-  private patchListeners = new Set<(patch: IJsonPatch, reversePatch: IReversibleJsonPatch) => void>();
+  private patchListeners = new Set<
+    (patch: IJsonPatch, reversePatch: IReversibleJsonPatch) => void
+  >();
 
   /** Volatile state (non-serialized) */
   volatileState: Record<string, unknown> = {};
@@ -98,32 +178,36 @@ export class StateTreeNode implements IStateTreeNode {
     initialValue: unknown,
     env?: unknown,
     parent?: StateTreeNode,
-    pathSegment?: string
+    pathSegment?: string,
   ) {
     this.$id = generateNodeId();
     this.$type = type;
     this.$env = env ?? parent?.$env;
     this.$parent = parent ?? null;
-    this.$path = parent ? `${parent.$path}/${pathSegment}` : '';
+    this.$path = parent ? `${parent.$path}/${pathSegment}` : "";
 
     // Create the value atom
     this.valueAtom = atom(initialValue);
 
-    // Register this node
-    nodeRegistry.set(this.$id, { node: this, instance: null });
+    // Register this node with WeakRef
+    nodeRegistry.set(this.$id, { node: new WeakRef(this), instance: null });
+
+    // Register for automatic cleanup on GC
+    nodeFinalizationRegistry.register(this, this.$id, this);
   }
 
   /** Set the instance reference */
   setInstance(instance: unknown) {
     const entry = nodeRegistry.get(this.$id);
-    if (entry) {
-      entry.instance = instance;
+    if (entry && instance && typeof instance === "object") {
+      entry.instance = new WeakRef(instance as object);
     }
   }
 
   /** Get the instance */
   getInstance(): unknown {
-    return nodeRegistry.get(this.$id)?.instance;
+    const entry = nodeRegistry.get(this.$id);
+    return entry?.instance?.deref() ?? null;
   }
 
   /** Get current value from atom */
@@ -136,19 +220,19 @@ export class StateTreeNode implements IStateTreeNode {
     if (!this.$isAlive) {
       throw new Error(
         `[jotai-state-tree] Cannot modify a node that is no longer part of the state tree. ` +
-        `(Node type: '${this.$type.name}', Path: '${this.$path}')`
+          `(Node type: '${this.$type.name}', Path: '${this.$path}')`,
       );
     }
-    
+
     const oldValue = this.getValue();
     globalStore.set(this.valueAtom, value);
-    
+
     // Notify patch listeners
     this.notifyPatch(
-      { op: 'replace', path: this.$path, value },
-      { op: 'replace', path: this.$path, value: oldValue, oldValue }
+      { op: "replace", path: this.$path, value },
+      { op: "replace", path: this.$path, value: oldValue, oldValue },
     );
-    
+
     // Notify snapshot listeners (bubble up to root)
     this.notifySnapshotChange();
   }
@@ -164,9 +248,8 @@ export class StateTreeNode implements IStateTreeNode {
 
   /** Recursively update the path of a node and all its children */
   private updatePathRecursively(node: StateTreeNode, newPath: string) {
-    const oldPath = node.$path;
     node.$path = newPath;
-    
+
     // Update all children's paths
     for (const [childKey, childNode] of node.children) {
       const childNewPath = `${newPath}/${childKey}`;
@@ -203,16 +286,32 @@ export class StateTreeNode implements IStateTreeNode {
       typeMap = new Map();
       identifierRegistry.set(typeName, typeMap);
     }
-    typeMap.set(identifier, this);
+    typeMap.set(identifier, new WeakRef(this));
+
+    // Register for automatic cleanup on GC
+    identifierFinalizationRegistry.register(
+      this,
+      { typeName, identifier },
+      this,
+    );
   }
 
   /** Unregister identifier */
   unregisterIdentifier() {
-    if (this.identifierTypeName !== undefined && this.identifierValue !== undefined) {
+    if (
+      this.identifierTypeName !== undefined &&
+      this.identifierValue !== undefined
+    ) {
       const typeMap = identifierRegistry.get(this.identifierTypeName);
       if (typeMap) {
         typeMap.delete(this.identifierValue);
+        // Clean up empty type maps to prevent accumulation
+        if (typeMap.size === 0) {
+          identifierRegistry.delete(this.identifierTypeName);
+        }
       }
+      // Unregister from finalization registry
+      identifierFinalizationRegistry.unregister(this);
     }
   }
 
@@ -226,7 +325,7 @@ export class StateTreeNode implements IStateTreeNode {
 
   /** Subscribe to patches */
   onPatch(
-    listener: (patch: IJsonPatch, reversePatch: IReversibleJsonPatch) => void
+    listener: (patch: IJsonPatch, reversePatch: IReversibleJsonPatch) => void,
   ): IDisposer {
     this.patchListeners.add(listener);
     return () => {
@@ -249,6 +348,16 @@ export class StateTreeNode implements IStateTreeNode {
     const root = this.getRoot();
     const snapshot = getSnapshotFromNode(root);
     root.snapshotListeners.forEach((listener) => listener(snapshot));
+  }
+
+  /** Notify about a property change (for use by model proxy) */
+  notifyPropertyChange(propName: string, newValue: unknown, oldValue: unknown) {
+    const path = this.$path ? `${this.$path}/${propName}` : `/${propName}`;
+    this.notifyPatch(
+      { op: "replace", path, value: newValue },
+      { op: "replace", path, value: oldValue, oldValue },
+    );
+    this.notifySnapshotChange();
   }
 
   /** Get root node */
@@ -274,8 +383,14 @@ export class StateTreeNode implements IStateTreeNode {
     // Mark as dead
     this.$isAlive = false;
 
-    // Remove from registry
+    // Notify lifecycle listeners
+    notifyLifecycleChange(this, false);
+
+    // Remove from node registry
     nodeRegistry.delete(this.$id);
+
+    // Unregister from finalization registry (already destroyed, don't need GC cleanup)
+    nodeFinalizationRegistry.unregister(this);
 
     // Clear listeners
     this.snapshotListeners.clear();
@@ -293,7 +408,7 @@ export class StateTreeNode implements IStateTreeNode {
         }
       }
       this.$parent = null;
-      this.$path = '';
+      this.$path = "";
     }
   }
 }
@@ -303,19 +418,21 @@ export class StateTreeNode implements IStateTreeNode {
 // ============================================================================
 
 /** Symbol to access the tree node from an instance */
-export const $treenode = Symbol.for('jotai-state-tree-node');
+export const $treenode = Symbol.for("jotai-state-tree-node");
 
 /** Get the tree node from an instance */
 export function getStateTreeNode(instance: unknown): StateTreeNode {
-  if (instance && typeof instance === 'object' && $treenode in instance) {
+  if (instance && typeof instance === "object" && $treenode in instance) {
     return (instance as Record<typeof $treenode, StateTreeNode>)[$treenode];
   }
-  throw new Error('[jotai-state-tree] Value is not a state tree node');
+  throw new Error("[jotai-state-tree] Value is not a state tree node");
 }
 
 /** Check if value has a tree node */
 export function hasStateTreeNode(instance: unknown): boolean {
-  return instance !== null && typeof instance === 'object' && $treenode in instance;
+  return (
+    instance !== null && typeof instance === "object" && $treenode in instance
+  );
 }
 
 /** Get snapshot from a node */
@@ -324,31 +441,31 @@ export function getSnapshotFromNode(node: StateTreeNode): unknown {
   const value = node.getValue();
 
   // Handle based on type kind
-  if (type._kind === 'model') {
+  if (type._kind === "model") {
     const snapshot: Record<string, unknown> = {};
     const children = node.getChildren();
-    
+
     for (const [key, childNode] of children) {
       snapshot[key] = getSnapshotFromNode(childNode);
     }
-    
+
     // Apply post processor if exists
     if (node.postProcessor) {
       return node.postProcessor(snapshot);
     }
-    
+
     return snapshot;
   }
-  
-  if (type._kind === 'array') {
+
+  if (type._kind === "array") {
     const arr = value as unknown[];
     return arr.map((_, index) => {
       const childNode = node.getChild(String(index));
       return childNode ? getSnapshotFromNode(childNode) : arr[index];
     });
   }
-  
-  if (type._kind === 'map') {
+
+  if (type._kind === "map") {
     const snapshot: Record<string, unknown> = {};
     const children = node.getChildren();
     for (const [key, childNode] of children) {
@@ -357,7 +474,7 @@ export function getSnapshotFromNode(node: StateTreeNode): unknown {
     return snapshot;
   }
 
-  if (type._kind === 'reference') {
+  if (type._kind === "reference") {
     // Return the identifier, not the resolved value
     return node.identifierValue ?? value;
   }
@@ -369,7 +486,7 @@ export function getSnapshotFromNode(node: StateTreeNode): unknown {
 /** Apply snapshot to a node */
 export function applySnapshotToNode(node: StateTreeNode, snapshot: unknown) {
   if (!node.$isAlive) {
-    throw new Error('[jotai-state-tree] Cannot apply snapshot to a dead node');
+    throw new Error("[jotai-state-tree] Cannot apply snapshot to a dead node");
   }
 
   const type = node.$type;
@@ -379,19 +496,27 @@ export function applySnapshotToNode(node: StateTreeNode, snapshot: unknown) {
     snapshot = node.preProcessor(snapshot);
   }
 
-  if (type._kind === 'model' && typeof snapshot === 'object' && snapshot !== null) {
+  if (
+    type._kind === "model" &&
+    typeof snapshot === "object" &&
+    snapshot !== null
+  ) {
     const snapshotObj = snapshot as Record<string, unknown>;
     const children = node.getChildren();
-    
+
     for (const [key, childNode] of children) {
       if (key in snapshotObj) {
         applySnapshotToNode(childNode, snapshotObj[key]);
       }
     }
-  } else if (type._kind === 'array' && Array.isArray(snapshot)) {
+  } else if (type._kind === "array" && Array.isArray(snapshot)) {
     // For arrays, we need to reconcile
     node.setValue(snapshot);
-  } else if (type._kind === 'map' && typeof snapshot === 'object' && snapshot !== null) {
+  } else if (
+    type._kind === "map" &&
+    typeof snapshot === "object" &&
+    snapshot !== null
+  ) {
     // For maps, replace all entries
     node.setValue(snapshot);
   } else {
@@ -403,16 +528,112 @@ export function applySnapshotToNode(node: StateTreeNode, snapshot: unknown) {
 /** Look up a node by identifier */
 export function resolveIdentifier(
   typeName: string,
-  identifier: string | number
+  identifier: string | number,
 ): StateTreeNode | undefined {
-  return identifierRegistry.get(typeName)?.get(identifier);
+  const weakRef = identifierRegistry.get(typeName)?.get(identifier);
+  return weakRef?.deref();
 }
 
 /** Get all nodes of a type */
 export function getNodesOfType(typeName: string): StateTreeNode[] {
   const typeMap = identifierRegistry.get(typeName);
   if (!typeMap) return [];
-  return Array.from(typeMap.values());
+
+  const nodes: StateTreeNode[] = [];
+  for (const weakRef of typeMap.values()) {
+    const node = weakRef.deref();
+    if (node) {
+      nodes.push(node);
+    }
+  }
+  return nodes;
+}
+
+// ============================================================================
+// Registry Statistics (for testing and debugging)
+// ============================================================================
+
+/** Get statistics about the registries - useful for debugging memory issues */
+export function getRegistryStats(): {
+  nodeRegistrySize: number;
+  identifierRegistrySize: number;
+  identifierTypeCount: number;
+  liveNodeCount: number;
+  staleNodeCount: number;
+} {
+  let liveNodeCount = 0;
+  let staleNodeCount = 0;
+
+  for (const entry of nodeRegistry.values()) {
+    const node = entry.node.deref();
+    // A node is "live" if it exists AND $isAlive is true
+    if (node && node.$isAlive) {
+      liveNodeCount++;
+    } else {
+      staleNodeCount++;
+    }
+  }
+
+  let identifierCount = 0;
+  for (const typeMap of identifierRegistry.values()) {
+    // Only count identifiers that point to live nodes
+    for (const weakRef of typeMap.values()) {
+      const node = weakRef.deref();
+      if (node && node.$isAlive) {
+        identifierCount++;
+      }
+    }
+  }
+
+  return {
+    nodeRegistrySize: nodeRegistry.size,
+    identifierRegistrySize: identifierCount,
+    identifierTypeCount: identifierRegistry.size,
+    liveNodeCount,
+    staleNodeCount,
+  };
+}
+
+/** Clean up stale entries from registries - call periodically if needed */
+export function cleanupStaleEntries(): number {
+  let cleaned = 0;
+
+  // Clean stale node entries
+  for (const [id, entry] of nodeRegistry.entries()) {
+    if (!entry.node.deref()) {
+      nodeRegistry.delete(id);
+      cleaned++;
+    }
+  }
+
+  // Clean stale identifier entries
+  for (const [typeName, typeMap] of identifierRegistry.entries()) {
+    for (const [identifier, weakRef] of typeMap.entries()) {
+      if (!weakRef.deref()) {
+        typeMap.delete(identifier);
+        cleaned++;
+      }
+    }
+    if (typeMap.size === 0) {
+      identifierRegistry.delete(typeName);
+    }
+  }
+
+  return cleaned;
+}
+
+/** Clear all registries - useful for testing */
+export function clearAllRegistries(): void {
+  // First, mark all nodes as dead before clearing
+  for (const entry of nodeRegistry.values()) {
+    const node = entry.node.deref();
+    if (node) {
+      node.$isAlive = false;
+    }
+  }
+  nodeRegistry.clear();
+  identifierRegistry.clear();
+  nodeIdCounter = 0;
 }
 
 // ============================================================================
@@ -431,7 +652,7 @@ export function getParent<T = unknown>(target: unknown, depth: number = 1): T {
   let node = getStateTreeNode(target);
   for (let i = 0; i < depth; i++) {
     if (!node.$parent) {
-      throw new Error('[jotai-state-tree] Cannot get parent of root node');
+      throw new Error("[jotai-state-tree] Cannot get parent of root node");
     }
     node = node.$parent;
   }
@@ -439,7 +660,10 @@ export function getParent<T = unknown>(target: unknown, depth: number = 1): T {
 }
 
 /** Try to get the parent, returns undefined if at root */
-export function tryGetParent<T = unknown>(target: unknown, depth: number = 1): T | undefined {
+export function tryGetParent<T = unknown>(
+  target: unknown,
+  depth: number = 1,
+): T | undefined {
   try {
     return getParent<T>(target, depth);
   } catch {
@@ -460,17 +684,19 @@ export function hasParent(target: unknown, depth: number = 1): boolean {
 /** Get parent of specific type */
 export function getParentOfType<T extends IAnyModelType>(
   target: unknown,
-  type: T
+  type: T,
 ): T extends IType<unknown, unknown, infer I> ? I : never {
   let node: StateTreeNode | null = getStateTreeNode(target).$parent;
-  
+
   while (node) {
     if (node.$type === type || node.$type.name === type.name) {
-      return node.getInstance() as T extends IType<unknown, unknown, infer I> ? I : never;
+      return node.getInstance() as T extends IType<unknown, unknown, infer I>
+        ? I
+        : never;
     }
     node = node.$parent;
   }
-  
+
   throw new Error(`[jotai-state-tree] No parent of type '${type.name}' found`);
 }
 
@@ -482,7 +708,7 @@ export function getPath(target: unknown): string {
 /** Get path parts as array */
 export function getPathParts(target: unknown): string[] {
   const path = getPath(target);
-  return path ? path.split('/').filter(Boolean) : [];
+  return path ? path.split("/").filter(Boolean) : [];
 }
 
 /** Get the environment */
@@ -560,7 +786,7 @@ export function applySnapshot<S>(target: unknown, snapshot: S): void {
 /** Subscribe to snapshots */
 export function onSnapshot<S>(
   target: unknown,
-  listener: (snapshot: S) => void
+  listener: (snapshot: S) => void,
 ): IDisposer {
   const node = getStateTreeNode(target);
   return node.onSnapshot(listener as (snapshot: unknown) => void);
@@ -569,26 +795,29 @@ export function onSnapshot<S>(
 /** Subscribe to patches */
 export function onPatch(
   target: unknown,
-  listener: (patch: IJsonPatch, reversePatch: IReversibleJsonPatch) => void
+  listener: (patch: IJsonPatch, reversePatch: IReversibleJsonPatch) => void,
 ): IDisposer {
   const node = getStateTreeNode(target);
   return node.onPatch(listener);
 }
 
 /** Apply a single patch */
-export function applyPatch(target: unknown, patch: IJsonPatch | IJsonPatch[]): void {
+export function applyPatch(
+  target: unknown,
+  patch: IJsonPatch | IJsonPatch[],
+): void {
   const patches = Array.isArray(patch) ? patch : [patch];
   const rootNode = getStateTreeNode(target).getRoot();
-  
+
   for (const p of patches) {
     applyPatchToNode(rootNode, p);
   }
 }
 
 function applyPatchToNode(rootNode: StateTreeNode, patch: IJsonPatch): void {
-  const pathParts = patch.path.split('/').filter(Boolean);
+  const pathParts = patch.path.split("/").filter(Boolean);
   let node = rootNode;
-  
+
   // Navigate to the target node
   for (let i = 0; i < pathParts.length - 1; i++) {
     const childNode = node.getChild(pathParts[i]);
@@ -597,11 +826,11 @@ function applyPatchToNode(rootNode: StateTreeNode, patch: IJsonPatch): void {
     }
     node = childNode;
   }
-  
+
   const key = pathParts[pathParts.length - 1];
-  
+
   switch (patch.op) {
-    case 'replace': {
+    case "replace": {
       const childNode = node.getChild(key);
       if (childNode) {
         applySnapshotToNode(childNode, patch.value);
@@ -613,25 +842,25 @@ function applyPatchToNode(rootNode: StateTreeNode, patch: IJsonPatch): void {
       }
       break;
     }
-    case 'add': {
+    case "add": {
       const currentValue = node.getValue();
       if (Array.isArray(currentValue)) {
-        const index = key === '-' ? currentValue.length : parseInt(key, 10);
+        const index = key === "-" ? currentValue.length : parseInt(key, 10);
         currentValue.splice(index, 0, patch.value);
         node.setValue([...currentValue]);
-      } else if (typeof currentValue === 'object' && currentValue !== null) {
+      } else if (typeof currentValue === "object" && currentValue !== null) {
         (currentValue as Record<string, unknown>)[key] = patch.value;
         node.setValue({ ...currentValue });
       }
       break;
     }
-    case 'remove': {
+    case "remove": {
       const currentValue = node.getValue();
       if (Array.isArray(currentValue)) {
         const index = parseInt(key, 10);
         currentValue.splice(index, 1);
         node.setValue([...currentValue]);
-      } else if (typeof currentValue === 'object' && currentValue !== null) {
+      } else if (typeof currentValue === "object" && currentValue !== null) {
         delete (currentValue as Record<string, unknown>)[key];
         node.setValue({ ...currentValue });
       }
@@ -652,14 +881,14 @@ export function recordPatches(target: unknown): {
   const patches: IJsonPatch[] = [];
   const inversePatches: IReversibleJsonPatch[] = [];
   let recording = true;
-  
+
   const disposer = onPatch(target, (patch, reversePatch) => {
     if (recording) {
       patches.push(patch);
       inversePatches.push(reversePatch);
     }
   });
-  
+
   return {
     patches,
     inversePatches,
@@ -692,6 +921,24 @@ interface ActionContext {
 let currentAction: ActionContext | null = null;
 const actionListeners = new Set<(call: ActionCall) => void>();
 
+/** Action recorder hooks - set by lifecycle.ts to avoid circular imports */
+const actionRecorderHooks: Array<
+  (node: StateTreeNode, call: ActionCall) => void
+> = [];
+
+/** Register an action recorder hook (called by lifecycle.ts) */
+export function registerActionRecorderHook(
+  hook: (node: StateTreeNode, call: ActionCall) => void,
+): () => void {
+  actionRecorderHooks.push(hook);
+  return () => {
+    const index = actionRecorderHooks.indexOf(hook);
+    if (index >= 0) {
+      actionRecorderHooks.splice(index, 1);
+    }
+  };
+}
+
 export interface ActionCall {
   name: string;
   path: string;
@@ -703,14 +950,14 @@ export function trackAction<T>(
   node: StateTreeNode,
   name: string,
   args: unknown[],
-  fn: () => T
+  fn: () => T,
 ): T {
   const previousAction = currentAction;
   currentAction = { name, args, tree: node };
-  
+
   try {
     const result = fn();
-    
+
     // Notify action listeners
     const call: ActionCall = {
       name,
@@ -718,7 +965,10 @@ export function trackAction<T>(
       args,
     };
     actionListeners.forEach((listener) => listener(call));
-    
+
+    // Notify action recorder hooks (registered by lifecycle.ts)
+    actionRecorderHooks.forEach((hook) => hook(node, call));
+
     return result;
   } finally {
     currentAction = previousAction;
@@ -728,7 +978,7 @@ export function trackAction<T>(
 /** Subscribe to action calls */
 export function onAction(
   target: unknown,
-  listener: (call: ActionCall) => void
+  listener: (call: ActionCall) => void,
 ): IDisposer {
   actionListeners.add(listener);
   return () => {
@@ -741,12 +991,9 @@ export function onAction(
 // ============================================================================
 
 /** Walk the tree */
-export function walk(
-  target: unknown,
-  visitor: (node: unknown) => void
-): void {
+export function walk(target: unknown, visitor: (node: unknown) => void): void {
   const treeNode = getStateTreeNode(target);
-  
+
   function visitNode(node: StateTreeNode) {
     const instance = node.getInstance();
     if (instance) {
@@ -754,46 +1001,50 @@ export function walk(
     }
     node.getChildren().forEach(visitNode);
   }
-  
+
   visitNode(treeNode);
 }
 
 /** Get all members (properties) of a node */
 export function getMembers(target: unknown): {
   name: string;
-  type: 'view' | 'action' | 'property' | 'volatile';
+  type: "view" | "action" | "property" | "volatile";
   value: unknown;
 }[] {
-  const result: { name: string; type: 'view' | 'action' | 'property' | 'volatile'; value: unknown }[] = [];
+  const result: {
+    name: string;
+    type: "view" | "action" | "property" | "volatile";
+    value: unknown;
+  }[] = [];
   const node = getStateTreeNode(target);
   const instance = target as Record<string, unknown>;
-  
+
   // Get properties from children
   for (const [key] of node.getChildren()) {
     result.push({
       name: key,
-      type: 'property',
+      type: "property",
       value: instance[key],
     });
   }
-  
+
   // Get volatile state
   for (const [key, value] of Object.entries(node.volatileState)) {
     result.push({
       name: key,
-      type: 'volatile',
+      type: "volatile",
       value,
     });
   }
-  
+
   return result;
 }
 
 /** Resolve a path to a node */
 export function resolvePath(target: unknown, path: string): unknown {
-  const parts = path.split('/').filter(Boolean);
+  const parts = path.split("/").filter(Boolean);
   let node = getStateTreeNode(target);
-  
+
   for (const part of parts) {
     const child = node.getChild(part);
     if (!child) {
@@ -801,7 +1052,7 @@ export function resolvePath(target: unknown, path: string): unknown {
     }
     node = child;
   }
-  
+
   return node.getInstance();
 }
 
@@ -818,10 +1069,10 @@ export function tryResolve(target: unknown, path: string): unknown | undefined {
 export function getRelativePath(from: unknown, to: unknown): string {
   const fromNode = getStateTreeNode(from);
   const toNode = getStateTreeNode(to);
-  
-  const fromParts = fromNode.$path.split('/').filter(Boolean);
-  const toParts = toNode.$path.split('/').filter(Boolean);
-  
+
+  const fromParts = fromNode.$path.split("/").filter(Boolean);
+  const toParts = toNode.$path.split("/").filter(Boolean);
+
   // Find common ancestor
   let commonLength = 0;
   for (let i = 0; i < Math.min(fromParts.length, toParts.length); i++) {
@@ -831,32 +1082,32 @@ export function getRelativePath(from: unknown, to: unknown): string {
       break;
     }
   }
-  
+
   // Build relative path
   const upCount = fromParts.length - commonLength;
   const downParts = toParts.slice(commonLength);
-  
+
   const parts: string[] = [];
   for (let i = 0; i < upCount; i++) {
-    parts.push('..');
+    parts.push("..");
   }
   parts.push(...downParts);
-  
-  return parts.join('/') || '.';
+
+  return parts.join("/") || ".";
 }
 
 /** Check if a node is an ancestor of another */
 export function isAncestor(ancestor: unknown, descendant: unknown): boolean {
   const ancestorNode = getStateTreeNode(ancestor);
   let currentNode: StateTreeNode | null = getStateTreeNode(descendant);
-  
+
   while (currentNode) {
     if (currentNode === ancestorNode) {
       return true;
     }
     currentNode = currentNode.$parent;
   }
-  
+
   return false;
 }
 
@@ -868,45 +1119,45 @@ export function haveSameRoot(a: unknown, b: unknown): boolean {
 /** Get all nodes of a specific type in the tree */
 export function findAll<T>(
   target: unknown,
-  predicate: (node: unknown) => node is T
+  predicate: (node: unknown) => node is T,
 ): T[] {
   const results: T[] = [];
-  
+
   walk(target, (node) => {
     if (predicate(node)) {
       results.push(node);
     }
   });
-  
+
   return results;
 }
 
 /** Get the first node matching a predicate */
 export function findFirst<T>(
   target: unknown,
-  predicate: (node: unknown) => node is T
+  predicate: (node: unknown) => node is T,
 ): T | undefined {
   let result: T | undefined;
-  
+
   walk(target, (node) => {
     if (!result && predicate(node)) {
       result = node;
     }
   });
-  
+
   return result;
 }
 
 /** Check if a value is a valid reference target */
 export function isValidReference(
   target: unknown,
-  identifier: string | number
+  identifier: string | number,
 ): boolean {
   if (!hasStateTreeNode(target)) return false;
-  
+
   const node = getStateTreeNode(target);
   const typeName = node.$type.name;
-  
+
   try {
     const resolved = resolveIdentifier(typeName, identifier);
     return resolved !== undefined;
@@ -924,20 +1175,20 @@ export function getTreeStats(target: unknown): {
   let nodeCount = 0;
   let maxDepth = 0;
   const types: Record<string, number> = {};
-  
+
   walk(target, (node) => {
     if (!hasStateTreeNode(node)) return;
-    
+
     const stateNode = getStateTreeNode(node);
     nodeCount++;
-    
-    const depth = stateNode.$path.split('/').filter(Boolean).length;
+
+    const depth = stateNode.$path.split("/").filter(Boolean).length;
     maxDepth = Math.max(maxDepth, depth);
-    
+
     const typeName = stateNode.$type.name;
     types[typeName] = (types[typeName] || 0) + 1;
   });
-  
+
   return {
     nodeCount,
     depth: maxDepth,
@@ -956,15 +1207,15 @@ export function cloneDeep<T>(target: T): T {
 export function getOrCreatePath(
   target: unknown,
   path: string,
-  creator: () => unknown
+  creator: () => unknown,
 ): unknown {
-  const parts = path.split('/').filter(Boolean);
+  const parts = path.split("/").filter(Boolean);
   let node = getStateTreeNode(target);
-  
+
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
     let child = node.getChild(part);
-    
+
     if (!child && i === parts.length - 1) {
       // Last part - create if needed
       const instance = creator();
@@ -972,17 +1223,19 @@ export function getOrCreatePath(
         child = getStateTreeNode(instance);
         node.addChild(part, child);
       } else {
-        throw new Error('[jotai-state-tree] Creator must return a state tree node');
+        throw new Error(
+          "[jotai-state-tree] Creator must return a state tree node",
+        );
       }
     }
-    
+
     if (!child) {
       throw new Error(`[jotai-state-tree] Invalid path: ${path}`);
     }
-    
+
     node = child;
   }
-  
+
   return node.getInstance();
 }
 
@@ -991,7 +1244,7 @@ export function freeze(target: unknown): void {
   const node = getStateTreeNode(target);
   // Mark node as frozen by setting a flag in volatile state
   node.volatileState.$frozen = true;
-  
+
   // Freeze all children
   for (const [, child] of node.getChildren()) {
     const instance = child.getInstance();
@@ -1011,7 +1264,7 @@ export function isFrozen(target: unknown): boolean {
 export function unfreeze(target: unknown): void {
   const node = getStateTreeNode(target);
   delete node.volatileState.$frozen;
-  
+
   // Unfreeze all children
   for (const [, child] of node.getChildren()) {
     const instance = child.getInstance();

@@ -1,10 +1,20 @@
 /**
  * Lifecycle hooks and middleware system
  * Implements afterCreate, beforeDestroy, afterAttach, beforeDetach, etc.
+ *
+ * MEMORY MANAGEMENT:
+ * - Uses WeakMap for all node-keyed registries to allow GC
+ * - Action recorders are stored in WeakMap to prevent memory leaks
+ * - All registries automatically clean up when nodes are garbage collected
  */
 
-import type { IDisposer, IJsonPatch, IReversibleJsonPatch } from './types';
-import { StateTreeNode, getStateTreeNode, hasStateTreeNode } from './tree';
+import type { IDisposer } from "./types";
+import {
+  StateTreeNode,
+  getStateTreeNode,
+  registerActionRecorderHook,
+  type ActionCall,
+} from "./tree";
 
 // ============================================================================
 // Lifecycle Hook Types
@@ -25,7 +35,7 @@ export interface IHooksConfig {
 }
 
 // ============================================================================
-// Hook Registration
+// Hook Registration (WeakMap - allows GC)
 // ============================================================================
 
 const nodeHooks = new WeakMap<StateTreeNode, IHooksConfig>();
@@ -90,7 +100,13 @@ export function runBeforeDestroy(node: StateTreeNode): void {
 // ============================================================================
 
 export interface IMiddlewareEvent {
-  type: 'action' | 'flow_spawn' | 'flow_resume' | 'flow_resume_error' | 'flow_return' | 'flow_throw';
+  type:
+    | "action"
+    | "flow_spawn"
+    | "flow_resume"
+    | "flow_resume_error"
+    | "flow_return"
+    | "flow_throw";
   name: string;
   id: number;
   parentId: number;
@@ -104,8 +120,11 @@ export interface IMiddlewareEvent {
 export interface IMiddlewareHandler {
   (
     call: IMiddlewareEvent,
-    next: (call: IMiddlewareEvent, callback?: (value: unknown) => unknown) => unknown,
-    abort: (value: unknown) => unknown
+    next: (
+      call: IMiddlewareEvent,
+      callback?: (value: unknown) => unknown,
+    ) => unknown,
+    abort: (value: unknown) => unknown,
   ): unknown;
 }
 
@@ -117,7 +136,7 @@ export interface IActionContext {
   parentActionEvent?: IMiddlewareEvent;
 }
 
-// Global middleware stack
+// Global middleware stack - these are global handlers, not per-node
 const middlewareStack: IMiddlewareHandler[] = [];
 let middlewareIdCounter = 0;
 
@@ -127,7 +146,7 @@ let middlewareIdCounter = 0;
 export function addMiddleware(
   target: unknown,
   handler: IMiddlewareHandler,
-  includeHooks: boolean = true
+  includeHooks: boolean = true,
 ): IDisposer {
   middlewareStack.push(handler);
   return () => {
@@ -144,7 +163,7 @@ export function addMiddleware(
 export function createMiddlewareRunner(
   node: StateTreeNode,
   actionName: string,
-  args: unknown[]
+  args: unknown[],
 ): (fn: () => unknown) => unknown {
   if (middlewareStack.length === 0) {
     return (fn) => fn();
@@ -152,7 +171,7 @@ export function createMiddlewareRunner(
 
   const id = ++middlewareIdCounter;
   const event: IMiddlewareEvent = {
-    type: 'action',
+    type: "action",
     name: actionName,
     id,
     parentId: 0,
@@ -173,7 +192,10 @@ export function createMiddlewareRunner(
       return value;
     };
 
-    const next = (call: IMiddlewareEvent, callback?: (value: unknown) => unknown): unknown => {
+    const next = (
+      call: IMiddlewareEvent,
+      callback?: (value: unknown) => unknown,
+    ): unknown => {
       if (aborted) return abortValue;
 
       if (index >= middlewareStack.length) {
@@ -212,12 +234,14 @@ export function getRunningActionContext(): ActionCallContext | null {
 /**
  * Set the current action context
  */
-export function setRunningActionContext(context: ActionCallContext | null): void {
+export function setRunningActionContext(
+  context: ActionCallContext | null,
+): void {
   currentActionContext = context;
 }
 
 // ============================================================================
-// Action Recording
+// Action Recording (WeakMap - allows GC of nodes)
 // ============================================================================
 
 export interface ISerializedActionCall {
@@ -226,14 +250,23 @@ export interface ISerializedActionCall {
   args: unknown[];
 }
 
-const actionRecorders = new Map<StateTreeNode, Set<(action: ISerializedActionCall) => void>>();
+/**
+ * WeakMap for action recorders - allows nodes to be garbage collected
+ * even if they have recorders attached
+ */
+const actionRecorders = new WeakMap<
+  StateTreeNode,
+  Set<(action: ISerializedActionCall) => void>
+>();
 
 /**
  * Record all actions on a subtree
+ *
+ * MEMORY SAFETY: Uses WeakMap so nodes can be garbage collected
+ * even while recording is active. The stop() function properly
+ * cleans up the recorder from the Set.
  */
-export function recordActions(
-  target: unknown
-): {
+export function recordActions(target: unknown): {
   actions: ISerializedActionCall[];
   stop: () => void;
   replay: (target: unknown) => void;
@@ -242,7 +275,10 @@ export function recordActions(
   const actions: ISerializedActionCall[] = [];
 
   const recorder = (action: ISerializedActionCall) => {
-    actions.push(action);
+    // Only record if node is still alive
+    if (node.$isAlive) {
+      actions.push(action);
+    }
   };
 
   let recorders = actionRecorders.get(node);
@@ -255,13 +291,21 @@ export function recordActions(
   return {
     actions,
     stop: () => {
-      recorders?.delete(recorder);
+      const currentRecorders = actionRecorders.get(node);
+      if (currentRecorders) {
+        currentRecorders.delete(recorder);
+        // Clean up empty Sets to avoid memory waste
+        if (currentRecorders.size === 0) {
+          // WeakMap doesn't have delete, but setting to undefined
+          // or just leaving empty Set is fine - WeakMap handles GC
+        }
+      }
     },
     replay: (replayTarget: unknown) => {
       const replayNode = getStateTreeNode(replayTarget);
       for (const action of actions) {
         const instance = replayNode.getInstance() as Record<string, Function>;
-        if (typeof instance[action.name] === 'function') {
+        if (typeof instance[action.name] === "function") {
           instance[action.name](...action.args);
         }
       }
@@ -274,7 +318,7 @@ export function recordActions(
  */
 export function notifyActionRecorders(
   node: StateTreeNode,
-  action: ISerializedActionCall
+  action: ISerializedActionCall,
 ): void {
   // Walk up the tree and notify all recorders
   let current: StateTreeNode | null = node;
@@ -287,8 +331,19 @@ export function notifyActionRecorders(
   }
 }
 
+// Register the action recorder hook with tree.ts
+// This is called at module load time to connect action tracking with recording
+registerActionRecorderHook((node: StateTreeNode, call: ActionCall) => {
+  const action: ISerializedActionCall = {
+    name: call.name,
+    path: call.path,
+    args: call.args,
+  };
+  notifyActionRecorders(node, action);
+});
+
 // ============================================================================
-// Protect / Unprotect
+// Protect / Unprotect (WeakSet - allows GC)
 // ============================================================================
 
 const protectedNodes = new WeakSet<StateTreeNode>();
@@ -337,10 +392,13 @@ export function canWrite(node: StateTreeNode): boolean {
 /**
  * Type check a value against a type, throwing if invalid
  */
-export function typecheck<T>(type: { is(v: unknown): v is T; name: string }, value: unknown): void {
+export function typecheck<T>(
+  type: { is(v: unknown): v is T; name: string },
+  value: unknown,
+): void {
   if (!type.is(value)) {
     throw new Error(
-      `[jotai-state-tree] Value ${JSON.stringify(value)} is not assignable to type '${type.name}'`
+      `[jotai-state-tree] Value ${JSON.stringify(value)} is not assignable to type '${type.name}'`,
     );
   }
 }
@@ -350,7 +408,7 @@ export function typecheck<T>(type: { is(v: unknown): v is T; name: string }, val
  */
 export function tryResolve<T>(
   type: { create(s: unknown): T; is(v: unknown): v is T },
-  value: unknown
+  value: unknown,
 ): T | undefined {
   try {
     if (type.is(value)) {
@@ -377,7 +435,10 @@ export function getType(target: unknown): unknown {
 /**
  * Check if a value is of a specific type
  */
-export function isType(value: unknown, type: { is(v: unknown): boolean }): boolean {
+export function isType(
+  value: unknown,
+  type: { is(v: unknown): boolean },
+): boolean {
   return type.is(value);
 }
 
@@ -391,12 +452,14 @@ export function isType(value: unknown, type: { is(v: unknown): boolean }): boole
 export function getChildType(target: unknown, propertyName: string): unknown {
   const node = getStateTreeNode(target);
   const type = node.$type as { properties?: Record<string, unknown> };
-  
+
   if (type.properties && propertyName in type.properties) {
     return type.properties[propertyName];
   }
-  
-  throw new Error(`[jotai-state-tree] Property '${propertyName}' not found on type '${(type as { name?: string }).name}'`);
+
+  throw new Error(
+    `[jotai-state-tree] Property '${propertyName}' not found on type '${(type as { name?: string }).name}'`,
+  );
 }
 
 // ============================================================================
@@ -406,27 +469,32 @@ export function getChildType(target: unknown, propertyName: string): unknown {
 /**
  * Apply an action call to a target
  */
-export function applyAction(target: unknown, action: ISerializedActionCall): unknown {
+export function applyAction(
+  target: unknown,
+  action: ISerializedActionCall,
+): unknown {
   const node = getStateTreeNode(target);
-  
+
   // Navigate to the correct node using path
   let currentNode = node;
   if (action.path) {
-    const parts = action.path.split('/').filter(Boolean);
+    const parts = action.path.split("/").filter(Boolean);
     for (const part of parts) {
       const child = currentNode.getChild(part);
       if (!child) {
-        throw new Error(`[jotai-state-tree] Invalid action path: ${action.path}`);
+        throw new Error(
+          `[jotai-state-tree] Invalid action path: ${action.path}`,
+        );
       }
       currentNode = child;
     }
   }
-  
+
   const instance = currentNode.getInstance() as Record<string, Function>;
-  if (typeof instance[action.name] !== 'function') {
+  if (typeof instance[action.name] !== "function") {
     throw new Error(`[jotai-state-tree] Action '${action.name}' not found`);
   }
-  
+
   return instance[action.name](...action.args);
 }
 
@@ -438,28 +506,28 @@ export function applyAction(target: unknown, action: ISerializedActionCall): unk
  * Escape a JSON pointer segment
  */
 export function escapeJsonPath(path: string): string {
-  return path.replace(/~/g, '~0').replace(/\//g, '~1');
+  return path.replace(/~/g, "~0").replace(/\//g, "~1");
 }
 
 /**
  * Unescape a JSON pointer segment
  */
 export function unescapeJsonPath(path: string): string {
-  return path.replace(/~1/g, '/').replace(/~0/g, '~');
+  return path.replace(/~1/g, "/").replace(/~0/g, "~");
 }
 
 /**
  * Split a path into segments
  */
 export function splitJsonPath(path: string): string[] {
-  return path.split('/').filter(Boolean).map(unescapeJsonPath);
+  return path.split("/").filter(Boolean).map(unescapeJsonPath);
 }
 
 /**
  * Join path segments
  */
 export function joinJsonPath(parts: string[]): string {
-  return parts.map(escapeJsonPath).join('/');
+  return parts.map(escapeJsonPath).join("/");
 }
 
 // ============================================================================
@@ -491,7 +559,10 @@ export function createDependencyTracker(): DependencyTracker {
 /**
  * Run a function with dependency tracking
  */
-export function withDependencyTracking<T>(tracker: DependencyTracker, fn: () => T): T {
+export function withDependencyTracking<T>(
+  tracker: DependencyTracker,
+  fn: () => T,
+): T {
   const previous = currentTracker;
   currentTracker = tracker;
   try {

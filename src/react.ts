@@ -16,15 +16,22 @@ import React, {
   type ForwardedRef,
   type ReactNode,
   type FC,
-} from 'react';
-import { useAtom, useAtomValue, useSetAtom, type Atom, type WritableAtom } from 'jotai';
+} from "react";
+import {
+  useAtom,
+  useAtomValue,
+  useSetAtom,
+  type Atom,
+  type WritableAtom,
+} from "jotai";
 import {
   getStateTreeNode,
   hasStateTreeNode,
   onSnapshot,
   getSnapshot,
+  onLifecycleChange,
   type IDisposer,
-} from './tree';
+} from "./tree";
 
 // ============================================================================
 // Observer HOC
@@ -40,9 +47,9 @@ interface ObserverOptions {
  */
 export function observer<P extends object>(
   Component: ComponentType<P>,
-  options?: ObserverOptions
+  options?: ObserverOptions,
 ): ComponentType<P> {
-  const displayName = Component.displayName || Component.name || 'Component';
+  const displayName = Component.displayName || Component.name || "Component";
 
   const ObserverComponent = memo((props: P) => {
     const [, forceUpdate] = useState({});
@@ -62,7 +69,7 @@ export function observer<P extends object>(
 
     // Create a proxy for tracking property access
     const createTrackingProxy = <T extends object>(target: T): T => {
-      if (!target || typeof target !== 'object') return target;
+      if (!target || typeof target !== "object") return target;
       if (hasStateTreeNode(target)) {
         trackNode(target);
       }
@@ -70,7 +77,7 @@ export function observer<P extends object>(
       return new Proxy(target, {
         get(obj, prop) {
           const value = (obj as Record<string | symbol, unknown>)[prop];
-          if (value && typeof value === 'object' && hasStateTreeNode(value)) {
+          if (value && typeof value === "object" && hasStateTreeNode(value)) {
             trackNode(value);
             return createTrackingProxy(value as object);
           }
@@ -92,7 +99,7 @@ export function observer<P extends object>(
     const trackedProps = useMemo(() => {
       const tracked: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(props)) {
-        if (value && typeof value === 'object') {
+        if (value && typeof value === "object") {
           tracked[key] = createTrackingProxy(value as object);
         } else {
           tracked[key] = value;
@@ -109,7 +116,10 @@ export function observer<P extends object>(
   if (options?.forwardRef) {
     const ForwardedComponent = forwardRef<unknown, P>((props, ref) => {
       const propsWithRef = Object.assign({}, props, { ref });
-      return React.createElement(ObserverComponent as unknown as ComponentType<P>, propsWithRef as P);
+      return React.createElement(
+        ObserverComponent as unknown as ComponentType<P>,
+        propsWithRef as P,
+      );
     });
     ForwardedComponent.displayName = `ForwardRef(${displayName})`;
     return ForwardedComponent as unknown as ComponentType<P>;
@@ -129,7 +139,7 @@ interface ObserverComponentProps {
 /**
  * Observer component using render props pattern.
  * Useful for inline observation.
- * 
+ *
  * @example
  * <Observer>
  *   {() => <div>{store.count}</div>}
@@ -185,7 +195,7 @@ export function useObserver<T>(fn: () => T): T {
  */
 export function useLocalObservable<T>(
   initializer: () => T,
-  dependencies: unknown[] = []
+  dependencies: unknown[] = [],
 ): T {
   const [, forceUpdate] = useState({});
   const storeRef = useRef<T | null>(null);
@@ -235,21 +245,32 @@ export function useLocalObservable<T>(
  * This provides better concurrent mode support.
  */
 export function useSyncedStore<T>(store: T): T {
+  // Cache the snapshot to provide stable reference for useSyncExternalStore
+  const snapshotRef = useRef<unknown>(null);
+
   const subscribe = useCallback(
     (callback: () => void) => {
       if (!hasStateTreeNode(store)) {
         return () => {};
       }
-      return onSnapshot(store, callback);
+      return onSnapshot(store, () => {
+        // Update cached snapshot on change
+        snapshotRef.current = getSnapshot(store);
+        callback();
+      });
     },
-    [store]
+    [store],
   );
 
   const getSnapshotValue = useCallback(() => {
     if (!hasStateTreeNode(store)) {
-      return store;
+      return null;
     }
-    return getSnapshot(store);
+    // Return cached snapshot for stable reference comparison
+    if (snapshotRef.current === null) {
+      snapshotRef.current = getSnapshot(store);
+    }
+    return snapshotRef.current;
   }, [store]);
 
   useSyncExternalStore(subscribe, getSnapshotValue, getSnapshotValue);
@@ -265,7 +286,9 @@ interface StoreContextValue<T> {
   store: T;
 }
 
-const StoreContext = React.createContext<StoreContextValue<unknown> | null>(null);
+const StoreContext = React.createContext<StoreContextValue<unknown> | null>(
+  null,
+);
 
 interface ProviderProps<T> {
   store: T;
@@ -275,7 +298,10 @@ interface ProviderProps<T> {
 /**
  * Provider component for state tree stores.
  */
-export function Provider<T>({ store, children }: ProviderProps<T>): JSX.Element {
+export function Provider<T>({
+  store,
+  children,
+}: ProviderProps<T>): JSX.Element {
   const value = useMemo(() => ({ store }), [store]);
   return React.createElement(StoreContext.Provider, { value }, children);
 }
@@ -286,7 +312,9 @@ export function Provider<T>({ store, children }: ProviderProps<T>): JSX.Element 
 export function useStore<T>(): T {
   const context = React.useContext(StoreContext);
   if (!context) {
-    throw new Error('[jotai-state-tree] useStore must be used within a Provider');
+    throw new Error(
+      "[jotai-state-tree] useStore must be used within a Provider",
+    );
   }
   return context.store as T;
 }
@@ -294,7 +322,9 @@ export function useStore<T>(): T {
 /**
  * Hook to access the store with snapshot subscription.
  */
-export function useStoreSnapshot<T, S = unknown>(selector?: (store: T) => S): T | S {
+export function useStoreSnapshot<T, S = unknown>(
+  selector?: (store: T) => S,
+): T | S {
   const store = useStore<T>();
   const [, forceUpdate] = useState({});
 
@@ -340,14 +370,14 @@ export function useSnapshot<T>(target: unknown): T {
 export function useWatchPath<T>(
   target: unknown,
   path: string,
-  defaultValue?: T
+  defaultValue?: T,
 ): T {
   const [value, setValue] = useState<T>(() => {
     const snapshot = getSnapshot(target) as Record<string, unknown>;
-    const parts = path.split('.');
+    const parts = path.split(".");
     let current: unknown = snapshot;
     for (const part of parts) {
-      if (current && typeof current === 'object' && part in current) {
+      if (current && typeof current === "object" && part in current) {
         current = (current as Record<string, unknown>)[part];
       } else {
         return defaultValue as T;
@@ -359,10 +389,10 @@ export function useWatchPath<T>(
   useEffect(() => {
     const disposer = onSnapshot(target, (newSnapshot) => {
       const snapshot = newSnapshot as Record<string, unknown>;
-      const parts = path.split('.');
+      const parts = path.split(".");
       let current: unknown = snapshot;
       for (const part of parts) {
-        if (current && typeof current === 'object' && part in current) {
+        if (current && typeof current === "object" && part in current) {
           current = (current as Record<string, unknown>)[part];
         } else {
           setValue(defaultValue as T);
@@ -382,10 +412,10 @@ export function useWatchPath<T>(
  */
 export function usePatches(
   target: unknown,
-  callback: (patch: { op: string; path: string; value?: unknown }) => void
+  callback: (patch: { op: string; path: string; value?: unknown }) => void,
 ): void {
   useEffect(() => {
-    const { onPatch } = require('./tree');
+    const { onPatch } = require("./tree");
     const disposer = onPatch(target, callback);
     return disposer;
   }, [target, callback]);
@@ -399,16 +429,18 @@ export function usePatches(
  * Hook that returns an action bound to a store.
  * Useful for passing actions to child components.
  */
-export function useAction<T extends (...args: unknown[]) => unknown>(action: T): T {
+export function useAction<T extends (...args: unknown[]) => unknown>(
+  action: T,
+): T {
   return useMemo(() => action, [action]);
 }
 
 /**
  * Hook that returns multiple actions bound to a store.
  */
-export function useActions<T extends Record<string, (...args: unknown[]) => unknown>>(
-  actions: T
-): T {
+export function useActions<
+  T extends Record<string, (...args: unknown[]) => unknown>,
+>(actions: T): T {
   return useMemo(() => actions, [actions]);
 }
 
@@ -452,7 +484,8 @@ export function scheduleUpdate(update: () => void): void {
 // ============================================================================
 
 /**
- * Hook that returns whether a node is alive
+ * Hook that returns whether a node is alive.
+ * Uses proper subscription instead of polling for better performance.
  */
 export function useIsAlive(target: unknown): boolean {
   const [isAlive, setIsAlive] = useState(() => {
@@ -462,16 +495,17 @@ export function useIsAlive(target: unknown): boolean {
 
   useEffect(() => {
     if (!hasStateTreeNode(target)) return;
-    
+
     const node = getStateTreeNode(target);
     setIsAlive(node.$isAlive);
-    
-    // Poll for changes (not ideal but works for simple cases)
-    const interval = setInterval(() => {
-      setIsAlive(node.$isAlive);
-    }, 100);
-    
-    return () => clearInterval(interval);
+
+    // Subscribe to lifecycle changes using proper event system
+    // This is much more efficient than polling
+    const disposer = onLifecycleChange(node, (alive) => {
+      setIsAlive(alive);
+    });
+
+    return disposer;
   }, [target]);
 
   return isAlive;

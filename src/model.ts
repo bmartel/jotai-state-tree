@@ -15,6 +15,7 @@ import type {
   ModelCreationType,
   ModelSnapshotType,
   ModelInstance,
+  ModelInstanceType,
   ModelViews,
   ModelActions,
   ModelVolatile,
@@ -22,6 +23,8 @@ import type {
   IValidationContext,
   IValidationResult,
   IAnyType,
+  IMixin,
+  MixinConfig,
 } from "./types";
 import {
   StateTreeNode,
@@ -748,6 +751,93 @@ class ModelType<
       },
     });
   }
+
+  /**
+   * Apply a mixin to this model.
+   * The mixin's views, actions, and volatile state are added to the model.
+   */
+  apply<
+    RequiredProps extends ModelProperties,
+    MV extends object,
+    MA extends object,
+    MVol extends object,
+  >(
+    mixinDef: IMixin<RequiredProps, MV, MA, MVol>,
+  ): P extends RequiredProps
+    ? IModelType<P, V & MV, A & MA, Vol & MVol>
+    : never {
+    // Create wrapper functions that adapt the mixin's functions to work with our full self type
+    const newViews: ModelViews<
+      ModelInstance<P, V, A, Vol> & V & A & Vol,
+      object
+    >[] = [];
+    const newActions: ModelActions<
+      ModelInstance<P, V, A, Vol> & V & A & Vol,
+      object
+    >[] = [];
+    const newVolatiles: ModelVolatile<
+      ModelInstance<P, V, A, Vol> & V & A & Vol,
+      object
+    >[] = [];
+
+    if (mixinDef.views) {
+      const viewsFn = mixinDef.views;
+      newViews.push((self) =>
+        viewsFn(self as unknown as ModelInstanceType<RequiredProps>),
+      );
+    }
+
+    if (mixinDef.actions) {
+      const actionsFn = mixinDef.actions;
+      newActions.push((self) =>
+        actionsFn(self as unknown as ModelInstanceType<RequiredProps> & MV),
+      );
+    }
+
+    if (mixinDef.volatile) {
+      const volatileFn = mixinDef.volatile;
+      newVolatiles.push((self) =>
+        volatileFn(
+          self as unknown as ModelInstanceType<RequiredProps> & MV & MA,
+        ),
+      );
+    }
+
+    return new ModelType({
+      ...this.config,
+      views: [...this.config.views, ...newViews] as ModelViews<
+        ModelInstance<P, V & MV, A & MA, Vol & MVol> &
+          (V & MV) &
+          (A & MA) &
+          (Vol & MVol),
+        V & MV
+      >[],
+      actions: [...this.config.actions, ...newActions] as ModelActions<
+        ModelInstance<P, V & MV, A & MA, Vol & MVol> &
+          (V & MV) &
+          (A & MA) &
+          (Vol & MVol),
+        A & MA
+      >[],
+      volatiles: [...this.config.volatiles, ...newVolatiles] as ModelVolatile<
+        ModelInstance<P, V & MV, A & MA, Vol & MVol> &
+          (V & MV) &
+          (A & MA) &
+          (Vol & MVol),
+        Vol & MVol
+      >[],
+    }) as unknown as P extends RequiredProps
+      ? IModelType<P, V & MV, A & MA, Vol & MVol>
+      : never;
+  }
+
+  /**
+   * Get the internal config for use by compose
+   * @internal
+   */
+  getConfig(): ModelTypeConfig<P, V, A, Vol> {
+    return this.config;
+  }
 }
 
 // ============================================================================
@@ -820,13 +910,102 @@ export function compose(...args: unknown[]): unknown {
   const name = typeof args[0] === "string" ? args[0] : "ComposedModel";
   const types = (
     typeof args[0] === "string" ? args.slice(1) : args
-  ) as IModelType<ModelProperties, object, object, object>[];
+  ) as ModelType<ModelProperties, object, object, object>[];
 
   // Merge all properties
   const mergedProperties: ModelProperties = {};
+
+  // Merge all configs (views, actions, volatiles, hooks)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mergedViews: ModelViews<any, object>[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mergedActions: ModelActions<any, object>[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mergedVolatiles: ModelVolatile<any, object>[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mergedInitializers: Array<(self: any) => void> = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mergedHooks: LifecycleHooks<any> = {};
+
   for (const type of types) {
     Object.assign(mergedProperties, type.properties);
+
+    // Check if this is a ModelType with getConfig
+    if (type instanceof ModelType) {
+      const config = type.getConfig();
+      mergedViews.push(...config.views);
+      mergedActions.push(...config.actions);
+      mergedVolatiles.push(...config.volatiles);
+      mergedInitializers.push(...config.initializers);
+      // Merge hooks (later models override earlier ones)
+      mergedHooks = { ...mergedHooks, ...config.hooks };
+    }
   }
 
-  return model(name, mergedProperties);
+  return new ModelType({
+    name,
+    properties: mergedProperties,
+    views: mergedViews,
+    actions: mergedActions,
+    volatiles: mergedVolatiles,
+    initializers: mergedInitializers,
+    hooks: mergedHooks,
+  });
+}
+
+// ============================================================================
+// Mixin Factory Function
+// ============================================================================
+
+/**
+ * Create a type-safe mixin that can be applied to models.
+ *
+ * Mixins declare:
+ * - `requires`: Properties the mixin needs from any model it's applied to
+ * - `views`: Computed views to add
+ * - `actions`: Actions to add
+ * - `volatile`: Volatile (non-serialized) state to add
+ *
+ * @example
+ * ```typescript
+ * // Create a mixin that adds validation capabilities
+ * const Validatable = types.mixin({
+ *   requires: {
+ *     errors: types.array(types.string),
+ *   },
+ *   views: (self) => ({
+ *     get isValid() { return self.errors.length === 0; },
+ *     get hasErrors() { return self.errors.length > 0; },
+ *   }),
+ *   actions: (self) => ({
+ *     clearErrors() { self.errors.clear(); },
+ *     addError(msg: string) { self.errors.push(msg); },
+ *   }),
+ * });
+ *
+ * // Apply to a model
+ * const FormModel = types
+ *   .model({ name: types.string, errors: types.array(types.string) })
+ *   .apply(Validatable);
+ * ```
+ */
+export function mixin<
+  RequiredProps extends ModelProperties = ModelProperties,
+  V extends object = object,
+  A extends object = object,
+  Vol extends object = object,
+>(
+  config: MixinConfig<RequiredProps, V, A, Vol>,
+): IMixin<RequiredProps, V, A, Vol> {
+  return {
+    _kind: "mixin" as const,
+    requires: (config.requires ?? {}) as RequiredProps,
+    views: config.views,
+    actions: config.actions,
+    volatile: config.volatile,
+    // Phantom types for inference
+    _V: undefined as unknown as V,
+    _A: undefined as unknown as A,
+    _Vol: undefined as unknown as Vol,
+  };
 }

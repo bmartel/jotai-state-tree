@@ -213,6 +213,31 @@ export interface IModelType<
   beforeDestroy(
     fn: (self: ModelInstance<P, V, A, Vol> & V & A & Vol) => void,
   ): IModelType<P, V, A, Vol>;
+
+  /**
+   * Apply a mixin to this model.
+   * The mixin's requirements must be satisfied by this model's properties.
+   *
+   * @example
+   * const Timestamped = types.mixin({
+   *   requires: { createdAt: types.number },
+   *   views: (self) => ({ get formattedDate() { ... } }),
+   * });
+   *
+   * const MyModel = types
+   *   .model({ name: types.string, createdAt: types.number })
+   *   .apply(Timestamped);
+   */
+  apply<
+    RequiredProps extends ModelProperties,
+    MV extends object,
+    MA extends object,
+    MVol extends object,
+  >(
+    mixin: IMixin<RequiredProps, MV, MA, MVol>,
+  ): P extends RequiredProps
+    ? IModelType<P, V & MV, A & MA, Vol & MVol>
+    : never;
 }
 
 // ============================================================================
@@ -508,6 +533,79 @@ export type SnapshotType<T extends IAnyType> =
 /** Extract the instance type from a type */
 export type InstanceType<T extends IAnyType> =
   T extends IType<unknown, unknown, infer I> ? I : never;
+
+// ============================================================================
+// Mixin Types
+// ============================================================================
+
+/**
+ * Extract the full "self" type from a model type.
+ * This includes properties, views, actions, and volatile state.
+ *
+ * @example
+ * const User = types.model({ name: types.string }).views(self => ({ ... }));
+ * type UserSelf = ModelSelf<typeof User>; // includes name + all views
+ */
+export type ModelSelf<M> =
+  M extends IModelType<infer P, infer V, infer A, infer Vol>
+    ? ModelInstance<P, V, A, Vol> & V & A & Vol
+    : never;
+
+/**
+ * Configuration for creating a mixin.
+ * @template RequiredProps - Properties the mixin requires from the base model
+ * @template V - Views the mixin provides
+ * @template A - Actions the mixin provides
+ * @template Vol - Volatile state the mixin provides
+ */
+export interface MixinConfig<
+  RequiredProps extends ModelProperties,
+  V extends object = object,
+  A extends object = object,
+  Vol extends object = object,
+> {
+  /** Properties the mixin requires from any model it's applied to */
+  requires?: RequiredProps;
+  /** Views to add to the model */
+  views?: (self: ModelInstanceType<RequiredProps>) => V;
+  /** Actions to add to the model */
+  actions?: (self: ModelInstanceType<RequiredProps> & V) => A;
+  /** Volatile state to add to the model */
+  volatile?: (self: ModelInstanceType<RequiredProps> & V & A) => Vol;
+}
+
+/**
+ * A mixin that can be applied to models to add views, actions, and volatile state.
+ * Mixins declare what properties they require and what they provide.
+ *
+ * @template RequiredProps - Properties the mixin requires
+ * @template V - Views the mixin provides
+ * @template A - Actions the mixin provides
+ * @template Vol - Volatile state the mixin provides
+ */
+export interface IMixin<
+  RequiredProps extends ModelProperties,
+  V extends object = object,
+  A extends object = object,
+  Vol extends object = object,
+> {
+  readonly _kind: "mixin";
+  /** Properties the mixin requires from the base model */
+  readonly requires: RequiredProps;
+  /** Function to create views */
+  readonly views?: (self: ModelInstanceType<RequiredProps>) => V;
+  /** Function to create actions */
+  readonly actions?: (self: ModelInstanceType<RequiredProps> & V) => A;
+  /** Function to create volatile state */
+  readonly volatile?: (self: ModelInstanceType<RequiredProps> & V & A) => Vol;
+  /** Phantom types for inference */
+  readonly _V: V;
+  readonly _A: A;
+  readonly _Vol: Vol;
+}
+
+/** Any mixin type */
+export type IAnyMixin = IMixin<ModelProperties, object, object, object>;
 
 // ============================================================================
 // Tree Navigation Types

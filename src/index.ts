@@ -113,6 +113,27 @@ import {
 } from "./utilities";
 
 // ============================================================================
+// Model Registry (Dynamic Model Registration)
+// ============================================================================
+
+import {
+  registerModel,
+  unregisterModel,
+  isModelRegistered,
+  resolveModel,
+  tryResolveModel,
+  resolveModelAsync,
+  getModelMetadata,
+  getRegisteredModelNames,
+  onModelRegistered,
+  clearModelRegistry,
+  lateModel,
+  dynamicReference,
+  safeDynamicReference,
+  type DynamicReferenceOptions,
+} from "./registry";
+
+// ============================================================================
 // Types Namespace (MST Compatible)
 // ============================================================================
 
@@ -172,6 +193,11 @@ export const types = {
 
   // Snapshot processing
   snapshotProcessor,
+
+  // Registry-based types (for dynamic model registration)
+  lateModel,
+  dynamicReference,
+  safeDynamicReference,
 };
 
 // Also export types directly for destructuring
@@ -227,7 +253,29 @@ export {
 
   // Snapshot processing
   snapshotProcessor,
+
+  // Registry-based types (for dynamic model registration)
+  lateModel,
+  dynamicReference,
+  safeDynamicReference,
 };
+
+// Also export registry functions directly
+export {
+  // Model registry
+  registerModel,
+  unregisterModel,
+  isModelRegistered,
+  resolveModel,
+  tryResolveModel,
+  resolveModelAsync,
+  getModelMetadata,
+  getRegisteredModelNames,
+  onModelRegistered,
+  clearModelRegistry,
+} from "./registry";
+
+export type { DynamicReferenceOptions } from "./registry";
 
 // ============================================================================
 // Tree Utilities

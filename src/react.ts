@@ -279,7 +279,7 @@ export function useSyncedStore<T>(store: T): T {
 }
 
 // ============================================================================
-// Provider Component
+// Provider Component - Legacy (untyped)
 // ============================================================================
 
 interface StoreContextValue<T> {
@@ -297,6 +297,7 @@ interface ProviderProps<T> {
 
 /**
  * Provider component for state tree stores.
+ * @deprecated Use createStoreContext() for better type inference
  */
 export function Provider<T>({
   store,
@@ -308,6 +309,7 @@ export function Provider<T>({
 
 /**
  * Hook to access the store from context.
+ * @deprecated Use createStoreContext() for better type inference
  */
 export function useStore<T>(): T {
   const context = React.useContext(StoreContext);
@@ -321,10 +323,11 @@ export function useStore<T>(): T {
 
 /**
  * Hook to access the store with snapshot subscription.
+ * @deprecated Use createStoreContext() for better type inference
  */
-export function useStoreSnapshot<T, S = unknown>(
-  selector?: (store: T) => S,
-): T | S {
+export function useStoreSnapshot<T>(): T;
+export function useStoreSnapshot<T, S>(selector: (store: T) => S): S;
+export function useStoreSnapshot<T, S>(selector?: (store: T) => S): T | S {
   const store = useStore<T>();
   const [, forceUpdate] = useState({});
 
@@ -342,6 +345,97 @@ export function useStoreSnapshot<T, S = unknown>(
   }
 
   return store;
+}
+
+// ============================================================================
+// Typed Store Context Factory
+// ============================================================================
+
+/**
+ * Creates a typed store context with Provider and hooks.
+ * This provides full type inference without needing to specify generic types.
+ *
+ * @example
+ * const RootStore = types.model("RootStore", {
+ *   count: types.number,
+ * }).actions(self => ({
+ *   increment() { self.count += 1; }
+ * }));
+ *
+ * type RootStoreInstance = Instance<typeof RootStore>;
+ *
+ * const { Provider, useStore, useStoreSnapshot } = createStoreContext<RootStoreInstance>();
+ *
+ * // In your app:
+ * const store = RootStore.create({ count: 0 });
+ * <Provider store={store}>
+ *   <App />
+ * </Provider>
+ *
+ * // In components:
+ * const store = useStore(); // Fully typed!
+ * store.increment(); // Type-safe
+ */
+export function createStoreContext<T>() {
+  const Context = React.createContext<T | null>(null);
+
+  function StoreProvider({
+    store,
+    children,
+  }: {
+    store: T;
+    children: ReactNode;
+  }): JSX.Element {
+    return React.createElement(Context.Provider, { value: store }, children);
+  }
+
+  function useTypedStore(): T {
+    const store = React.useContext(Context);
+    if (store === null) {
+      throw new Error(
+        "[jotai-state-tree] useStore must be used within a Provider",
+      );
+    }
+    return store;
+  }
+
+  function useTypedStoreSnapshot(): T;
+  function useTypedStoreSnapshot<S>(selector: (store: T) => S): S;
+  function useTypedStoreSnapshot<S>(selector?: (store: T) => S): T | S {
+    const store = useTypedStore();
+    const [, forceUpdate] = useState({});
+
+    useEffect(() => {
+      if (hasStateTreeNode(store)) {
+        return onSnapshot(store, () => {
+          forceUpdate({});
+        });
+      }
+      return () => {};
+    }, [store]);
+
+    if (selector) {
+      return selector(store);
+    }
+
+    return store;
+  }
+
+  /**
+   * Hook that returns whether the store is alive.
+   */
+  function useTypedIsAlive(): boolean {
+    const store = useTypedStore();
+    return useIsAlive(store);
+  }
+
+  return {
+    Provider: StoreProvider,
+    useStore: useTypedStore,
+    useStoreSnapshot: useTypedStoreSnapshot,
+    useIsAlive: useTypedIsAlive,
+    Context,
+  };
 }
 
 // ============================================================================

@@ -7,31 +7,33 @@
 // Snapshot Types
 // ============================================================================
 
-export type SnapshotIn<T> = T extends IModelType<infer P, any, any, any>
-  ? { [K in keyof P]?: SnapshotInOfProperty<P[K]> }
-  : T extends IArrayType<infer I>
-    ? SnapshotIn<I>[]
-    : T extends IMapType<infer V>
-      ? Record<string, SnapshotIn<V>>
-      : T extends IReferenceType<any>
-        ? string | number
-        : T extends IType<infer C, any, any>
-          ? C
-          : T;
+export type SnapshotIn<T> =
+  T extends IModelType<infer P, any, any, any>
+    ? { [K in keyof P]?: SnapshotInOfProperty<P[K]> }
+    : T extends IArrayType<infer I>
+      ? SnapshotIn<I>[]
+      : T extends IMapType<infer V>
+        ? Record<string, SnapshotIn<V>>
+        : T extends IReferenceType<any>
+          ? string | number
+          : T extends IType<infer C, any, any>
+            ? C
+            : T;
 
 type SnapshotInOfProperty<T> = T extends IType<infer C, any, any> ? C : never;
 
-export type SnapshotOut<T> = T extends IModelType<infer P, any, any, any>
-  ? { [K in keyof P]: SnapshotOutOfProperty<P[K]> }
-  : T extends IArrayType<infer I>
-    ? SnapshotOut<I>[]
-    : T extends IMapType<infer V>
-      ? Record<string, SnapshotOut<V>>
-      : T extends IReferenceType<any>
-        ? string | number
-        : T extends IType<any, infer S, any>
-          ? S
-          : T;
+export type SnapshotOut<T> =
+  T extends IModelType<infer P, any, any, any>
+    ? { [K in keyof P]: SnapshotOutOfProperty<P[K]> }
+    : T extends IArrayType<infer I>
+      ? SnapshotOut<I>[]
+      : T extends IMapType<infer V>
+        ? Record<string, SnapshotOut<V>>
+        : T extends IReferenceType<any>
+          ? string | number
+          : T extends IType<any, infer S, any>
+            ? S
+            : T;
 
 type SnapshotOutOfProperty<T> = T extends IType<any, infer S, any> ? S : never;
 
@@ -88,7 +90,7 @@ export interface IValidationError {
 // ============================================================================
 
 export interface ISimpleType<T> extends IType<T, T, T> {
-  readonly _kind: 'simple';
+  readonly _kind: "simple";
 }
 
 // ============================================================================
@@ -143,67 +145,73 @@ export interface IModelType<
     ModelSnapshotType<P>,
     ModelInstance<P, V, A, Vol> & V & A & Vol
   > {
-  readonly _kind: 'model';
+  readonly _kind: "model";
   readonly properties: P;
 
   /** Create a new model type with a different name */
   named(name: string): IModelType<P, V, A, Vol>;
 
   /** Add properties to the model */
-  props<P2 extends ModelProperties>(properties: P2): IModelType<P & P2, V, A, Vol>;
+  props<P2 extends ModelProperties>(
+    properties: P2,
+  ): IModelType<P & P2, V, A, Vol>;
 
   /** Add computed views to the model */
   views<V2 extends object>(
-    fn: ModelViews<ModelInstance<P, V, A, Vol> & V & A & Vol, V2>
+    fn: ModelViews<ModelInstance<P, V, A, Vol> & V & A & Vol, V2>,
   ): IModelType<P, V & V2, A, Vol>;
 
   /** Add actions to the model */
   actions<A2 extends object>(
-    fn: ModelActions<ModelInstance<P, V, A, Vol> & V & A & Vol, A2>
+    fn: ModelActions<ModelInstance<P, V, A, Vol> & V & A & Vol, A2>,
   ): IModelType<P, V, A & A2, Vol>;
 
   /** Add volatile (non-serialized) state */
   volatile<Vol2 extends object>(
-    fn: ModelVolatile<ModelInstance<P, V, A, Vol> & V & A & Vol, Vol2>
+    fn: ModelVolatile<ModelInstance<P, V, A, Vol> & V & A & Vol, Vol2>,
   ): IModelType<P, V, A, Vol & Vol2>;
 
   /** Transform snapshot before creating instance */
   preProcessSnapshot<NewC>(
-    fn: (snapshot: NewC) => ModelCreationType<P>
+    fn: (snapshot: NewC) => ModelCreationType<P>,
   ): IModelType<P, V, A, Vol>;
 
   /** Transform snapshot after getting it */
   postProcessSnapshot<NewS>(
-    fn: (snapshot: ModelSnapshotType<P>) => NewS
+    fn: (snapshot: ModelSnapshotType<P>) => NewS,
   ): IModelType<P, V, A, Vol>;
 
   /** Extend the model with views, actions, and state in one call */
-  extend<V2 extends object = object, A2 extends object = object, Vol2 extends object = object>(
+  extend<
+    V2 extends object = object,
+    A2 extends object = object,
+    Vol2 extends object = object,
+  >(
     fn: (self: ModelInstance<P, V, A, Vol> & V & A & Vol) => {
       views?: V2;
       actions?: A2;
       state?: Vol2;
-    }
+    },
   ): IModelType<P, V & V2, A & A2, Vol & Vol2>;
 
   /** Add afterCreate lifecycle hook */
   afterCreate(
-    fn: (self: ModelInstance<P, V, A, Vol> & V & A & Vol) => void
+    fn: (self: ModelInstance<P, V, A, Vol> & V & A & Vol) => void,
   ): IModelType<P, V, A, Vol>;
 
   /** Add afterAttach lifecycle hook (called when node is attached to tree) */
   afterAttach(
-    fn: (self: ModelInstance<P, V, A, Vol> & V & A & Vol) => void
+    fn: (self: ModelInstance<P, V, A, Vol> & V & A & Vol) => void,
   ): IModelType<P, V, A, Vol>;
 
   /** Add beforeDetach lifecycle hook (called before node is detached from tree) */
   beforeDetach(
-    fn: (self: ModelInstance<P, V, A, Vol> & V & A & Vol) => void
+    fn: (self: ModelInstance<P, V, A, Vol> & V & A & Vol) => void,
   ): IModelType<P, V, A, Vol>;
 
   /** Add beforeDestroy lifecycle hook (called before node is destroyed) */
   beforeDestroy(
-    fn: (self: ModelInstance<P, V, A, Vol> & V & A & Vol) => void
+    fn: (self: ModelInstance<P, V, A, Vol> & V & A & Vol) => void,
   ): IModelType<P, V, A, Vol>;
 }
 
@@ -211,26 +219,55 @@ export interface IModelType<
 // Array Type
 // ============================================================================
 
-export interface IMSTArray<T> extends Array<T> {
+/**
+ * MST Array interface that allows both instance types and snapshot/creation types
+ * for mutation methods like push(), unshift(), splice(), etc.
+ *
+ * @template T - The instance type of array items
+ * @template C - The creation/snapshot type of array items (defaults to T)
+ */
+export interface IMSTArray<T, C = T>
+  extends Omit<Array<T>, "push" | "unshift" | "splice" | "fill"> {
+  /** Array length */
+  readonly length: number;
+  /** Push items (accepts both instances and snapshots) */
+  push(...items: (T | C)[]): number;
+  /** Unshift items (accepts both instances and snapshots) */
+  unshift(...items: (T | C)[]): number;
+  /** Splice items (accepts both instances and snapshots for new items) */
+  splice(start: number, deleteCount?: number, ...items: (T | C)[]): T[];
+  /** Fill with value */
+  fill(value: T | C, start?: number, end?: number): this;
   /** Replace all items */
-  replace(items: T[]): void;
+  replace(items: (T | C)[]): void;
   /** Remove all items */
   clear(): void;
   /** Remove a specific item */
   remove(item: T): boolean;
   /** Splice with array argument */
-  spliceWithArray(index: number, deleteCount?: number, newItems?: T[]): T[];
+  spliceWithArray(
+    index: number,
+    deleteCount?: number,
+    newItems?: (T | C)[],
+  ): T[];
   /** Convert to JSON */
   toJSON(): T[];
+  /** Index access */
+  [index: number]: T;
+  /** Iterator */
+  [Symbol.iterator](): IterableIterator<T>;
 }
 
 export interface IArrayType<T extends IType<unknown, unknown, unknown>>
   extends IType<
     Array<T extends IType<infer C, unknown, unknown> ? C : never>,
     Array<T extends IType<unknown, infer S, unknown> ? S : never>,
-    IMSTArray<T extends IType<unknown, unknown, infer I> ? I : never>
+    IMSTArray<
+      T extends IType<unknown, unknown, infer I> ? I : never,
+      T extends IType<infer C, unknown, unknown> ? C : never
+    >
   > {
-  readonly _kind: 'array';
+  readonly _kind: "array";
   readonly _subType: T;
 }
 
@@ -255,7 +292,7 @@ export interface IMapType<T extends IType<unknown, unknown, unknown>>
     Record<string, T extends IType<unknown, infer S, unknown> ? S : never>,
     IMSTMap<T extends IType<unknown, unknown, infer I> ? I : never>
   > {
-  readonly _kind: 'map';
+  readonly _kind: "map";
   readonly _subType: T;
 }
 
@@ -263,13 +300,15 @@ export interface IMapType<T extends IType<unknown, unknown, unknown>>
 // Optional Type
 // ============================================================================
 
-export interface IOptionalType<T extends IType<unknown, unknown, unknown>, Default>
-  extends IType<
+export interface IOptionalType<
+  T extends IType<unknown, unknown, unknown>,
+  Default,
+> extends IType<
     (T extends IType<infer C, unknown, unknown> ? C : never) | undefined,
     T extends IType<unknown, infer S, unknown> ? S : never,
     T extends IType<unknown, unknown, infer I> ? I : never
   > {
-  readonly _kind: 'optional';
+  readonly _kind: "optional";
   readonly _subType: T;
   readonly _defaultValue: Default | (() => Default);
 }
@@ -284,7 +323,7 @@ export interface IMaybeType<T extends IType<unknown, unknown, unknown>>
     (T extends IType<unknown, infer S, unknown> ? S : never) | undefined,
     (T extends IType<unknown, unknown, infer I> ? I : never) | undefined
   > {
-  readonly _kind: 'maybe';
+  readonly _kind: "maybe";
   readonly _subType: T;
 }
 
@@ -294,7 +333,7 @@ export interface IMaybeNullType<T extends IType<unknown, unknown, unknown>>
     (T extends IType<unknown, infer S, unknown> ? S : never) | null,
     (T extends IType<unknown, unknown, infer I> ? I : never) | null
   > {
-  readonly _kind: 'maybeNull';
+  readonly _kind: "maybeNull";
   readonly _subType: T;
 }
 
@@ -304,7 +343,7 @@ export interface IMaybeNullType<T extends IType<unknown, unknown, unknown>>
 
 export interface IReferenceType<T extends IAnyModelType>
   extends IType<string | number, string | number, Instance<T>> {
-  readonly _kind: 'reference';
+  readonly _kind: "reference";
   readonly _targetType: T;
 }
 
@@ -316,13 +355,17 @@ export interface ReferenceOptions<T extends IAnyModelType> {
     invalidId: string | number;
     replaceRef: (newRef: Instance<T> | null) => void;
     removeRef: () => void;
-    cause: 'destroy' | 'invalidSnapshotReference' | 'detach';
+    cause: "destroy" | "invalidSnapshotReference" | "detach";
   }) => void;
 }
 
 export interface ISafeReferenceType<T extends IAnyModelType>
-  extends IType<string | number | undefined, string | number | undefined, Instance<T> | undefined> {
-  readonly _kind: 'safeReference';
+  extends IType<
+    string | number | undefined,
+    string | number | undefined,
+    Instance<T> | undefined
+  > {
+  readonly _kind: "safeReference";
   readonly _targetType: T;
 }
 
@@ -341,7 +384,7 @@ export interface IUnionType<Types extends IType<unknown, unknown, unknown>[]>
     Types[number] extends IType<unknown, infer S, unknown> ? S : never,
     Types[number] extends IType<unknown, unknown, infer T> ? T : never
   > {
-  readonly _kind: 'union';
+  readonly _kind: "union";
   readonly _types: Types;
 }
 
@@ -351,7 +394,7 @@ export interface IUnionType<Types extends IType<unknown, unknown, unknown>[]>
 
 export interface ILiteralType<T extends string | number | boolean>
   extends IType<T, T, T> {
-  readonly _kind: 'literal';
+  readonly _kind: "literal";
   readonly _value: T;
 }
 
@@ -359,9 +402,8 @@ export interface ILiteralType<T extends string | number | boolean>
 // Enumeration Type
 // ============================================================================
 
-export interface IEnumerationType<E extends string>
-  extends IType<E, E, E> {
-  readonly _kind: 'enumeration';
+export interface IEnumerationType<E extends string> extends IType<E, E, E> {
+  readonly _kind: "enumeration";
   readonly _options: readonly E[];
 }
 
@@ -370,7 +412,7 @@ export interface IEnumerationType<E extends string>
 // ============================================================================
 
 export interface IFrozenType<T> extends IType<T, T, T> {
-  readonly _kind: 'frozen';
+  readonly _kind: "frozen";
 }
 
 // ============================================================================
@@ -383,7 +425,7 @@ export interface ILateType<T extends IType<unknown, unknown, unknown>>
     T extends IType<unknown, infer S, unknown> ? S : never,
     T extends IType<unknown, unknown, infer I> ? I : never
   > {
-  readonly _kind: 'late';
+  readonly _kind: "late";
   readonly _definition: () => T;
 }
 
@@ -397,7 +439,7 @@ export interface IRefinementType<T extends IType<unknown, unknown, unknown>>
     T extends IType<unknown, infer S, unknown> ? S : never,
     T extends IType<unknown, unknown, infer I> ? I : never
   > {
-  readonly _kind: 'refinement';
+  readonly _kind: "refinement";
   readonly _subType: T;
   readonly _predicate: (value: unknown) => boolean;
 }
@@ -419,12 +461,12 @@ export interface CustomTypeOptions<C, S, T> {
 // ============================================================================
 
 export interface IIdentifierType extends IType<string, string, string> {
-  readonly _kind: 'identifier';
+  readonly _kind: "identifier";
   readonly identifierAttribute: string;
 }
 
 export interface IIdentifierNumberType extends IType<number, number, number> {
-  readonly _kind: 'identifierNumber';
+  readonly _kind: "identifierNumber";
   readonly identifierAttribute: string;
 }
 
@@ -433,7 +475,7 @@ export interface IIdentifierNumberType extends IType<number, number, number> {
 // ============================================================================
 
 export interface IJsonPatch {
-  op: 'replace' | 'add' | 'remove';
+  op: "replace" | "add" | "remove";
   path: string;
   value?: unknown;
 }
@@ -448,29 +490,30 @@ export interface IReversibleJsonPatch extends IJsonPatch {
 
 export type IAnyType = IType<unknown, unknown, unknown>;
 
-export type IAnyModelType = IModelType<
-  ModelProperties,
-  object,
-  object,
-  object
->;
+export type IAnyModelType = IModelType<ModelProperties, object, object, object>;
 
-export type IAnyComplexType = IAnyModelType | IArrayType<IAnyType> | IMapType<IAnyType>;
+export type IAnyComplexType =
+  | IAnyModelType
+  | IArrayType<IAnyType>
+  | IMapType<IAnyType>;
 
 /** Extract the creation type from a type */
-export type CreationType<T extends IAnyType> = T extends IType<infer C, unknown, unknown> ? C : never;
+export type CreationType<T extends IAnyType> =
+  T extends IType<infer C, unknown, unknown> ? C : never;
 
-/** Extract the snapshot type from a type */  
-export type SnapshotType<T extends IAnyType> = T extends IType<unknown, infer S, unknown> ? S : never;
+/** Extract the snapshot type from a type */
+export type SnapshotType<T extends IAnyType> =
+  T extends IType<unknown, infer S, unknown> ? S : never;
 
 /** Extract the instance type from a type */
-export type InstanceType<T extends IAnyType> = T extends IType<unknown, unknown, infer I> ? I : never;
+export type InstanceType<T extends IAnyType> =
+  T extends IType<unknown, unknown, infer I> ? I : never;
 
 // ============================================================================
 // Tree Navigation Types
 // ============================================================================
 
-export type LivelinessMode = 'warn' | 'error' | 'ignore';
+export type LivelinessMode = "warn" | "error" | "ignore";
 
 export interface IDisposer {
   (): void;

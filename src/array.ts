@@ -215,7 +215,8 @@ class ArrayType<T extends IAnyType> implements IArrayType<T> {
   readonly _C!: Array<T extends IType<infer C, unknown, unknown> ? C : never>;
   readonly _S!: Array<T extends IType<unknown, infer S, unknown> ? S : never>;
   readonly _T!: IMSTArray<
-    T extends IType<unknown, unknown, infer I> ? I : never
+    T extends IType<unknown, unknown, infer I> ? I : never,
+    T extends IType<infer C, unknown, unknown> ? C : never
   >;
 
   constructor(itemType: T) {
@@ -226,7 +227,10 @@ class ArrayType<T extends IAnyType> implements IArrayType<T> {
   create(
     snapshot?: Array<T extends IType<infer C, unknown, unknown> ? C : never>,
     env?: unknown,
-  ): IMSTArray<T extends IType<unknown, unknown, infer I> ? I : never> {
+  ): IMSTArray<
+    T extends IType<unknown, unknown, infer I> ? I : never,
+    T extends IType<infer C, unknown, unknown> ? C : never
+  > {
     const items = snapshot ?? [];
 
     // Create tree node
@@ -257,7 +261,8 @@ class ArrayType<T extends IAnyType> implements IArrayType<T> {
 
     // Create the MST array
     const mstArray = new MSTArray(node, this._subType, instances) as IMSTArray<
-      T extends IType<unknown, unknown, infer I> ? I : never
+      T extends IType<unknown, unknown, infer I> ? I : never,
+      T extends IType<infer C, unknown, unknown> ? C : never
     >;
 
     // Add tree node reference
@@ -276,7 +281,8 @@ class ArrayType<T extends IAnyType> implements IArrayType<T> {
   is(
     value: unknown,
   ): value is IMSTArray<
-    T extends IType<unknown, unknown, infer I> ? I : never
+    T extends IType<unknown, unknown, infer I> ? I : never,
+    T extends IType<infer C, unknown, unknown> ? C : never
   > {
     if (!Array.isArray(value)) return false;
     // Check if it has our tree node

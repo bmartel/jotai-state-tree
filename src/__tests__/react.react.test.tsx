@@ -28,7 +28,10 @@ import {
   useStoreSnapshot,
   useSyncedStore,
   batch,
+  createStoreContext,
 } from "../react";
+
+import type { Instance } from "../index";
 
 // ============================================================================
 // Test Setup
@@ -435,12 +438,14 @@ describe("React Integration", () => {
   // useStoreSnapshot Tests
   // ============================================================================
 
-  describe("useStoreSnapshot", () => {
+  describe("useStoreSnapshot (legacy)", () => {
     it("should return store and update on changes", async () => {
+      type CounterInstance = Instance<typeof CounterModel>;
       const counter = CounterModel.create({ count: 100 });
 
       function StoreConsumer() {
-        const store = useStoreSnapshot<typeof counter>();
+        // Legacy API requires explicit type parameter
+        const store = useStoreSnapshot<CounterInstance>();
         return <div data-testid="count">{store.count}</div>;
       }
 
@@ -462,6 +467,7 @@ describe("React Integration", () => {
     });
 
     it("should work with selector", async () => {
+      type TodoListInstance = Instance<typeof TodoListModel>;
       const todoList = TodoListModel.create({
         todos: [
           { id: "1", text: "One", completed: false },
@@ -470,7 +476,8 @@ describe("React Integration", () => {
       });
 
       function CompletedCounter() {
-        const count = useStoreSnapshot<typeof todoList, number>(
+        // Legacy API with selector - explicitly type both store and return
+        const count = useStoreSnapshot<TodoListInstance, number>(
           (store) => store.completedCount,
         );
         return <div data-testid="completed">{count}</div>;
@@ -675,6 +682,130 @@ describe("React Integration", () => {
       });
 
       expect(screen.getByTestId("count").textContent).toBe("2");
+    });
+  });
+
+  // ============================================================================
+  // Typed Store Context Tests
+  // ============================================================================
+
+  describe("createStoreContext (typed)", () => {
+    // Create typed context once for these tests
+    type CounterInstance = Instance<typeof CounterModel>;
+    const CounterContext = createStoreContext<CounterInstance>();
+
+    it("should provide fully typed store access", () => {
+      const counter = CounterModel.create({ count: 42 });
+
+      function TypedCounterConsumer() {
+        // store is fully typed - no need for type assertion
+        const store = CounterContext.useStore();
+        // TypeScript knows store.count is a number and store.increment() exists
+        return (
+          <div>
+            <span data-testid="count">{store.count}</span>
+            <button onClick={() => store.increment()}>+</button>
+          </div>
+        );
+      }
+
+      render(
+        <CounterContext.Provider store={counter}>
+          <TypedCounterConsumer />
+        </CounterContext.Provider>,
+      );
+
+      expect(screen.getByTestId("count").textContent).toBe("42");
+    });
+
+    it("should provide typed snapshot with updates", async () => {
+      const counter = CounterModel.create({ count: 0 });
+
+      function TypedSnapshotConsumer() {
+        // Fully typed - knows it returns CounterInstance
+        const store = CounterContext.useStoreSnapshot();
+        return <div data-testid="count">{store.count}</div>;
+      }
+
+      render(
+        <CounterContext.Provider store={counter}>
+          <TypedSnapshotConsumer />
+        </CounterContext.Provider>,
+      );
+
+      expect(screen.getByTestId("count").textContent).toBe("0");
+
+      act(() => {
+        counter.increment();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("count").textContent).toBe("1");
+      });
+    });
+
+    it("should support typed selector", async () => {
+      type TodoListInstance = Instance<typeof TodoListModel>;
+      const TodoContext = createStoreContext<TodoListInstance>();
+
+      const todoList = TodoListModel.create({
+        todos: [
+          { id: "1", text: "One", completed: false },
+          { id: "2", text: "Two", completed: true },
+        ],
+      });
+
+      function CompletedCount() {
+        // Selector is typed: (store: TodoListInstance) => number
+        const count = TodoContext.useStoreSnapshot(
+          (store) => store.completedCount,
+        );
+        return <div data-testid="completed">{count}</div>;
+      }
+
+      render(
+        <TodoContext.Provider store={todoList}>
+          <CompletedCount />
+        </TodoContext.Provider>,
+      );
+
+      expect(screen.getByTestId("completed").textContent).toBe("1");
+
+      act(() => {
+        todoList.toggleTodo("1");
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("completed").textContent).toBe("2");
+      });
+    });
+
+    it("should throw when used outside provider", () => {
+      function BadComponent() {
+        const store = CounterContext.useStore();
+        return <div>{store.count}</div>;
+      }
+
+      expect(() => render(<BadComponent />)).toThrow(
+        "[jotai-state-tree] useStore must be used within a Provider",
+      );
+    });
+
+    it("should provide typed useIsAlive hook", () => {
+      const counter = CounterModel.create({ count: 0 });
+
+      function AliveChecker() {
+        const isAlive = CounterContext.useIsAlive();
+        return <div data-testid="alive">{isAlive ? "yes" : "no"}</div>;
+      }
+
+      render(
+        <CounterContext.Provider store={counter}>
+          <AliveChecker />
+        </CounterContext.Provider>,
+      );
+
+      expect(screen.getByTestId("alive").textContent).toBe("yes");
     });
   });
 });

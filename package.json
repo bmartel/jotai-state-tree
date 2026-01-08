@@ -72,6 +72,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/jotai-state-tree"
+    "url": "https://github.com/bmartel/jotai-state-tree"
   }
 }

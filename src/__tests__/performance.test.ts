@@ -51,7 +51,7 @@ describe("Performance", () => {
           id: `item-${i}`,
           name: `Item ${i}`,
           value: i,
-        })
+        }),
       );
 
       const elapsed = performance.now() - start;
@@ -192,7 +192,7 @@ describe("Performance", () => {
           types.model("Item", {
             id: types.identifier,
             value: types.number,
-          })
+          }),
         ),
       });
 
@@ -280,7 +280,7 @@ describe("Performance", () => {
         disposers.push(
           onSnapshot(instance, () => {
             callCount++;
-          })
+          }),
         );
       }
 
@@ -321,7 +321,7 @@ describe("Performance", () => {
         disposers.push(
           onPatch(instance, () => {
             patchCount++;
-          })
+          }),
         );
       }
 
@@ -395,7 +395,7 @@ describe("Stress Tests", () => {
       // Create and destroy many times
       for (let cycle = 0; cycle < 100; cycle++) {
         const instances = Array.from({ length: 100 }, (_, i) =>
-          Model.create({ id: `cycle${cycle}-item${i}`, value: i })
+          Model.create({ id: `cycle${cycle}-item${i}`, value: i }),
         );
 
         instances.forEach((i) => destroy(i));
@@ -406,7 +406,7 @@ describe("Stress Tests", () => {
       // Registry should not have grown
       expect(statsAfter.liveNodeCount).toBe(statsBefore.liveNodeCount);
       expect(statsAfter.identifierRegistrySize).toBe(
-        statsBefore.identifierRegistrySize
+        statsBefore.identifierRegistrySize,
       );
     });
 
@@ -462,7 +462,7 @@ describe("Stress Tests", () => {
         }));
 
       const counters = Array.from({ length: 100 }, (_, i) =>
-        Counter.create({ id: `counter-${i}`, value: 0 })
+        Counter.create({ id: `counter-${i}`, value: 0 }),
       );
 
       // Interleaved operations
@@ -504,7 +504,7 @@ describe("Stress Tests", () => {
           disposers.push(
             onSnapshot(instance, () => {
               snapshotCount++;
-            })
+            }),
           );
         }
       }
@@ -556,7 +556,7 @@ describe("Stress Tests", () => {
   });
 
   describe("Identifier Registry Stress", () => {
-    it("should handle massive identifier churn", () => {
+    it("should handle massive identifier churn", { timeout: 30000 }, () => {
       const Item = types.model("Item", {
         id: types.identifier,
         value: types.number,

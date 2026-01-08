@@ -43,6 +43,12 @@ export type {
   IAnyModelType,
   IAnyComplexType,
 
+  // Mixin types
+  IMixin,
+  IAnyMixin,
+  MixinConfig,
+  ModelSelf,
+
   // Patch types
   IJsonPatch,
   IReversibleJsonPatch,
@@ -87,7 +93,7 @@ import {
 // Model Type
 // ============================================================================
 
-import { model, compose } from "./model";
+import { model, compose, mixin } from "./model";
 
 // ============================================================================
 // Collection Types
@@ -170,6 +176,7 @@ export const types = {
   // Model
   model,
   compose,
+  mixin,
 
   // Collections
   array,
@@ -230,6 +237,7 @@ export {
   // Model
   model,
   compose,
+  mixin,
 
   // Collections
   array,

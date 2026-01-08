@@ -1,6 +1,6 @@
 {
   "name": "jotai-state-tree",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MobX-State-Tree API compatible library powered by Jotai",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

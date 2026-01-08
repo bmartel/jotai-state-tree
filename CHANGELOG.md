@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/bmartel/jotai-state-tree/compare/v1.0.3...v1.1.0) (2026-01-08)
+
+
+### Features
+
+* Adding full typing support for self with a new mixin type and updates to compose ([e72c659](https://github.com/bmartel/jotai-state-tree/commit/e72c6596dde2b064d88ca7d1663248e1c2f23119))
+
 ## [1.0.3](https://github.com/bmartel/jotai-state-tree/compare/v1.0.2...v1.0.3) (2026-01-08)
 
 ## [1.0.2](https://github.com/bmartel/jotai-state-tree/compare/v1.0.1...v1.0.2) (2026-01-08)

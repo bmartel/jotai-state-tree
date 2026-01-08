@@ -1,0 +1,66 @@
+{
+  "name": "jotai-state-tree",
+  "version": "0.1.0",
+  "description": "MobX-State-Tree API compatible library powered by Jotai",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.mjs",
+      "require": "./dist/react.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts src/react.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts src/react.ts --format cjs,esm --dts --watch",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "lint": "eslint src --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "jotai",
+    "mobx-state-tree",
+    "mst",
+    "state-management",
+    "react",
+    "typescript",
+    "state-tree"
+  ],
+  "author": "Brandon Martel",
+  "license": "MIT",
+  "peerDependencies": {
+    "jotai": ">=2.0.0",
+    "react": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.0",
+    "eslint": "^8.55.0",
+    "jotai": "^2.6.0",
+    "react": "^18.2.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/jotai-state-tree"
+  }
+}

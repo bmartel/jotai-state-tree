@@ -611,4 +611,71 @@ describe("Stress Tests", () => {
 
     destroy(instance);
   });
+
+  describe("Property Atoms and Proxy Lifecycle", () => {
+    it("should not leak property atoms after destroy", () => {
+      // Property atoms are instance-scoped in the proxy closure.
+      // When the instance is destroyed and dereferenced, the atoms
+      // should be eligible for GC (Jotai uses WeakMap internally).
+
+      const Model = types.model("AtomModel", {
+        name: types.string,
+        count: types.number,
+        active: types.boolean,
+      });
+
+      const statsBefore = getRegistryStats();
+
+      // Create and destroy many instances
+      for (let i = 0; i < 100; i++) {
+        const instance = Model.create({
+          name: `item-${i}`,
+          count: i,
+          active: i % 2 === 0,
+        });
+        destroy(instance);
+      }
+
+      const statsAfter = getRegistryStats();
+
+      // All nodes should be cleaned up
+      expect(statsAfter.liveNodeCount).toBe(statsBefore.liveNodeCount);
+      expect(statsAfter.nodeRegistrySize).toBe(statsBefore.nodeRegistrySize);
+    });
+
+    it("should not leak when rapidly creating and destroying models with complex properties", () => {
+      const Child = types.model("ChildModel", {
+        value: types.number,
+      });
+
+      const Parent = types.model("ParentModel", {
+        name: types.string,
+        child: types.maybe(Child),
+        items: types.array(types.number),
+      });
+
+      const statsBefore = getRegistryStats();
+
+      // Rapid create/destroy cycle
+      for (let i = 0; i < 50; i++) {
+        const instance = Parent.create({
+          name: `parent-${i}`,
+          child: i % 2 === 0 ? { value: i } : undefined,
+          items: [1, 2, 3, 4, 5],
+        });
+
+        // Access properties to ensure atoms are used
+        const _ = instance.name;
+        const __ = instance.child?.value;
+        const ___ = instance.items.length;
+
+        destroy(instance);
+      }
+
+      const statsAfter = getRegistryStats();
+
+      // All nodes should be cleaned up
+      expect(statsAfter.liveNodeCount).toBe(statsBefore.liveNodeCount);
+    });
+  });
 });

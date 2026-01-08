@@ -27,6 +27,8 @@ updates:
       # Ignore major updates for peer dependencies (need manual review)
       - dependency-name: "react"
         update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
       - dependency-name: "jotai"
         update-types: ["version-update:semver-major"]
 

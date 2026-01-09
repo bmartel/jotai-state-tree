@@ -1,3 +1,10 @@
+## [1.1.2](https://github.com/bmartel/jotai-state-tree/compare/v1.1.1...v1.1.2) (2026-01-09)
+
+
+### Bug Fixes
+
+* Add observer tracking for nodes accessed via hooks ([#12](https://github.com/bmartel/jotai-state-tree/issues/12)) ([6b933b3](https://github.com/bmartel/jotai-state-tree/commit/6b933b3c872ccd00cb19889b0c4730475f6ae1d6))
+
 ## [1.1.1](https://github.com/bmartel/jotai-state-tree/compare/v1.1.0...v1.1.1) (2026-01-09)
 
 

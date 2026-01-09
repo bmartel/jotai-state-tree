@@ -54,6 +54,16 @@ export function useObserverTracking(): TrackNodeFn | null {
 
 interface ObserverOptions {
   forwardRef?: boolean;
+  /** Enable debug logging to console */
+  debug?: boolean;
+}
+
+/** Global debug flag for observer - set to true to enable logging */
+export let observerDebug = false;
+
+/** Enable/disable observer debug logging globally */
+export function setObserverDebug(enabled: boolean) {
+  observerDebug = enabled;
 }
 
 /**
@@ -65,20 +75,37 @@ export function observer<P extends object>(
   options?: ObserverOptions,
 ): ComponentType<P> {
   const displayName = Component.displayName || Component.name || "Component";
+  const debug = options?.debug || observerDebug;
 
   const ObserverComponent = memo((props: P) => {
-    const [, forceUpdate] = useState({});
+    const [renderCount, forceUpdate] = useState(0);
     const disposersRef = useRef<Set<IDisposer>>(new Set());
     const trackedNodesRef = useRef<Set<unknown>>(new Set());
 
+    if (debug) {
+      console.log(`[observer:${displayName}] render #${renderCount + 1}, tracked nodes: ${trackedNodesRef.current.size}, subscriptions: ${disposersRef.current.size}`);
+    }
+
     // Track which state tree nodes are accessed during render
     const trackNode = (node: unknown) => {
+      if (debug) {
+        console.log(`[observer:${displayName}] trackNode called, hasStateTreeNode: ${hasStateTreeNode(node)}, already tracked: ${trackedNodesRef.current.has(node)}`);
+      }
       if (hasStateTreeNode(node) && !trackedNodesRef.current.has(node)) {
         trackedNodesRef.current.add(node);
+        if (debug) {
+          console.log(`[observer:${displayName}] creating subscription for node`);
+        }
         const disposer = onSnapshot(node, () => {
-          forceUpdate({});
+          if (debug) {
+            console.log(`[observer:${displayName}] onSnapshot fired, calling forceUpdate`);
+          }
+          forceUpdate(c => c + 1);
         });
         disposersRef.current.add(disposer);
+        if (debug) {
+          console.log(`[observer:${displayName}] subscription created, total subscriptions: ${disposersRef.current.size}`);
+        }
       }
     };
 

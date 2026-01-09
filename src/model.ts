@@ -426,7 +426,11 @@ class ModelType<
 
         // Check if it's volatile state
         if (propStr in node.volatileState) {
-          node.volatileState[propStr] = value;
+          const oldValue = node.volatileState[propStr];
+          if (oldValue !== value) {
+            node.volatileState[propStr] = value;
+            node.notifyVolatileChange();
+          }
           return true;
         }
 

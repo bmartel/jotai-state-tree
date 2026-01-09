@@ -360,6 +360,11 @@ export class StateTreeNode implements IStateTreeNode {
     this.notifySnapshotChange();
   }
 
+  /** Notify about a volatile state change (triggers snapshot listeners without patches) */
+  notifyVolatileChange() {
+    this.notifySnapshotChange();
+  }
+
   /** Get root node */
   getRoot(): StateTreeNode {
     let node: StateTreeNode = this;

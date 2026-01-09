@@ -34,6 +34,21 @@ import {
 } from "./tree";
 
 // ============================================================================
+// Observer Tracking Context
+// ============================================================================
+
+type TrackNodeFn = (node: unknown) => void;
+const ObserverTrackingContext = React.createContext<TrackNodeFn | null>(null);
+
+/**
+ * Hook to get the current observer tracking function.
+ * Used by hooks like useStore to register accessed nodes for reactivity.
+ */
+export function useObserverTracking(): TrackNodeFn | null {
+  return React.useContext(ObserverTrackingContext);
+}
+
+// ============================================================================
 // Observer HOC
 // ============================================================================
 
@@ -108,7 +123,12 @@ export function observer<P extends object>(
       return tracked as P;
     }, [props]);
 
-    return React.createElement(Component, trackedProps);
+    // Provide tracking context so hooks can register their accessed nodes
+    return React.createElement(
+      ObserverTrackingContext.Provider,
+      { value: trackNode },
+      React.createElement(Component, trackedProps)
+    );
   });
 
   ObserverComponent.displayName = `Observer(${displayName})`;
@@ -318,6 +338,11 @@ export function useStore<T>(): T {
       "[jotai-state-tree] useStore must be used within a Provider",
     );
   }
+  // If inside an observer component, track the store for reactivity
+  const trackNode = useObserverTracking();
+  if (trackNode && hasStateTreeNode(context.store)) {
+    trackNode(context.store);
+  }
   return context.store as T;
 }
 
@@ -395,6 +420,11 @@ export function createStoreContext<T>() {
       throw new Error(
         "[jotai-state-tree] useStore must be used within a Provider",
       );
+    }
+    // If inside an observer component, track the store for reactivity
+    const trackNode = useObserverTracking();
+    if (trackNode && hasStateTreeNode(store)) {
+      trackNode(store);
     }
     return store;
   }
@@ -618,6 +648,12 @@ export function useCleanup(cleanupFn: () => void): void {
     };
   }, []);
 }
+
+// ============================================================================
+// Re-exports from tree for convenience
+// ============================================================================
+
+export { hasStateTreeNode };
 
 // ============================================================================
 // Type Exports

@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/bmartel/jotai-state-tree/compare/v1.1.0...v1.1.1) (2026-01-09)
+
+
+### Bug Fixes
+
+* Notify snapshot listeners when volatile state changes ([#11](https://github.com/bmartel/jotai-state-tree/issues/11)) ([93e4f74](https://github.com/bmartel/jotai-state-tree/commit/93e4f7496fd27bb77c6b7f670b7166129953618a))
+
 # [1.1.0](https://github.com/bmartel/jotai-state-tree/compare/v1.0.3...v1.1.0) (2026-01-08)
 
 

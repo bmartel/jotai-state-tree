@@ -1416,6 +1416,132 @@ describe("Undo Manager", () => {
 
     undoManager.dispose();
   });
+
+  it("should undo and redo array operations correctly", () => {
+    const Todo = types.model("Todo", {
+      id: types.string,
+      title: types.string,
+      done: types.optional(types.boolean, false),
+    });
+    const TodoStore = types
+      .model("TodoStore", {
+        todos: types.array(Todo),
+      })
+      .actions((self) => ({
+        addTodo(id: string, title: string) {
+          self.todos.push({ id, title });
+        },
+        removeTodo(id: string) {
+          const todo = self.todos.find((t) => t.id === id);
+          if (todo) {
+            self.todos.remove(todo);
+          }
+        },
+        clearCompleted() {
+          const completed = self.todos.filter((t) => t.done);
+          completed.forEach((t) => self.todos.remove(t));
+        },
+        toggleTodo(id: string) {
+          const todo = self.todos.find((t) => t.id === id);
+          if (todo) {
+            todo.done = !todo.done;
+          }
+        }
+      }));
+
+    const store = TodoStore.create({
+      todos: [
+        { id: "1", title: "Learn jotai-state-tree", done: true },
+        { id: "2", title: "Explore Vite templates", done: false },
+      ],
+    });
+    const undoManager = createUndoManager(store);
+
+    // Test add
+    store.addTodo("3", "Build clean minimalist UIs");
+    expect(store.todos.length).toBe(3);
+    expect(store.todos[2].title).toBe("Build clean minimalist UIs");
+
+    undoManager.undo();
+    expect(store.todos.length).toBe(2);
+
+    undoManager.redo();
+    expect(store.todos.length).toBe(3);
+    expect(store.todos[2].title).toBe("Build clean minimalist UIs");
+
+    // Test toggle and remove/clear
+    store.toggleTodo("2");
+    expect(store.todos[1].done).toBe(true);
+
+    store.clearCompleted(); // Should remove id 1 and 2
+    expect(store.todos.length).toBe(1);
+    expect(store.todos[0].id).toBe("3");
+
+    undoManager.undo(); // Undo clearCompleted
+    expect(store.todos.length).toBe(3);
+    expect(store.todos[0].done).toBe(true);
+    expect(store.todos[1].done).toBe(true);
+
+    undoManager.undo(); // Undo toggleTodo
+    expect(store.todos[1].done).toBe(false);
+
+    undoManager.redo(); // Redo toggleTodo
+    expect(store.todos[1].done).toBe(true);
+
+    undoManager.redo(); // Redo clearCompleted
+    expect(store.todos.length).toBe(1);
+    expect(store.todos[0].id).toBe("3");
+
+    undoManager.dispose();
+  });
+
+  it("should coordinate UndoManager and TimeTravelManager without cross-recording", () => {
+    const Counter = types
+      .model("Counter", {
+        count: types.optional(types.number, 0),
+      })
+      .actions((self) => ({
+        increment() {
+          self.count++;
+        },
+      }));
+
+    const counter = Counter.create({});
+    const undoManager = createUndoManager(counter);
+    const timeTravel = createTimeTravelManager(counter, { autoRecord: true });
+
+    // Initial state: count=0, undoLevels=0, snapshotCount=1 (initial)
+    expect(counter.count).toBe(0);
+    expect(undoManager.undoLevels).toBe(0);
+    expect(timeTravel.snapshotCount).toBe(1);
+
+    // Make change
+    counter.increment(); // count=1, undoLevels=1, snapshotCount=2
+    expect(counter.count).toBe(1);
+    expect(undoManager.undoLevels).toBe(1);
+    expect(timeTravel.snapshotCount).toBe(2);
+
+    // Perform undo
+    undoManager.undo(); // count=0, undoLevels=0
+    expect(counter.count).toBe(0);
+    // Time travel should NOT have recorded a new snapshot because of the undo!
+    expect(timeTravel.snapshotCount).toBe(2);
+
+    // Perform redo
+    undoManager.redo(); // count=1, undoLevels=1
+    expect(counter.count).toBe(1);
+    // Time travel should NOT have recorded a new snapshot because of the redo!
+    expect(timeTravel.snapshotCount).toBe(2);
+
+    // Perform time travel
+    timeTravel.goBack(); // count=0
+    expect(counter.count).toBe(0);
+    // UndoManager should NOT have recorded a new history entry because of the time travel!
+    expect(undoManager.undoLevels).toBe(1);
+
+    undoManager.dispose();
+    timeTravel.dispose();
+  });
 });
 
 describe("Time Travel Manager", () => {

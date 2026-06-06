@@ -29,6 +29,17 @@ let lifecycleHookHandlers: {
 export function setLifecycleHookHandlers(handlers: typeof lifecycleHookHandlers) {
   lifecycleHookHandlers = handlers;
 }
+
+let isApplyingSnapshotOrPatch = false;
+
+export function getIsApplyingSnapshotOrPatch(): boolean {
+  return isApplyingSnapshotOrPatch;
+}
+
+export function setIsApplyingSnapshotOrPatch(value: boolean): void {
+  isApplyingSnapshotOrPatch = value;
+}
+
 // Re-export IDisposer for convenience
 export type { IDisposer };
 
@@ -174,6 +185,7 @@ export class StateTreeNode implements IStateTreeNode {
   $path: string = "";
   $env: unknown;
   $isAlive: boolean = true;
+  $isApplyingHistory: boolean = false;
 
   /** Child nodes - uses Map but children are explicitly destroyed */
   private children = new Map<string, StateTreeNode>();
@@ -395,9 +407,9 @@ export class StateTreeNode implements IStateTreeNode {
 
   /** Notify snapshot listeners */
   private notifySnapshotChange() {
-    this.invalidateSnapshot();
     let current: StateTreeNode | null = this;
     while (current) {
+      current.invalidateSnapshot();
       const snapshot = getSnapshotFromNode(current);
       current.snapshotListeners.forEach((listener) => listener(snapshot));
       current = current.$parent;
@@ -601,14 +613,24 @@ export function applySnapshotToNode(node: StateTreeNode, snapshot: unknown) {
     }
   } else if (type._kind === "array" && Array.isArray(snapshot)) {
     // For arrays, we need to reconcile
-    node.setValue(snapshot);
+    const mstArray = node.getInstance() as any;
+    if (mstArray) {
+      mstArray.replace(snapshot);
+    } else {
+      node.setValue(snapshot);
+    }
   } else if (
     type._kind === "map" &&
     typeof snapshot === "object" &&
     snapshot !== null
   ) {
     // For maps, replace all entries
-    node.setValue(snapshot);
+    const mstMap = node.getInstance() as any;
+    if (mstMap) {
+      mstMap.replace(snapshot);
+    } else {
+      node.setValue(snapshot);
+    }
   } else {
     // For primitives
     node.setValue(snapshot);
@@ -871,7 +893,13 @@ export function getSnapshot<S>(target: unknown): S {
 /** Apply snapshot to an instance */
 export function applySnapshot<S>(target: unknown, snapshot: S): void {
   const node = getStateTreeNode(target);
-  applySnapshotToNode(node, snapshot);
+  const wasApplying = getIsApplyingSnapshotOrPatch();
+  setIsApplyingSnapshotOrPatch(true);
+  try {
+    applySnapshotToNode(node, snapshot);
+  } finally {
+    setIsApplyingSnapshotOrPatch(wasApplying);
+  }
 }
 
 /** Subscribe to snapshots */
@@ -900,8 +928,14 @@ export function applyPatch(
   const patches = Array.isArray(patch) ? patch : [patch];
   const rootNode = getStateTreeNode(target).getRoot();
 
-  for (const p of patches) {
-    applyPatchToNode(rootNode, p);
+  const wasApplying = getIsApplyingSnapshotOrPatch();
+  setIsApplyingSnapshotOrPatch(true);
+  try {
+    for (const p of patches) {
+      applyPatchToNode(rootNode, p);
+    }
+  } finally {
+    setIsApplyingSnapshotOrPatch(wasApplying);
   }
 }
 
@@ -922,38 +956,62 @@ function applyPatchToNode(rootNode: StateTreeNode, patch: IJsonPatch): void {
 
   switch (patch.op) {
     case "replace": {
-      const childNode = node.getChild(key);
-      if (childNode) {
-        applySnapshotToNode(childNode, patch.value);
+      const instance = node.getInstance() as any;
+      if (instance && Array.isArray(instance)) {
+        const index = parseInt(key, 10);
+        instance[index] = patch.value;
+      } else if (instance && instance instanceof Map) {
+        instance.set(key, patch.value);
       } else {
-        // Direct value set for primitives
-        const currentValue = node.getValue() as Record<string, unknown>;
-        currentValue[key] = patch.value;
-        node.setValue(currentValue);
+        const childNode = node.getChild(key);
+        if (childNode) {
+          applySnapshotToNode(childNode, patch.value);
+        } else {
+          // Direct value set for primitives
+          const currentValue = node.getValue() as Record<string, unknown>;
+          currentValue[key] = patch.value;
+          node.setValue(currentValue);
+        }
       }
       break;
     }
     case "add": {
-      const currentValue = node.getValue();
-      if (Array.isArray(currentValue)) {
-        const index = key === "-" ? currentValue.length : parseInt(key, 10);
-        currentValue.splice(index, 0, patch.value);
-        node.setValue([...currentValue]);
-      } else if (typeof currentValue === "object" && currentValue !== null) {
-        (currentValue as Record<string, unknown>)[key] = patch.value;
-        node.setValue({ ...currentValue });
+      const instance = node.getInstance() as any;
+      if (instance && Array.isArray(instance)) {
+        const index = key === "-" ? instance.length : parseInt(key, 10);
+        instance.splice(index, 0, patch.value);
+      } else if (instance && instance instanceof Map) {
+        instance.set(key, patch.value);
+      } else {
+        const currentValue = node.getValue();
+        if (Array.isArray(currentValue)) {
+          const index = key === "-" ? currentValue.length : parseInt(key, 10);
+          currentValue.splice(index, 0, patch.value);
+          node.setValue([...currentValue]);
+        } else if (typeof currentValue === "object" && currentValue !== null) {
+          (currentValue as Record<string, unknown>)[key] = patch.value;
+          node.setValue({ ...currentValue });
+        }
       }
       break;
     }
     case "remove": {
-      const currentValue = node.getValue();
-      if (Array.isArray(currentValue)) {
+      const instance = node.getInstance() as any;
+      if (instance && Array.isArray(instance)) {
         const index = parseInt(key, 10);
-        currentValue.splice(index, 1);
-        node.setValue([...currentValue]);
-      } else if (typeof currentValue === "object" && currentValue !== null) {
-        delete (currentValue as Record<string, unknown>)[key];
-        node.setValue({ ...currentValue });
+        instance.splice(index, 1);
+      } else if (instance && instance instanceof Map) {
+        instance.delete(key);
+      } else {
+        const currentValue = node.getValue();
+        if (Array.isArray(currentValue)) {
+          const index = parseInt(key, 10);
+          currentValue.splice(index, 1);
+          node.setValue([...currentValue]);
+        } else if (typeof currentValue === "object" && currentValue !== null) {
+          delete (currentValue as Record<string, unknown>)[key];
+          node.setValue({ ...currentValue });
+        }
       }
       break;
     }
@@ -1007,6 +1065,7 @@ export interface ActionContext {
   name: string;
   args: unknown[];
   tree: StateTreeNode;
+  parent?: ActionContext | null;
 }
 
 let currentAction: ActionContext | null = null;
@@ -1053,7 +1112,7 @@ export function trackAction<T>(
   fn: () => T,
 ): T {
   const previousAction = currentAction;
-  currentAction = { name, args, tree: node };
+  currentAction = { name, args, tree: node, parent: previousAction };
 
   try {
     const result = fn();

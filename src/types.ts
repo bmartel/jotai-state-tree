@@ -119,6 +119,7 @@ export interface IStateTreeNode<S = unknown> {
   readonly $path: string;
   readonly $env: unknown;
   readonly $isAlive: boolean;
+  $isApplyingHistory: boolean;
 }
 
 export type ModelInstance<

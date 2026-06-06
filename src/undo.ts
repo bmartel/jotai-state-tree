@@ -4,7 +4,7 @@
  */
 
 import type { IDisposer, IJsonPatch, IReversibleJsonPatch } from './types';
-import { getStateTreeNode, applyPatch, onPatch, getSnapshot, applySnapshot, onAction } from './tree';
+import { getStateTreeNode, applyPatch, onPatch, getSnapshot, applySnapshot, onAction, isActionRunning, getCurrentAction } from './tree';
 
 // ============================================================================
 // Types
@@ -70,9 +70,11 @@ class UndoManager implements IUndoManager {
   private isRedoing: boolean = false;
   private skipRecording: boolean = false;
   private grouping: boolean = false;
+  private actionGrouping: boolean = false;
   private currentGroup: IReversibleJsonPatch[] = [];
   private currentGroupInverse: IReversibleJsonPatch[] = [];
   private disposer: IDisposer | null = null;
+  private actionDisposer: IDisposer | null = null;
   private lastChangeTime: number = 0;
 
   constructor(target: unknown, options: IUndoManagerOptions = {}) {
@@ -86,6 +88,16 @@ class UndoManager implements IUndoManager {
     // Subscribe to patches
     this.disposer = onPatch(target, (patch, reversePatch) => {
       this.recordPatch(patch, reversePatch);
+    });
+
+    // Subscribe to actions to end grouping synchronously on top-level action completion
+    this.actionDisposer = onAction(target, () => {
+      const current = getCurrentAction();
+      if (current && !current.parent) {
+        if (this.actionGrouping) {
+          this.endGroup();
+        }
+      }
     });
   }
 
@@ -117,13 +129,29 @@ class UndoManager implements IUndoManager {
     if (this.isUndoing || this.isRedoing || this.skipRecording) {
       return;
     }
+    const node = getStateTreeNode(this.target);
+    if (node.getRoot().$isApplyingHistory) {
+      return;
+    }
 
     const now = Date.now();
+
+    if (isActionRunning() && !this.grouping) {
+      this.grouping = true;
+      this.actionGrouping = true;
+      this.currentGroup = [];
+      this.currentGroupInverse = [];
+      Promise.resolve().then(() => {
+        if (this.actionGrouping) {
+          this.endGroup();
+        }
+      });
+    }
 
     if (this.grouping) {
       // Add to current group
       this.currentGroup.push(reversePatch);
-      this.currentGroupInverse.unshift({ ...patch } as IReversibleJsonPatch);
+      this.currentGroupInverse.push({ ...patch } as IReversibleJsonPatch);
       return;
     }
 
@@ -137,7 +165,7 @@ class UndoManager implements IUndoManager {
       // Add to the last entry
       const lastEntry = this.historyEntries[this.currentIndex];
       lastEntry.patches.push(reversePatch);
-      lastEntry.inversePatches.unshift({ ...patch } as IReversibleJsonPatch);
+      lastEntry.inversePatches.push({ ...patch } as IReversibleJsonPatch);
       lastEntry.timestamp = now;
     } else {
       // Remove any redo entries
@@ -169,6 +197,10 @@ class UndoManager implements IUndoManager {
       return;
     }
 
+    const node = getStateTreeNode(this.target);
+    const rootNode = node.getRoot();
+    const wasApplying = rootNode.$isApplyingHistory;
+    rootNode.$isApplyingHistory = true;
     this.isUndoing = true;
     try {
       const entry = this.historyEntries[this.currentIndex];
@@ -179,6 +211,7 @@ class UndoManager implements IUndoManager {
       this.currentIndex--;
     } finally {
       this.isUndoing = false;
+      rootNode.$isApplyingHistory = wasApplying;
     }
   }
 
@@ -187,6 +220,10 @@ class UndoManager implements IUndoManager {
       return;
     }
 
+    const node = getStateTreeNode(this.target);
+    const rootNode = node.getRoot();
+    const wasApplying = rootNode.$isApplyingHistory;
+    rootNode.$isApplyingHistory = true;
     this.isRedoing = true;
     try {
       this.currentIndex++;
@@ -197,6 +234,7 @@ class UndoManager implements IUndoManager {
       }
     } finally {
       this.isRedoing = false;
+      rootNode.$isApplyingHistory = wasApplying;
     }
   }
 
@@ -206,10 +244,12 @@ class UndoManager implements IUndoManager {
     this.currentGroup = [];
     this.currentGroupInverse = [];
     this.grouping = false;
+    this.actionGrouping = false;
   }
 
   startGroup(): void {
     this.grouping = true;
+    this.actionGrouping = false;
     this.currentGroup = [];
     this.currentGroupInverse = [];
   }
@@ -220,6 +260,7 @@ class UndoManager implements IUndoManager {
     }
 
     this.grouping = false;
+    this.actionGrouping = false;
 
     if (this.currentGroup.length > 0) {
       // Remove any redo entries
@@ -260,6 +301,10 @@ class UndoManager implements IUndoManager {
     if (this.disposer) {
       this.disposer();
       this.disposer = null;
+    }
+    if (this.actionDisposer) {
+      this.actionDisposer();
+      this.actionDisposer = null;
     }
     this.clear();
   }
@@ -334,9 +379,12 @@ class TimeTravelManager implements ITimeTravelManager {
     // Auto-record on changes if enabled
     if (this.autoRecord) {
       this.disposer = onPatch(target, () => {
-        if (!this.isApplying) {
-          this.record();
+        if (this.isApplying) return;
+        const node = getStateTreeNode(this.target);
+        if (node.getRoot().$isApplyingHistory) {
+          return;
         }
+        this.record();
       });
     }
   }
@@ -388,12 +436,17 @@ class TimeTravelManager implements ITimeTravelManager {
   goTo(index: number): void {
     if (index < 0 || index >= this.snapshots.length) return;
     
+    const node = getStateTreeNode(this.target);
+    const rootNode = node.getRoot();
+    const wasApplying = rootNode.$isApplyingHistory;
+    rootNode.$isApplyingHistory = true;
     this.isApplying = true;
     try {
       this.index = index;
       applySnapshot(this.target, this.snapshots[index]);
     } finally {
       this.isApplying = false;
+      rootNode.$isApplyingHistory = wasApplying;
     }
   }
 

@@ -19,6 +19,7 @@ import {
   getCurrentAction,
   trackAction,
   $treenode,
+  getIsApplyingSnapshotOrPatch,
   type ActionCall,
 } from "./tree";
 
@@ -630,6 +631,9 @@ export function isProtected(target: unknown): boolean {
 export function canWrite(node: StateTreeNode): boolean {
   if (!node.$isAlive) {
     return false;
+  }
+  if (getIsApplyingSnapshotOrPatch()) {
+    return true;
   }
   if (typeof process !== "undefined" && process.env && process.env.NODE_ENV === "production") {
     return true;

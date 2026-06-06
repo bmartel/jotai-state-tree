@@ -241,6 +241,13 @@ class MSTArray<T> extends Array<T> implements IMSTArray<T> {
     const oldArray = (this.node.getValue() as unknown[]) || [];
     const newArray = [...this];
 
+    // Collect snapshots of existing children before we modify the children tree
+    const oldSnapshots = new Map<number, unknown>();
+    for (let i = 0; i < oldArray.length; i++) {
+      const childNode = this.node.getChild(String(i));
+      oldSnapshots.set(i, childNode ? getSnapshotFromNode(childNode) : oldArray[i]);
+    }
+
     // Collect existing child nodes for cleanup comparison
     const existingChildNodes = new Set<StateTreeNode>();
     for (const [, child] of this.node.getChildren()) {
@@ -332,8 +339,7 @@ class MSTArray<T> extends Array<T> implements IMSTArray<T> {
     // Case 2: Simple pop (items removed from the end)
     else if (newArray.length < oldArray.length && newArray.every((val, idx) => val === oldArray[idx])) {
       for (let i = oldArray.length - 1; i >= newArray.length; i--) {
-        const childNode = this.node.getChild(String(i));
-        const oldValSnap = childNode ? getSnapshotFromNode(childNode) : oldArray[i];
+        const oldValSnap = oldSnapshots.get(i);
         patches.push({
           op: "remove",
           path: `${this.node.$path}/${i}`,
@@ -347,10 +353,7 @@ class MSTArray<T> extends Array<T> implements IMSTArray<T> {
     }
     // Case 3: Other mutations (fallback to replace array)
     else {
-      const oldSnap = oldArray.map((_, idx) => {
-        const childNode = this.node.getChild(String(idx));
-        return childNode ? getSnapshotFromNode(childNode) : oldArray[idx];
-      });
+      const oldSnap = oldArray.map((_, idx) => oldSnapshots.get(idx));
       const newSnap = newArray.map((_, idx) => {
         const childNode = this.node.getChild(String(idx));
         return childNode ? getSnapshotFromNode(childNode) : newArray[idx];

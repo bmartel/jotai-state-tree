@@ -20,7 +20,7 @@ npx degit bmartel/jotai-state-tree/examples/todo-list-time-travel my-new-app
 cd my-new-app
 
 # 3. Update the package.json dependency (see note below)
-# Change "jotai-state-tree": "file:../.." to "jotai-state-tree": "^1.3.0"
+# Change "jotai-state-tree": "file:../.." to "jotai-state-tree": "^1.3.1"
 
 # 4. Install dependencies
 npm install
@@ -35,7 +35,7 @@ npm run dev
 > ```json
 > "dependencies": {
 >   "jotai": "^2.6.0",
->   "jotai-state-tree": "^1.3.0",
+>   "jotai-state-tree": "^1.3.1",
 >   "react": "^18.2.0",
 >   "react-dom": "^18.3.1"
 > }
@@ -52,7 +52,7 @@ git clone https://github.com/bmartel/jotai-state-tree.git
 # 2. Copy the desired template folder
 cp -r jotai-state-tree/examples/shopping-cart-views my-new-app
 
-# 3. Open my-new-app/package.json and update "jotai-state-tree" to "^1.3.0"
+# 3. Open my-new-app/package.json and update "jotai-state-tree" to "^1.3.1"
 # 4. Run: cd my-new-app && npm install && npm run dev
 ```
 

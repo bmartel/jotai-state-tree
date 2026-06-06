@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/bmartel/jotai-state-tree/compare/v1.3.0...v1.3.1) (2026-06-06)
+
+
+### Bug Fixes
+
+* make example config aliases conditional and add fallback path mappings for StackBlitz compatibility ([9b641c2](https://github.com/bmartel/jotai-state-tree/commit/9b641c28611aae325227dafc616c8b6e559cd201))
+
 # [1.3.0](https://github.com/bmartel/jotai-state-tree/compare/v1.2.1...v1.3.0) (2026-06-06)
 
 

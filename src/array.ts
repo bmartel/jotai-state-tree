@@ -19,6 +19,7 @@ import {
   getStateTreeNode,
   getGlobalStore,
   getSnapshotFromNode,
+  applySnapshotToNode,
 } from "./tree";
 import { canWrite } from "./lifecycle";
 
@@ -266,38 +267,115 @@ class MSTArray<T> extends Array<T> implements IMSTArray<T> {
         newChildren.set(key, childNode);
         keptNodes.add(childNode);
       } else {
-        // Try creating an instance - it might be a late/maybe type that creates complex instances
-        const instance = this.itemType.create(item);
-        if (instance && typeof instance === "object" && $treenode in instance) {
-          const childNode = getStateTreeNode(instance);
-          newChildren.set(key, childNode);
-          keptNodes.add(childNode);
-          // Update array with proper instance
-          (this as unknown as unknown[])[index] = instance;
-        } else {
-          // Primitive types - try to find existing node with same value
-          let reusedNode: StateTreeNode | null = null;
-          for (const existingNode of existingChildNodes) {
+        // Check if we can reconcile/reuse an existing complex node in existingChildNodes
+        let reusedNode: StateTreeNode | null = null;
+
+        // Helper to resolve actual model type (unwrapping wrappers like optional/late/maybe)
+        const resolveActualType = (type: IAnyType): IAnyType => {
+          let current = type;
+          while (current) {
             if (
-              !keptNodes.has(existingNode) &&
-              existingNode.getValue() === item
+              current._kind === "optional" ||
+              current._kind === "maybe" ||
+              current._kind === "maybeNull" ||
+              current._kind === "refinement"
             ) {
-              reusedNode = existingNode;
+              current = (current as any)._subType;
+            } else if (current._kind === "late") {
+              current = (current as any)._definition();
+            } else {
               break;
             }
           }
+          return current;
+        };
 
-          if (reusedNode) {
-            newChildren.set(key, reusedNode);
-            keptNodes.add(reusedNode);
-          } else {
-            const childNode = new StateTreeNode(
-              this.itemType,
-              item,
-              this.node.$env,
-            );
+        const actualType = resolveActualType(this.itemType);
+        const isComplex =
+          actualType._kind === "model" ||
+          actualType._kind === "array" ||
+          actualType._kind === "map";
+
+        const identifierAttr = (actualType as any).identifierAttribute;
+
+        // Try to find existing node by identifier if the type has one
+        if (identifierAttr && item && typeof item === "object") {
+          const idValue = (item as any)[identifierAttr];
+          if (idValue !== undefined && idValue !== null) {
+            for (const existingNode of existingChildNodes) {
+              if (
+                !keptNodes.has(existingNode) &&
+                existingNode.identifierValue === idValue
+              ) {
+                reusedNode = existingNode;
+                break;
+              }
+            }
+          }
+        }
+
+        // If no identifier, try to reconcile by index/key (matching type)
+        if (!reusedNode && !identifierAttr) {
+          const existingNodeAtIndex = this.node.getChild(key);
+          if (
+            existingNodeAtIndex &&
+            !keptNodes.has(existingNodeAtIndex) &&
+            existingNodeAtIndex.$type === this.itemType
+          ) {
+            reusedNode = existingNodeAtIndex;
+          }
+        }
+
+        if (reusedNode) {
+          // Reconcile/apply snapshot to the reused node
+          applySnapshotToNode(reusedNode, item);
+          
+          const instance = isComplex ? reusedNode.getInstance() : reusedNode.getValue();
+          newChildren.set(key, reusedNode);
+          keptNodes.add(reusedNode);
+          
+          // Update array with proper instance
+          (this as unknown as unknown[])[index] = instance;
+          (newArray as any)[index] = instance;
+        } else {
+          // Try creating an instance - it might be a late/maybe type that creates complex instances
+          const instance = this.itemType.create(item);
+          if (instance && typeof instance === "object" && $treenode in instance) {
+            const childNode = getStateTreeNode(instance);
             newChildren.set(key, childNode);
             keptNodes.add(childNode);
+            // Update array with proper instance
+            (this as unknown as unknown[])[index] = instance;
+            (newArray as any)[index] = instance;
+          } else {
+            // Primitive types - try to find existing node with same value
+            let reusedPrimitiveNode: StateTreeNode | null = null;
+            for (const existingNode of existingChildNodes) {
+              if (
+                !keptNodes.has(existingNode) &&
+                existingNode.getValue() === item
+              ) {
+                reusedPrimitiveNode = existingNode;
+                break;
+              }
+            }
+
+            if (reusedPrimitiveNode) {
+              newChildren.set(key, reusedPrimitiveNode);
+              keptNodes.add(reusedPrimitiveNode);
+              (this as unknown as unknown[])[index] = instance;
+              (newArray as any)[index] = instance;
+            } else {
+              const childNode = new StateTreeNode(
+                this.itemType,
+                item,
+                this.node.$env,
+              );
+              newChildren.set(key, childNode);
+              keptNodes.add(childNode);
+              (this as unknown as unknown[])[index] = instance;
+              (newArray as any)[index] = instance;
+            }
           }
         }
       }

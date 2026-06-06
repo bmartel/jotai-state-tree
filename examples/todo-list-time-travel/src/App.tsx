@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useSnapshot } from 'jotai-state-tree/react';
-import { onPatch, createUndoManager, createTimeTravelManager, IJsonPatch } from 'jotai-state-tree';
+import { useSnapshot, useUndoManager, useTimeTravelManager } from 'jotai-state-tree/react';
+import { onPatch, IJsonPatch } from 'jotai-state-tree';
 import { TodoStore, ITodoStore } from './store';
 
 export function App() {
@@ -16,14 +16,13 @@ export function App() {
   // Subscribe to store updates for reactive rendering
   useSnapshot(store);
 
-  // Initialize managers
-  const undoManager = useMemo(() => createUndoManager(store, { maxHistoryLength: 50 }), [store]);
-  const timeTravel = useMemo(() => createTimeTravelManager(store, { maxSnapshots: 50, autoRecord: true }), [store]);
+  // Initialize managers cleanly using dedicated hooks
+  const undoManager = useUndoManager(store, { maxHistoryLength: 50 });
+  const timeTravel = useTimeTravelManager(store, { maxSnapshots: 50, autoRecord: true });
 
   // States
   const [newTodoText, setNewTodoText] = useState('');
   const [patchLogs, setPatchLogs] = useState<Array<{ id: string; desc: string; patch: IJsonPatch }>>([]);
-  const [, setHistoryTick] = useState(0); // Forces local updates when history changes outside of store state changes
 
   // Track patches for the live developer logs panel
   useEffect(() => {
@@ -36,8 +35,6 @@ export function App() {
         },
         ...logs.slice(0, 19), // Keep last 20 patches
       ]);
-      // Increment tick to force button disabled states to update
-      setHistoryTick((t) => t + 1);
     });
 
     return () => {
@@ -160,20 +157,14 @@ export function App() {
           <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-gray-800)' }}>History Management</span>
           <div className="flex-row">
             <button
-              onClick={() => {
-                undoManager.undo();
-                setHistoryTick((t) => t + 1);
-              }}
+              onClick={() => undoManager.undo()}
               disabled={!undoManager.canUndo}
               style={{ padding: '6px 12px', fontSize: '12px' }}
             >
               Undo ({undoManager.undoLevels})
             </button>
             <button
-              onClick={() => {
-                undoManager.redo();
-                setHistoryTick((t) => t + 1);
-              }}
+              onClick={() => undoManager.redo()}
               disabled={!undoManager.canRedo}
               style={{ padding: '6px 12px', fontSize: '12px' }}
             >
@@ -190,10 +181,7 @@ export function App() {
           
           <div className="history-slider-wrapper">
             <button
-              onClick={() => {
-                timeTravel.goBack();
-                setHistoryTick((t) => t + 1);
-              }}
+              onClick={() => timeTravel.goBack()}
               disabled={!timeTravel.canGoBack}
               style={{ padding: '4px 8px' }}
             >
@@ -204,17 +192,11 @@ export function App() {
               min="0"
               max={Math.max(0, timeTravel.snapshotCount - 1)}
               value={timeTravel.currentIndex >= 0 ? timeTravel.currentIndex : 0}
-              onChange={(e) => {
-                timeTravel.goTo(parseInt(e.target.value));
-                setHistoryTick((t) => t + 1);
-              }}
+              onChange={(e) => timeTravel.goTo(parseInt(e.target.value))}
               disabled={timeTravel.snapshotCount <= 1}
             />
             <button
-              onClick={() => {
-                timeTravel.goForward();
-                setHistoryTick((t) => t + 1);
-              }}
+              onClick={() => timeTravel.goForward()}
               disabled={!timeTravel.canGoForward}
               style={{ padding: '4px 8px' }}
             >

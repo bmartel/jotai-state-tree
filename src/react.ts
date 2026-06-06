@@ -38,6 +38,13 @@ import {
   StateTreeNode,
   getGlobalStore,
 } from "./tree";
+import {
+  createUndoManager,
+  createTimeTravelManager,
+  type IUndoManager,
+  type ITimeTravelManager,
+  type IUndoManagerOptions,
+} from "./undo";
 
 // ============================================================================
 // Observer Tracking Context
@@ -690,6 +697,75 @@ export function useHydrateStore(
 // ============================================================================
 
 export { hasStateTreeNode };
+
+// ============================================================================
+// Undo/Redo & Time Travel Hooks
+// ============================================================================
+
+/**
+ * Hook to create and use an UndoManager.
+ * Automatically handles the subscription lifecycle and triggers re-renders on changes.
+ */
+export function useUndoManager(
+  target: unknown,
+  options?: IUndoManagerOptions,
+): IUndoManager {
+  const managerRef = useRef<IUndoManager | null>(null);
+  const [, forceUpdate] = useState(0);
+
+  if (!managerRef.current) {
+    managerRef.current = createUndoManager(target, options);
+  }
+
+  useEffect(() => {
+    const disposer = onPatch(target, () => {
+      forceUpdate((t) => t + 1);
+    });
+    return () => {
+      disposer();
+      if (managerRef.current) {
+        managerRef.current.dispose();
+        managerRef.current = null;
+      }
+    };
+  }, [target]);
+
+  return managerRef.current;
+}
+
+/**
+ * Hook to create and use a TimeTravelManager.
+ * Automatically handles the subscription lifecycle and triggers re-renders on changes.
+ */
+export function useTimeTravelManager(
+  target: unknown,
+  options?: {
+    maxSnapshots?: number;
+    autoRecord?: boolean;
+  },
+): ITimeTravelManager {
+  const managerRef = useRef<ITimeTravelManager | null>(null);
+  const [, forceUpdate] = useState(0);
+
+  if (!managerRef.current) {
+    managerRef.current = createTimeTravelManager(target, options);
+  }
+
+  useEffect(() => {
+    const disposer = onPatch(target, () => {
+      forceUpdate((t) => t + 1);
+    });
+    return () => {
+      disposer();
+      if (managerRef.current) {
+        managerRef.current.dispose();
+        managerRef.current = null;
+      }
+    };
+  }, [target]);
+
+  return managerRef.current;
+}
 
 // ============================================================================
 // Type Exports

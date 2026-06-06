@@ -16,6 +16,8 @@ import {
   clearAllRegistries,
   resetGlobalStore,
   getRegistryStats,
+  createUndoManager,
+  createTimeTravelManager,
 } from "../index";
 
 import {
@@ -584,6 +586,54 @@ describe("React Integration", () => {
       await waitFor(() => {
         expect(screen.getByTestId("snapshot").textContent).toBe("20");
       });
+    });
+
+    it("should update when undo/redo or time travel are executed", async () => {
+      const counter = CounterModel.create({ count: 10 });
+      const undoManager = createUndoManager(counter);
+      const timeTravel = createTimeTravelManager(counter, { autoRecord: true });
+
+      function SnapshotDisplay({ store }: { store: typeof counter }) {
+        const snapshot = useSnapshot<{ count: number }>(store);
+        return <div data-testid="snapshot">{snapshot.count}</div>;
+      }
+
+      render(<SnapshotDisplay store={counter} />);
+      expect(screen.getByTestId("snapshot").textContent).toBe("10");
+
+      act(() => {
+        counter.setCount(20);
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId("snapshot").textContent).toBe("20");
+      });
+
+      // Undo
+      act(() => {
+        undoManager.undo();
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId("snapshot").textContent).toBe("10");
+      });
+
+      // Redo
+      act(() => {
+        undoManager.redo();
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId("snapshot").textContent).toBe("20");
+      });
+
+      // Time travel goBack
+      act(() => {
+        timeTravel.goBack();
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId("snapshot").textContent).toBe("10");
+      });
+
+      undoManager.dispose();
+      timeTravel.dispose();
     });
   });
 

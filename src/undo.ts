@@ -360,7 +360,10 @@ class TimeTravelManager implements ITimeTravelManager {
   private maxSnapshots: number;
   private isApplying: boolean = false;
   private disposer: IDisposer | null = null;
+  private actionDisposer: IDisposer | null = null;
   private autoRecord: boolean;
+  private pendingRecord: boolean = false;
+  private actionGrouping: boolean = false;
 
   constructor(
     target: unknown,
@@ -384,8 +387,38 @@ class TimeTravelManager implements ITimeTravelManager {
         if (node.getRoot().$isApplyingHistory) {
           return;
         }
-        this.record();
+
+        if (isActionRunning()) {
+          this.pendingRecord = true;
+          if (!this.actionGrouping) {
+            this.actionGrouping = true;
+            Promise.resolve().then(() => {
+              if (this.actionGrouping) {
+                this.commitPendingRecord();
+              }
+            });
+          }
+        } else {
+          this.record();
+        }
       });
+
+      this.actionDisposer = onAction(target, () => {
+        const current = getCurrentAction();
+        if (current && !current.parent) {
+          if (this.actionGrouping) {
+            this.commitPendingRecord();
+          }
+        }
+      });
+    }
+  }
+
+  private commitPendingRecord() {
+    this.actionGrouping = false;
+    if (this.pendingRecord) {
+      this.pendingRecord = false;
+      this.record();
     }
   }
 
@@ -468,6 +501,10 @@ class TimeTravelManager implements ITimeTravelManager {
     if (this.disposer) {
       this.disposer();
       this.disposer = null;
+    }
+    if (this.actionDisposer) {
+      this.actionDisposer();
+      this.actionDisposer = null;
     }
   }
 }

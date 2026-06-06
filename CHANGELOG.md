@@ -1,3 +1,10 @@
+## [1.3.6](https://github.com/bmartel/jotai-state-tree/compare/v1.3.5...v1.3.6) (2026-06-06)
+
+
+### Bug Fixes
+
+* resolve snapshot cache invalidation timing bug during patch notifications ([a9b992f](https://github.com/bmartel/jotai-state-tree/commit/a9b992fdf644fc5c5650f8cdef1490440bcffcd8))
+
 ## [1.3.5](https://github.com/bmartel/jotai-state-tree/compare/v1.3.4...v1.3.5) (2026-06-06)
 
 

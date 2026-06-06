@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/bmartel/jotai-state-tree/compare/v1.3.7...v1.4.0) (2026-06-06)
+
+
+### Features
+
+* add useUndoManager and useTimeTravelManager hooks, and clean up todo example app ([eee722c](https://github.com/bmartel/jotai-state-tree/commit/eee722c6e17733b33fa94aca8ac3e10c2df11058))
+
 ## [1.3.7](https://github.com/bmartel/jotai-state-tree/compare/v1.3.6...v1.3.7) (2026-06-06)
 
 

@@ -598,6 +598,94 @@ describe("Stress Tests", () => {
       expect(statsAfter.identifierRegistrySize).toBe(0);
     });
   });
+
+  describe("Reference Resolution Scale Benchmarks", () => {
+    it("should resolve a single reference 50,000 times efficiently", () => {
+      const User = types.model("User", {
+        id: types.identifier,
+        name: types.string,
+      });
+
+      const usersById = new Map<string, any>();
+      const Post = types.model("Post", {
+        id: types.identifier,
+        authorId: types.safeDynamicReference("User", {
+          get: (identifier) => usersById.get(String(identifier)),
+        }),
+      });
+
+      const user = User.create({ id: "user-1", name: "Alice" });
+      usersById.set("user-1", user);
+
+      const post = Post.create({
+        id: "post-1",
+        authorId: "user-1",
+      });
+
+      // Warm up
+      const _ = post.authorId.name;
+
+      const start = performance.now();
+      let lastResult = "";
+      for (let i = 0; i < 50000; i++) {
+        lastResult = post.authorId.name;
+      }
+      const elapsed = performance.now() - start;
+
+      expect(lastResult).toBe("Alice");
+      // Reference resolution should be extremely fast (less than 1 second for 50k calls)
+      expect(elapsed).toBeLessThan(1000);
+
+      destroy(user);
+      destroy(post);
+    });
+
+    it("should resolve 10,000 different references efficiently", () => {
+      const User = types.model("User", {
+        id: types.identifier,
+        name: types.string,
+      });
+
+      const usersById = new Map<string, any>();
+      const Post = types.model("Post", {
+        id: types.identifier,
+        authorId: types.safeDynamicReference("User", {
+          get: (identifier) => usersById.get(String(identifier)),
+        }),
+      });
+
+      // Create 10,000 users
+      const users: any[] = [];
+      for (let i = 0; i < 10000; i++) {
+        const u = User.create({ id: `u-${i}`, name: `User ${i}` });
+        usersById.set(`u-${i}`, u);
+        users.push(u);
+      }
+
+      // Create 10,000 posts referencing them
+      const posts: any[] = [];
+      for (let i = 0; i < 10000; i++) {
+        posts.push(Post.create({ id: `p-${i}`, authorId: `u-${i}` }));
+      }
+
+      const start = performance.now();
+      let matchCount = 0;
+      for (let i = 0; i < 10000; i++) {
+        if (posts[i].authorId.name === `User ${i}`) {
+          matchCount++;
+        }
+      }
+      const elapsed = performance.now() - start;
+
+      expect(matchCount).toBe(10000);
+      // Resolving 10,000 distinct references should be fast (less than 1.5 seconds)
+      expect(elapsed).toBeLessThan(1500);
+
+      // Cleanup
+      posts.forEach((p) => destroy(p));
+      users.forEach((u) => destroy(u));
+    });
+  });
 });
 
 // ============================================================================

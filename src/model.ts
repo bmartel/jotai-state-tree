@@ -35,6 +35,7 @@ import {
   applySnapshotToNode,
   trackNodeAccess,
 } from "./tree";
+import { canWrite } from "./lifecycle";
 
 // ============================================================================
 // LRU Cache Implementation
@@ -358,6 +359,9 @@ class ModelType<
 
         // Check if it's a property
         if (propertyAtoms.has(propStr)) {
+          if (!canWrite(node)) {
+            throw new Error(`Cannot modify '${propStr}' - the object is protected and can only be modified inside an action.`);
+          }
           const propType = (self.properties as Record<string, IAnyType>)[
             propStr
           ];
@@ -434,6 +438,9 @@ class ModelType<
 
         // Check if it's volatile state
         if (propStr in node.volatileState) {
+          if (!canWrite(node)) {
+            throw new Error(`Cannot modify volatile property '${propStr}' - the object is protected and can only be modified inside an action.`);
+          }
           const oldValue = node.volatileState[propStr];
           if (oldValue !== value) {
             node.volatileState[propStr] = value;

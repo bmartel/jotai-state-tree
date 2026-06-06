@@ -13,6 +13,7 @@ import {
   StateTreeNode,
   getStateTreeNode,
   registerActionRecorderHook,
+  isActionRunning,
   type ActionCall,
 } from "./tree";
 
@@ -346,14 +347,25 @@ registerActionRecorderHook((node: StateTreeNode, call: ActionCall) => {
 // Protect / Unprotect (WeakSet - allows GC)
 // ============================================================================
 
-const protectedNodes = new WeakSet<StateTreeNode>();
+const unprotectedNodes = new WeakSet<StateTreeNode>();
+
+function isNodeUnprotected(node: StateTreeNode): boolean {
+  let curr: StateTreeNode | null = node;
+  while (curr) {
+    if (unprotectedNodes.has(curr)) {
+      return true;
+    }
+    curr = curr.$parent;
+  }
+  return false;
+}
 
 /**
  * Protect a node from direct mutations outside of actions
  */
 export function protect(target: unknown): void {
   const node = getStateTreeNode(target);
-  protectedNodes.add(node);
+  unprotectedNodes.delete(node);
 }
 
 /**
@@ -361,7 +373,7 @@ export function protect(target: unknown): void {
  */
 export function unprotect(target: unknown): void {
   const node = getStateTreeNode(target);
-  protectedNodes.delete(node);
+  unprotectedNodes.add(node);
 }
 
 /**
@@ -369,20 +381,20 @@ export function unprotect(target: unknown): void {
  */
 export function isProtected(target: unknown): boolean {
   const node = getStateTreeNode(target);
-  return protectedNodes.has(node);
+  return !isNodeUnprotected(node);
 }
 
 /**
  * Check if we can write to a node
  */
 export function canWrite(node: StateTreeNode): boolean {
-  // If not protected, can always write
-  if (!protectedNodes.has(node)) {
+  if (typeof process !== "undefined" && process.env && process.env.NODE_ENV === "production") {
     return true;
   }
-
-  // If protected, must be inside an action
-  return currentActionContext !== null;
+  if (isNodeUnprotected(node)) {
+    return true;
+  }
+  return isActionRunning();
 }
 
 // ============================================================================

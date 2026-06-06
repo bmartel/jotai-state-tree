@@ -17,6 +17,7 @@ import {
   getStateTreeNode,
   getGlobalStore,
 } from "./tree";
+import { canWrite } from "./lifecycle";
 
 // ============================================================================
 // MST Array Implementation
@@ -25,104 +26,205 @@ import {
 class MSTArray<T> extends Array<T> implements IMSTArray<T> {
   private node: StateTreeNode;
   private itemType: IAnyType;
+  _isMutating = false;
 
   constructor(node: StateTreeNode, itemType: IAnyType, items: T[] = []) {
     super(...items);
     this.node = node;
     this.itemType = itemType;
+    this._isMutating = false;
 
     // Set prototype correctly for extending Array
     Object.setPrototypeOf(this, MSTArray.prototype);
   }
 
+  private checkWrite(): void {
+    if (!canWrite(this.node)) {
+      throw new Error(
+        `Cannot modify the array - the parent object is protected and can only be modified inside an action.`
+      );
+    }
+  }
+
   replace(items: T[]): void {
-    this.length = 0;
-    this.push(...items);
-    this.syncToNode();
+    this.checkWrite();
+    const wasMutating = this._isMutating;
+    this._isMutating = true;
+    try {
+      this.length = 0;
+      this.push(...items);
+      this.syncToNode();
+    } finally {
+      this._isMutating = wasMutating;
+    }
   }
 
   clear(): void {
-    this.length = 0;
-    this.syncToNode();
+    this.checkWrite();
+    const wasMutating = this._isMutating;
+    this._isMutating = true;
+    try {
+      this.length = 0;
+      this.syncToNode();
+    } finally {
+      this._isMutating = wasMutating;
+    }
   }
 
   remove(item: T): boolean {
-    const index = this.indexOf(item);
-    if (index >= 0) {
-      this.splice(index, 1);
-      this.syncToNode();
-      return true;
+    this.checkWrite();
+    const wasMutating = this._isMutating;
+    this._isMutating = true;
+    try {
+      const index = this.indexOf(item);
+      if (index >= 0) {
+        this.splice(index, 1);
+        this.syncToNode();
+        return true;
+      }
+      return false;
+    } finally {
+      this._isMutating = wasMutating;
     }
-    return false;
   }
 
   spliceWithArray(index: number, deleteCount?: number, newItems?: T[]): T[] {
-    const result =
-      deleteCount !== undefined
-        ? newItems
-          ? this.splice(index, deleteCount, ...newItems)
-          : this.splice(index, deleteCount)
-        : this.splice(index);
-    this.syncToNode();
-    return result;
+    this.checkWrite();
+    const wasMutating = this._isMutating;
+    this._isMutating = true;
+    try {
+      const result =
+        deleteCount !== undefined
+          ? newItems
+            ? this.splice(index, deleteCount, ...newItems)
+            : this.splice(index, deleteCount)
+          : this.splice(index);
+      this.syncToNode();
+      return result;
+    } finally {
+      this._isMutating = wasMutating;
+    }
   }
 
   // Override mutating methods to sync
   push(...items: T[]): number {
-    const result = super.push(...items);
-    this.syncToNode();
-    return result;
+    this.checkWrite();
+    const wasMutating = this._isMutating;
+    this._isMutating = true;
+    try {
+      const result = super.push(...items);
+      this.syncToNode();
+      return result;
+    } finally {
+      this._isMutating = wasMutating;
+    }
   }
 
   pop(): T | undefined {
-    const result = super.pop();
-    this.syncToNode();
-    return result;
+    this.checkWrite();
+    const wasMutating = this._isMutating;
+    this._isMutating = true;
+    try {
+      const result = super.pop();
+      this.syncToNode();
+      return result;
+    } finally {
+      this._isMutating = wasMutating;
+    }
   }
 
   shift(): T | undefined {
-    const result = super.shift();
-    this.syncToNode();
-    return result;
+    this.checkWrite();
+    const wasMutating = this._isMutating;
+    this._isMutating = true;
+    try {
+      const result = super.shift();
+      this.syncToNode();
+      return result;
+    } finally {
+      this._isMutating = wasMutating;
+    }
   }
 
   unshift(...items: T[]): number {
-    const result = super.unshift(...items);
-    this.syncToNode();
-    return result;
+    this.checkWrite();
+    const wasMutating = this._isMutating;
+    this._isMutating = true;
+    try {
+      const result = super.unshift(...items);
+      this.syncToNode();
+      return result;
+    } finally {
+      this._isMutating = wasMutating;
+    }
   }
 
   splice(start: number, deleteCount?: number, ...items: T[]): T[] {
-    const result =
-      deleteCount !== undefined
-        ? super.splice(start, deleteCount, ...items)
-        : super.splice(start);
-    this.syncToNode();
-    return result;
+    this.checkWrite();
+    const wasMutating = this._isMutating;
+    this._isMutating = true;
+    try {
+      const result =
+        deleteCount !== undefined
+          ? super.splice(start, deleteCount, ...items)
+          : super.splice(start);
+      this.syncToNode();
+      return result;
+    } finally {
+      this._isMutating = wasMutating;
+    }
   }
 
   sort(compareFn?: (a: T, b: T) => number): this {
-    super.sort(compareFn);
-    this.syncToNode();
-    return this;
+    this.checkWrite();
+    const wasMutating = this._isMutating;
+    this._isMutating = true;
+    try {
+      super.sort(compareFn);
+      this.syncToNode();
+      return this;
+    } finally {
+      this._isMutating = wasMutating;
+    }
   }
 
   reverse(): T[] {
-    super.reverse();
-    this.syncToNode();
-    return this;
+    this.checkWrite();
+    const wasMutating = this._isMutating;
+    this._isMutating = true;
+    try {
+      super.reverse();
+      this.syncToNode();
+      return this;
+    } finally {
+      this._isMutating = wasMutating;
+    }
   }
 
   fill(value: T, start?: number, end?: number): this {
-    super.fill(value, start, end);
-    this.syncToNode();
-    return this;
+    this.checkWrite();
+    const wasMutating = this._isMutating;
+    this._isMutating = true;
+    try {
+      super.fill(value, start, end);
+      this.syncToNode();
+      return this;
+    } finally {
+      this._isMutating = wasMutating;
+    }
   }
 
   copyWithin(target: number, start: number, end?: number): this {
-    super.copyWithin(target, start, end);
-    this.syncToNode();
-    return this;
+    this.checkWrite();
+    const wasMutating = this._isMutating;
+    this._isMutating = true;
+    try {
+      super.copyWithin(target, start, end);
+      this.syncToNode();
+      return this;
+    } finally {
+      this._isMutating = wasMutating;
+    }
   }
 
   toJSON(): T[] {
@@ -272,10 +374,37 @@ class ArrayType<T extends IAnyType> implements IArrayType<T> {
       enumerable: false,
     });
 
-    node.setInstance(mstArray);
+    const proxy = new Proxy(mstArray, {
+      get(target, prop, receiver) {
+        if (prop === $treenode) {
+          return node;
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+      set(target, prop, value) {
+        const propStr = String(prop);
+        const isIndex = /^\d+$/.test(propStr);
+        if (isIndex || propStr === "length") {
+          if (!canWrite(node)) {
+            throw new Error(
+              `Cannot modify the array - the parent object is protected and can only be modified inside an action.`
+            );
+          }
+          (target as any)[prop] = value;
+          if (!(target as any)._isMutating) {
+            (target as any).syncToNode();
+          }
+          return true;
+        }
+        (target as any)[prop] = value;
+        return true;
+      },
+    }) as any;
+
+    node.setInstance(proxy);
     node.setValue(instances);
 
-    return mstArray;
+    return proxy;
   }
 
   is(

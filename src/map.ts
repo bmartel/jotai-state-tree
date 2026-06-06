@@ -15,6 +15,7 @@ import {
   $treenode,
   getStateTreeNode,
 } from './tree';
+import { canWrite } from './lifecycle';
 
 // ============================================================================
 // MST Map Implementation
@@ -40,7 +41,16 @@ class MSTMap<V> extends Map<string, V> implements IMSTMap<V> {
     }
   }
 
+  private checkWrite(): void {
+    if (!canWrite(this.node)) {
+      throw new Error(
+        `Cannot modify the map - the parent object is protected and can only be modified inside an action.`
+      );
+    }
+  }
+
   put(value: V): V {
+    this.checkWrite();
     // Get the identifier from the value if it's a model with identifier
     let key: string;
     if (value && typeof value === 'object' && $treenode in value) {
@@ -59,6 +69,7 @@ class MSTMap<V> extends Map<string, V> implements IMSTMap<V> {
   }
 
   merge(values: Record<string, V> | Map<string, V>): this {
+    this.checkWrite();
     const entries = values instanceof Map ? values.entries() : Object.entries(values);
     for (const [key, value] of entries) {
       this.set(key, value);
@@ -67,12 +78,16 @@ class MSTMap<V> extends Map<string, V> implements IMSTMap<V> {
   }
 
   replace(values: Record<string, V> | Map<string, V>): this {
+    this.checkWrite();
     this.clear();
     return this.merge(values);
   }
 
   // Override mutating methods to sync
   set(key: string, value: V): this {
+    if (this.initialized) {
+      this.checkWrite();
+    }
     super.set(key, value);
     if (this.initialized) {
       this.syncToNode();
@@ -93,6 +108,9 @@ class MSTMap<V> extends Map<string, V> implements IMSTMap<V> {
   }
 
   delete(key: string): boolean {
+    if (this.initialized) {
+      this.checkWrite();
+    }
     const result = super.delete(key);
     if (result && this.initialized) {
       this.syncToNode();
@@ -101,6 +119,9 @@ class MSTMap<V> extends Map<string, V> implements IMSTMap<V> {
   }
 
   clear(): void {
+    if (this.initialized) {
+      this.checkWrite();
+    }
     super.clear();
     if (this.initialized) {
       this.syncToNode();

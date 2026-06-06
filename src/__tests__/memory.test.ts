@@ -20,6 +20,7 @@ import {
   isAlive,
   clone,
   detach,
+  unprotect,
 } from "../index";
 import {
   getRegistryStats,
@@ -183,6 +184,7 @@ describe("Memory Management", () => {
       });
 
       const instance = Model.create({ value: 0 });
+      unprotect(instance);
 
       let callCount = 0;
       const disposer = onSnapshot(instance, () => {
@@ -208,6 +210,7 @@ describe("Memory Management", () => {
       });
 
       const instance = Model.create({ value: 0 });
+      unprotect(instance);
 
       let callCount = 0;
       const disposer = onSnapshot(instance, () => {
@@ -234,6 +237,7 @@ describe("Memory Management", () => {
       });
 
       const instance = Model.create({ value: 0 });
+      unprotect(instance);
 
       let patchCount = 0;
       const disposer = onPatch(instance, () => {
@@ -257,6 +261,7 @@ describe("Memory Management", () => {
       });
 
       const instance = Model.create({ value: 0 });
+      unprotect(instance);
 
       // Subscribe and unsubscribe many times
       for (let i = 0; i < 100; i++) {
@@ -591,6 +596,7 @@ describe("Stress Tests", () => {
     });
 
     const instance = Model.create({ value: 0 });
+    unprotect(instance);
     const disposers: (() => void)[] = [];
 
     // Add many subscriptions
@@ -676,6 +682,48 @@ describe("Stress Tests", () => {
 
       // All nodes should be cleaned up
       expect(statsAfter.liveNodeCount).toBe(statsBefore.liveNodeCount);
+    });
+
+    describe("Garbage Collection Memory Safety (global.gc)", () => {
+      it("should garbage collect nodes automatically when dereferenced without destroy()", async () => {
+        // Ensure clean state
+        clearAllRegistries();
+        if (global.gc) {
+          global.gc();
+        }
+        cleanupStaleEntries();
+
+        const statsStart = getRegistryStats();
+        expect(statsStart.liveNodeCount).toBe(0);
+
+        const Model = types.model("GCModel", {
+          value: types.number,
+        });
+
+        // Helper to run in a separate function call stack
+        const runTestBlock = () => {
+          Model.create({ value: 42 });
+          expect(getRegistryStats().liveNodeCount).toBe(2);
+        };
+
+        runTestBlock();
+
+        // Allow microtasks and stack to clear
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        // Force V8 GC
+        if (global.gc) {
+          global.gc();
+          cleanupStaleEntries();
+        }
+
+        const statsEnd = getRegistryStats();
+        if (global.gc) {
+          expect(statsEnd.liveNodeCount).toBe(0);
+        } else {
+          console.warn("global.gc is not available in this test environment. Make sure --expose-gc is set.");
+        }
+      });
     });
   });
 });

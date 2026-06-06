@@ -977,6 +977,11 @@ export interface ActionCall {
   args: unknown[];
 }
 
+/** Check if an action is currently running */
+export function isActionRunning(): boolean {
+  return currentAction !== null;
+}
+
 /** Track an action call */
 export function trackAction<T>(
   node: StateTreeNode,

@@ -1881,4 +1881,157 @@ describe("Mixin Types", () => {
       expect(user.fullName).toBe("Jane Doe");
     });
   });
+
+  describe("Protection and Action Compliance (MST drop-in)", () => {
+    it("should protect nodes by default and allow actions to write", () => {
+      const Model = types
+        .model("ProtectedModel", {
+          value: types.number,
+          text: types.string,
+        })
+        .actions((self) => ({
+          setValue(val: number) {
+            self.value = val;
+          },
+        }));
+
+      const instance = Model.create({ value: 10, text: "hello" });
+
+      // Should be protected by default
+      expect(isProtected(instance)).toBe(true);
+
+      // Direct write should throw
+      expect(() => {
+        instance.value = 20;
+      }).toThrow(/protected/);
+      expect(instance.value).toBe(10); // unchanged
+
+      // Action write should succeed
+      instance.setValue(20);
+      expect(instance.value).toBe(20);
+    });
+
+    it("should allow writing directly when unprotected", () => {
+      const Model = types.model("UnprotectedModel", {
+        value: types.number,
+      });
+
+      const instance = Model.create({ value: 10 });
+
+      // Unprotect
+      unprotect(instance);
+      expect(isProtected(instance)).toBe(false);
+
+      // Direct write should now succeed
+      instance.value = 20;
+      expect(instance.value).toBe(20);
+
+      // Protect again
+      protect(instance);
+      expect(isProtected(instance)).toBe(true);
+
+      // Should throw again
+      expect(() => {
+        instance.value = 30;
+      }).toThrow(/protected/);
+      expect(instance.value).toBe(20);
+    });
+
+    it("should protect nested nodes by default, but allow writing if ancestor is unprotected", () => {
+      const Child = types.model("Child", {
+        value: types.number,
+      });
+      const Parent = types.model("Parent", {
+        child: Child,
+      });
+
+      const instance = Parent.create({
+        child: { value: 10 },
+      });
+
+      // Child should be protected by default
+      expect(isProtected(instance.child)).toBe(true);
+      expect(() => {
+        instance.child.value = 20;
+      }).toThrow(/protected/);
+
+      // Unprotect parent
+      unprotect(instance);
+      expect(isProtected(instance.child)).toBe(false);
+
+      // Writing to child should now succeed
+      instance.child.value = 20;
+      expect(instance.child.value).toBe(20);
+    });
+
+    it("should protect arrays and maps by default", () => {
+      const Model = types
+        .model("CollectionModel", {
+          arr: types.array(types.number),
+          map: types.map(types.string),
+        })
+        .actions((self) => ({
+          addItems() {
+            self.arr.push(1);
+            self.map.set("a", "b");
+          },
+        }));
+
+      const instance = Model.create({
+        arr: [],
+        map: {},
+      });
+
+      // Direct array push should throw
+      expect(() => {
+        instance.arr.push(1);
+      }).toThrow(/protected/);
+
+      // Direct map set should throw
+      expect(() => {
+        instance.map.set("a", "b");
+      }).toThrow(/protected/);
+
+      // Actions should work
+      instance.addItems();
+      expect(instance.arr.length).toBe(1);
+      expect(instance.map.get("a")).toBe("b");
+
+      // Unprotect allows direct mutation
+      unprotect(instance);
+      instance.arr.push(2);
+      instance.map.set("c", "d");
+      expect(instance.arr.length).toBe(2);
+      expect(instance.map.get("c")).toBe("d");
+    });
+
+    it("should support direct index assignment and length updates on arrays when unprotected", () => {
+      const Model = types.model("IndexAssignModel", {
+        arr: types.array(types.number),
+      });
+
+      const instance = Model.create({ arr: [1, 2, 3] });
+
+      // Direct index write should throw by default
+      expect(() => {
+        instance.arr[0] = 10;
+      }).toThrow(/protected/);
+
+      // Direct length set should throw by default
+      expect(() => {
+        instance.arr.length = 1;
+      }).toThrow(/protected/);
+
+      // Unprotect
+      unprotect(instance);
+
+      // Direct index assignment should work
+      instance.arr[0] = 10;
+      expect(instance.arr[0]).toBe(10);
+
+      // Length setting should work
+      instance.arr.length = 1;
+      expect(instance.arr.length).toBe(1);
+    });
+  });
 });

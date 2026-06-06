@@ -1,3 +1,10 @@
+## [1.3.2](https://github.com/bmartel/jotai-state-tree/compare/v1.3.1...v1.3.2) (2026-06-06)
+
+
+### Bug Fixes
+
+* remove examples package-lock.json to avoid symlink locking on StackBlitz ([c7dbcd6](https://github.com/bmartel/jotai-state-tree/commit/c7dbcd63661c660513c26a7c5505e809910317b0))
+
 ## [1.3.1](https://github.com/bmartel/jotai-state-tree/compare/v1.3.0...v1.3.1) (2026-06-06)
 
 

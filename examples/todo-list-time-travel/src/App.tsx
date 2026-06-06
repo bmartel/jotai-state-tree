@@ -14,7 +14,7 @@ export function App() {
   }), []);
 
   // Subscribe to store updates for reactive rendering
-  const snap = useSnapshot<ITodoStore>(store);
+  useSnapshot(store);
 
   // Initialize managers
   const undoManager = useMemo(() => createUndoManager(store, { maxHistoryLength: 50 }), [store]);
@@ -79,33 +79,33 @@ export function App() {
         <div className="flex-between" style={{ marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid var(--border-color)' }}>
           <div className="filters">
             <button
-              className={`filter-btn ${snap.filter === 'all' ? 'active' : ''}`}
+              className={`filter-btn ${store.filter === 'all' ? 'active' : ''}`}
               onClick={() => store.setFilter('all')}
             >
               All
             </button>
             <button
-              className={`filter-btn ${snap.filter === 'active' ? 'active' : ''}`}
+              className={`filter-btn ${store.filter === 'active' ? 'active' : ''}`}
               onClick={() => store.setFilter('active')}
             >
-              Active ({snap.activeCount})
+              Active ({store.activeCount})
             </button>
             <button
-              className={`filter-btn ${snap.filter === 'completed' ? 'active' : ''}`}
+              className={`filter-btn ${store.filter === 'completed' ? 'active' : ''}`}
               onClick={() => store.setFilter('completed')}
             >
-              Completed ({snap.completedCount})
+              Completed ({store.completedCount})
             </button>
           </div>
           
           <div className="flex-row">
             <button 
-              onClick={() => store.toggleAll(snap.completedCount !== snap.totalCount)}
+              onClick={() => store.toggleAll(store.completedCount !== store.totalCount)}
               style={{ fontSize: '12px', padding: '4px 8px' }}
             >
-              {snap.completedCount === snap.totalCount ? 'Unmark All' : 'Mark All'}
+              {store.completedCount === store.totalCount ? 'Unmark All' : 'Mark All'}
             </button>
-            {snap.completedCount > 0 && (
+            {store.completedCount > 0 && (
               <button 
                 onClick={() => store.clearCompleted()}
                 style={{ fontSize: '12px', padding: '4px 8px' }}
@@ -116,13 +116,13 @@ export function App() {
           </div>
         </div>
 
-        {snap.filteredTodos.length === 0 ? (
+        {store.filteredTodos.length === 0 ? (
           <p style={{ textAlign: 'center', color: 'var(--color-gray-400)', fontSize: '14px', margin: '20px 0' }}>
             No tasks to show
           </p>
         ) : (
           <ul className="todo-list">
-            {snap.filteredTodos.map((todo) => (
+            {store.filteredTodos.map((todo) => (
               <li key={todo.id} className="todo-item">
                 <div className="flex-row" style={{ flexGrow: 1 }}>
                   <input

@@ -22,7 +22,7 @@ export function App() {
     return store;
   }, []);
 
-  const snap = useSnapshot<IKanbanBoard>(board);
+  useSnapshot(board);
 
   // States
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -80,10 +80,10 @@ export function App() {
   };
 
   const columns: Array<{ key: 'backlog' | 'todo' | 'in_progress' | 'done'; title: string; tasks: any[] }> = [
-    { key: 'backlog', title: 'Backlog', tasks: snap.backlogTasks },
-    { key: 'todo', title: 'To Do', tasks: snap.todoTasks },
-    { key: 'in_progress', title: 'In Progress', tasks: snap.inProgressTasks },
-    { key: 'done', title: 'Done', tasks: snap.doneTasks },
+    { key: 'backlog', title: 'Backlog', tasks: board.backlogTasks },
+    { key: 'todo', title: 'To Do', tasks: board.todoTasks },
+    { key: 'in_progress', title: 'In Progress', tasks: board.inProgressTasks },
+    { key: 'done', title: 'Done', tasks: board.doneTasks },
   ];
 
   return (
@@ -176,7 +176,7 @@ export function App() {
                 onChange={(e) => setNewTaskAssignee(e.target.value)}
               >
                 <option value="">Assign To...</option>
-                {snap.usersList.map((user) => (
+                {board.usersList.map((user) => (
                   <option key={user.id} value={user.id}>{user.name}</option>
                 ))}
               </select>
@@ -201,7 +201,7 @@ export function App() {
             <span style={{ fontSize: '11px', color: 'var(--color-gray-500)', display: 'block', marginBottom: '6px' }}>
               Active Members (Click 'x' to delete and test safe-reference cleanup):
             </span>
-            {snap.usersList.map((user) => (
+            {board.usersList.map((user) => (
               <span key={user.id} className="member-tag">
                 {user.name}
                 <button

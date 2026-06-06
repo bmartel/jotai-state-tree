@@ -30,7 +30,7 @@ export function App() {
     });
   }, []);
 
-  const snap = useSnapshot<IFormStore>(store);
+  useSnapshot(store);
   const [optionInputs, setOptionInputs] = useState<Record<string, string>>({});
 
   return (
@@ -48,7 +48,7 @@ export function App() {
               <label>Form Title</label>
               <input
                 type="text"
-                value={snap.title}
+                value={store.title}
                 onChange={(e) => store.setTitle(e.target.value)}
               />
             </div>
@@ -58,7 +58,6 @@ export function App() {
             <div className="panel-title">Structure Editor</div>
             <SectionEditor
               section={store.rootSection}
-              snapSection={snap.rootSection}
               optionInputs={optionInputs}
               setOptionInputs={setOptionInputs}
               path="Root"
@@ -71,9 +70,9 @@ export function App() {
           {/* Validation Report */}
           <div className="panel">
             <div className="panel-title">Validation Engine</div>
-            {snap.validationErrors.length > 0 ? (
+            {store.validationErrors.length > 0 ? (
               <div className="validation-box">
-                {snap.validationErrors.map((err: string, i: number) => (
+                {store.validationErrors.map((err: string, i: number) => (
                   <div key={i} className="validation-error">
                     <span>⚠️</span> {err}
                   </div>
@@ -89,8 +88,8 @@ export function App() {
           {/* Render Preview */}
           <div className="panel">
             <div className="panel-title">Live Form Preview</div>
-            <h2 style={{ fontSize: '18px', fontWeight: 600, margin: '0 0 16px 0' }}>{snap.title}</h2>
-            <FormPreview section={snap.rootSection} />
+            <h2 style={{ fontSize: '18px', fontWeight: 600, margin: '0 0 16px 0' }}>{store.title}</h2>
+            <FormPreview section={store.rootSection} />
           </div>
 
           {/* Snapshot Schema Box */}
@@ -107,7 +106,7 @@ export function App() {
 }
 
 // Recursive component for editing sections
-function SectionEditor({ section, snapSection, optionInputs, setOptionInputs, path }: any) {
+function SectionEditor({ section, optionInputs, setOptionInputs, path }: any) {
   const handleAddQuestion = (type: 'text' | 'number' | 'choice' | 'toggle') => {
     section.addQuestion(type);
   };
@@ -123,7 +122,7 @@ function SectionEditor({ section, snapSection, optionInputs, setOptionInputs, pa
           <input
             type="text"
             style={{ fontWeight: 600, fontSize: '14px' }}
-            value={snapSection.title}
+            value={section.title}
             onChange={(e) => section.setTitle(e.target.value)}
             placeholder="Section Title..."
           />
@@ -136,9 +135,7 @@ function SectionEditor({ section, snapSection, optionInputs, setOptionInputs, pa
       </div>
 
       {/* Edit Questions */}
-      {snapSection.questions.map((q: any) => {
-        const qStore = section.questions.find((x: any) => x.id === q.id);
-        
+      {section.questions.map((q: any) => {
         return (
           <div key={q.id} className="question-edit-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -160,7 +157,7 @@ function SectionEditor({ section, snapSection, optionInputs, setOptionInputs, pa
               <input
                 type="text"
                 value={q.label}
-                onChange={(e) => qStore.setLabel(e.target.value)}
+                onChange={(e) => q.setLabel(e.target.value)}
                 placeholder="Question Text..."
               />
             </div>
@@ -169,7 +166,7 @@ function SectionEditor({ section, snapSection, optionInputs, setOptionInputs, pa
               <input
                 type="checkbox"
                 checked={q.required}
-                onChange={(e) => qStore.setRequired(e.target.checked)}
+                onChange={(e) => q.setRequired(e.target.checked)}
               />
               <label>Field Required</label>
             </div>
@@ -181,7 +178,7 @@ function SectionEditor({ section, snapSection, optionInputs, setOptionInputs, pa
                 <input
                   type="text"
                   value={q.placeholder}
-                  onChange={(e) => qStore.setPlaceholder(e.target.value)}
+                  onChange={(e) => q.setPlaceholder(e.target.value)}
                   placeholder="Helper prompt..."
                 />
               </div>
@@ -194,7 +191,7 @@ function SectionEditor({ section, snapSection, optionInputs, setOptionInputs, pa
                   <input
                     type="number"
                     value={q.min ?? ''}
-                    onChange={(e) => qStore.setMin(e.target.value ? parseFloat(e.target.value) : undefined)}
+                    onChange={(e) => q.setMin(e.target.value ? parseFloat(e.target.value) : undefined)}
                   />
                 </div>
                 <div className="form-group" style={{ flex: 1 }}>
@@ -202,7 +199,7 @@ function SectionEditor({ section, snapSection, optionInputs, setOptionInputs, pa
                   <input
                     type="number"
                     value={q.max ?? ''}
-                    onChange={(e) => qStore.setMax(e.target.value ? parseFloat(e.target.value) : undefined)}
+                    onChange={(e) => q.setMax(e.target.value ? parseFloat(e.target.value) : undefined)}
                   />
                 </div>
               </div>
@@ -218,12 +215,12 @@ function SectionEditor({ section, snapSection, optionInputs, setOptionInputs, pa
                         type="text"
                         style={{ padding: '4px 8px', fontSize: '12px' }}
                         value={opt}
-                        onChange={(e) => qStore.updateOption(idx, e.target.value)}
+                        onChange={(e) => q.updateOption(idx, e.target.value)}
                       />
                       <button
                         className="icon-btn"
                         style={{ padding: '2px' }}
-                        onClick={() => qStore.removeOption(idx)}
+                        onClick={() => q.removeOption(idx)}
                       >
                         x
                       </button>
@@ -241,7 +238,7 @@ function SectionEditor({ section, snapSection, optionInputs, setOptionInputs, pa
                   <button
                     style={{ padding: '4px 8px', fontSize: '11px' }}
                     onClick={() => {
-                      qStore.addOption(optionInputs[q.id]);
+                      q.addOption(optionInputs[q.id]);
                       setOptionInputs({ ...optionInputs, [q.id]: '' });
                     }}
                   >
@@ -255,19 +252,16 @@ function SectionEditor({ section, snapSection, optionInputs, setOptionInputs, pa
       })}
 
       {/* Edit Subsections */}
-      {snapSection.subsections.map((sub: any) => {
-        const subStore = section.subsections.find((x: any) => x.id === sub.id);
-        
+      {section.subsections.map((sub: any) => {
         // Setup self-destruct function for subsection
-        if (subStore && !subStore.removeSelf) {
-          subStore.removeSelf = () => section.removeSubsection(sub.id);
+        if (sub && !sub.removeSelf) {
+          sub.removeSelf = () => section.removeSubsection(sub.id);
         }
 
         return (
           <div key={sub.id} style={{ marginTop: '16px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
             <SectionEditor
-              section={subStore}
-              snapSection={sub}
+              section={sub}
               optionInputs={optionInputs}
               setOptionInputs={setOptionInputs}
               path={`${path} > ${sub.title}`}

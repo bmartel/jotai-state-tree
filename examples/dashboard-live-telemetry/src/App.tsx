@@ -18,7 +18,7 @@ export function App() {
     });
   }, []);
 
-  const snap = useSnapshot<IDashboardStore>(store);
+  useSnapshot(store);
 
   // States
   const [logs, setLogs] = useState<Array<{ id: string; time: string; msg: string; level: 'info' | 'warn' | 'error' }>>([]);
@@ -59,10 +59,10 @@ export function App() {
     };
   }, [store]);
 
-  const cpuMetric = snap.metrics.get('cpu')!;
-  const ramMetric = snap.metrics.get('ram')!;
-  const netMetric = snap.metrics.get('network')!;
-  const dbMetric = snap.metrics.get('db')!;
+  const cpuMetric = store.metrics.get('cpu')!;
+  const ramMetric = store.metrics.get('ram')!;
+  const netMetric = store.metrics.get('network')!;
+  const dbMetric = store.metrics.get('db')!;
 
   const metricsList = [cpuMetric, ramMetric, netMetric, dbMetric];
 
@@ -74,10 +74,10 @@ export function App() {
           <p className="subtitle">Lifecycle hooks, asynchronous triggers, and volatile properties</p>
         </div>
         <button
-          className={snap.isPaused ? 'primary' : ''}
+          className={store.isPaused ? 'primary' : ''}
           onClick={() => store.togglePause()}
         >
-          {snap.isPaused ? 'Resume Monitor' : 'Pause Monitor'}
+          {store.isPaused ? 'Resume Monitor' : 'Pause Monitor'}
         </button>
       </header>
 
@@ -125,16 +125,16 @@ export function App() {
           
           <div className="control-field">
             <span className="control-label">Update Frequency (ms)</span>
-            <div className="control-row">
+            <div className="flex-row" style={{ flexGrow: 1 }}>
               <input
                 type="range"
                 min="100"
-                max="5000"
+                max="2000"
                 step="100"
-                value={snap.updateIntervalMs}
+                value={store.updateIntervalMs}
                 onChange={(e) => store.setUpdateIntervalMs(parseInt(e.target.value))}
               />
-              <span style={{ fontSize: '13px', width: '50px', textAlign: 'right' }}>{snap.updateIntervalMs}ms</span>
+              <span style={{ fontSize: '13px', width: '50px', textAlign: 'right' }}>{store.updateIntervalMs}ms</span>
             </div>
           </div>
 

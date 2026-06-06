@@ -22,7 +22,7 @@ export function App() {
     });
   }, []);
 
-  const snap = useSnapshot<IShopStore>(store);
+  useSnapshot(store);
   const [couponInput, setCouponInput] = useState('');
 
   const handleApplyCoupon = (e: React.FormEvent) => {
@@ -30,7 +30,7 @@ export function App() {
     store.applyCoupon(couponInput);
   };
 
-  const isCheckingOut = snap.checkoutStatus === 'processing';
+  const isCheckingOut = store.checkoutStatus === 'processing';
 
   return (
     <div className="container-cart">
@@ -69,16 +69,16 @@ export function App() {
 
         {/* Shopping Cart Summary */}
         <div className="cart-panel">
-          <h2 className="section-title">Your Cart ({snap.cartItemCount})</h2>
+          <h2 className="section-title">Your Cart ({store.cartItemCount})</h2>
 
-          {snap.cart.length === 0 ? (
+          {store.cart.length === 0 ? (
             <div style={{ textAlign: 'center', color: 'var(--color-gray-400)', fontSize: '13px', margin: '40px 0' }}>
               Your cart is empty. Add products to get started.
             </div>
           ) : (
             <>
               <div className="cart-items-list">
-                {snap.cart.map((item) => (
+                {store.cart.map((item) => (
                   <div key={item.product.id} className="cart-item">
                     <div className="cart-item-info">
                       <span className="cart-item-name">{item.product.name}</span>
@@ -131,21 +131,21 @@ export function App() {
               <div className="pricing-breakdown">
                 <div className="pricing-line">
                   <span>Subtotal</span>
-                  <span>${snap.cartSubtotal.toFixed(2)}</span>
+                  <span>${store.cartSubtotal.toFixed(2)}</span>
                 </div>
-                {snap.discountAmount > 0 && (
+                {store.discountAmount > 0 && (
                   <div className="pricing-line">
-                    <span>Discount ({snap.discountPercent}%)</span>
-                    <span className="discount-tag">-${snap.discountAmount.toFixed(2)}</span>
+                    <span>Discount ({store.discountPercent}%)</span>
+                    <span className="discount-tag">-${store.discountAmount.toFixed(2)}</span>
                   </div>
                 )}
                 <div className="pricing-line">
                   <span>Sales Tax (8%)</span>
-                  <span>${snap.taxAmount.toFixed(2)}</span>
+                  <span>${store.taxAmount.toFixed(2)}</span>
                 </div>
                 <div className="pricing-line total">
                   <span>Estimated Total</span>
-                  <span>${snap.cartTotal.toFixed(2)}</span>
+                  <span>${store.cartTotal.toFixed(2)}</span>
                 </div>
               </div>
 
@@ -168,12 +168,12 @@ export function App() {
           )}
 
           {/* Checkout Notification Toasts */}
-          {snap.checkoutStatus === 'success' && (
+          {store.checkoutStatus === 'success' && (
             <div className="toast" style={{ background: '#10b981' }}>
               <span>🎉 Order placed successfully! Thank you for your purchase.</span>
             </div>
           )}
-          {snap.checkoutStatus === 'failed' && (
+          {store.checkoutStatus === 'failed' && (
             <div className="toast" style={{ background: '#ef4444' }}>
               <span>⚠️ Payment failed. Please check your card details and try again.</span>
             </div>

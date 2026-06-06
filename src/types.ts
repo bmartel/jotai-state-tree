@@ -9,7 +9,7 @@
 
 export type SnapshotIn<T> =
   T extends IModelType<infer P, any, any, any>
-    ? { [K in keyof P]?: SnapshotInOfProperty<P[K]> }
+    ? ModelCreationType<P>
     : T extends IArrayType<infer I>
       ? SnapshotIn<I>[]
       : T extends IMapType<infer V>
@@ -20,11 +20,9 @@ export type SnapshotIn<T> =
             ? C
             : T;
 
-type SnapshotInOfProperty<T> = T extends IType<infer C, any, any> ? C : never;
-
 export type SnapshotOut<T> =
   T extends IModelType<infer P, any, any, any>
-    ? { [K in keyof P]: SnapshotOutOfProperty<P[K]> }
+    ? ModelSnapshotType<P>
     : T extends IArrayType<infer I>
       ? SnapshotOut<I>[]
       : T extends IMapType<infer V>
@@ -34,8 +32,6 @@ export type SnapshotOut<T> =
           : T extends IType<any, infer S, any>
             ? S
             : T;
-
-type SnapshotOutOfProperty<T> = T extends IType<any, infer S, any> ? S : never;
 
 export type Instance<T> = T extends IType<any, any, infer O> ? O : never;
 
@@ -99,8 +95,12 @@ export interface ISimpleType<T> extends IType<T, T, T> {
 
 export type ModelProperties = Record<string, IType<unknown, unknown, unknown>>;
 
+type PropertyCreationType<T> = T extends IType<infer C, unknown, unknown> ? C : never;
+
 export type ModelCreationType<P extends ModelProperties> = {
-  [K in keyof P]?: P[K] extends IType<infer C, unknown, unknown> ? C : never;
+  [K in keyof P as undefined extends PropertyCreationType<P[K]> ? K : never]?: PropertyCreationType<P[K]>;
+} & {
+  [K in keyof P as undefined extends PropertyCreationType<P[K]> ? never : K]: PropertyCreationType<P[K]>;
 };
 
 export type ModelSnapshotType<P extends ModelProperties> = {

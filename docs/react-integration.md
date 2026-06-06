@@ -150,6 +150,22 @@ const store = useLocalObservable(() =>
 );
 ```
 
+### `useHydrateStore(store, initialSnapshot, options?)`
+Hydrates a state tree store (and all its nested properties) with a provided snapshot using Jotai's underlying `useHydrateAtoms` utility. Crucial for React Server-Side Rendering (SSR) hydration mismatch prevention.
+
+```tsx
+import { useHydrateStore } from 'jotai-state-tree/react';
+
+function HydratedComponent({ initialSnapshot }) {
+  // Hydrates the store's atoms on the client before first render (matches server state)
+  useHydrateStore(store, initialSnapshot);
+
+  return <div>{store.title}</div>;
+}
+```
+
+You can optionally pass a custom Jotai store option in `options?: { store?: ReturnType<typeof getGlobalStore> }` if you are using scoped Jotai stores.
+
 ---
 
 ## Batching Updates

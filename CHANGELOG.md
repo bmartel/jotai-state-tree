@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/bmartel/jotai-state-tree/compare/v1.2.0...v1.2.1) (2026-06-06)
+
+
+### Performance Improvements
+
+* optimize snapshot generation with structural sharing ([5292a49](https://github.com/bmartel/jotai-state-tree/commit/5292a49552221da21888c74213321b144d5de3c5))
+
 # [1.2.0](https://github.com/bmartel/jotai-state-tree/compare/v1.1.2...v1.2.0) (2026-06-06)
 
 

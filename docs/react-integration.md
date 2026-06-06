@@ -170,3 +170,53 @@ function handleBulkUpdates() {
   }); // Component only re-renders once here
 }
 ```
+
+---
+
+## Integrating with Jotai's Store & Provider Architecture
+
+`jotai-state-tree` maintains and reads/writes all state tree values inside a Jotai store. By default, it uses a single global store, but you can configure it to use any custom Jotai store (e.g., for Server-Side Rendering (SSR) or multi-tenant micro-frontend isolation).
+
+### 1. Model Instance Context vs Jotai State Provider
+- **Model Instance Context (`createStoreContext`)**: Propagates the actual typed model instance object (its properties, views, and actions API) down the React tree. This is standard React Context propagating a JavaScript object reference.
+- **Jotai State Provider (`<Provider>` from `'jotai'`)**: Manages the underlying atom key-value state store.
+
+### 2. Binding to a Custom Jotai Store
+If your React application uses Jotai's custom stores or `<Provider>` components for SSR or state isolation:
+
+```tsx
+import React, { useMemo } from 'react';
+import { Provider as JotaiProvider, useStore as useJotaiStore } from 'jotai';
+import { setGlobalStore } from 'jotai-state-tree';
+import { createStoreContext } from 'jotai-state-tree/react';
+import { TodoStore } from './store';
+
+const { Provider: ModelProvider } = createStoreContext<typeof TodoStore>();
+
+function CustomApp() {
+  return (
+    <JotaiProvider>
+      <AppContent />
+    </JotaiProvider>
+  );
+}
+
+function AppContent() {
+  // 1. Get the React-scoped Jotai store instance from the Jotai Provider
+  const jotaiStore = useJotaiStore();
+
+  // 2. Bind jotai-state-tree to this Jotai store instance
+  useMemo(() => {
+    setGlobalStore(jotaiStore);
+  }, [jotaiStore]);
+
+  // 3. Create model using this store's scope
+  const store = useMemo(() => TodoStore.create({ todos: [] }), []);
+
+  return (
+    <ModelProvider store={store}>
+      <TodoList />
+    </ModelProvider>
+  );
+}
+```

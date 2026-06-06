@@ -8,32 +8,32 @@ Each template demonstrates specific parts of the library, ranging from basic mod
 
 ## The Examples
 
-### 1. Todo List with Time Travel (`./todo-list-time-travel`)
+### 1. Todo List with Time Travel (`./todo-list-time-travel`) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/bmartel/jotai-state-tree/tree/main/examples/todo-list-time-travel?file=src/App.tsx)
 - **Core Focus**: Basic models, arrays, actions, views, and state history navigation.
 - **Key APIs**: `types.model`, `types.array`, `createUndoManager`, `createTimeTravelManager`.
 - **Description**: A minimalist, clean task manager where you can add/toggle/delete tasks, view a historical changes log, and use a Time Travel slider or Undo/Redo buttons to navigate your application's state timeline.
 
-### 2. Collaborative Kanban Board (`./kanban-board-references`)
+### 2. Collaborative Kanban Board (`./kanban-board-references`) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/bmartel/jotai-state-tree/tree/main/examples/kanban-board-references?file=src/App.tsx)
 - **Core Focus**: Safe references, map keys, volatile state, and patches.
 - **Key APIs**: `types.reference`, `types.map`, `onPatch`, `applySnapshot`.
 - **Description**: A multi-column Kanban board. Drag/click cards to move them between columns, assign tasks to members in a central team store using type-safe references, view a scrolling sidebar of real-time JSON patches, and export/import state snapshots.
 
-### 3. Shopping Cart & Checkout (`./shopping-cart-views`)
+### 3. Shopping Cart & Checkout (`./shopping-cart-views`) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/bmartel/jotai-state-tree/tree/main/examples/shopping-cart-views?file=src/App.tsx)
 - **Core Focus**: Computed views, nested models, and asynchronous flow actions.
 - **Key APIs**: `self.views`, nested models, actions, custom toast notifications.
 - **Description**: A catalog browsing and checkout application. Demonstrates reactive views for calculating line items, totals, discounts, and taxes automatically. Features simulated asynchronous API checkout calls with loading indicators.
 
-### 4. Live Telemetry Dashboard (`./dashboard-live-telemetry`)
+### 4. Live Telemetry Dashboard (`./dashboard-live-telemetry`) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/bmartel/jotai-state-tree/tree/main/examples/dashboard-live-telemetry?file=src/App.tsx)
 - **Core Focus**: Lifecycle hooks, asynchronous actions, and volatile state.
 - **Key APIs**: `afterCreate`, `beforeDestroy`, volatile property bindings, status alarms.
 - **Description**: A real-time hardware telemetry monitor (CPU, Memory, Network). Uses lifecycle hooks to start/stop data generation loops, keeps interval handlers in local volatile properties, and highlights system warnings when metrics cross threshold alarms.
 
-### 5. Dynamic Form Builder (`./form-builder-dynamic`)
+### 5. Dynamic Form Builder (`./form-builder-dynamic`) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/bmartel/jotai-state-tree/tree/main/examples/form-builder-dynamic?file=src/App.tsx)
 - **Core Focus**: Union types, recursive structure composition, and path validation.
 - **Key APIs**: `types.union`, `types.late`, recursive models, validation views.
 - **Description**: A builder interface for surveys and questionnaires. Add different input fields dynamically (Text, Number, Select, Toggle) that map to specialized models. Features recursive section nesting and automated tree-wide schema validation.
 
-### 6. SSR & Hydrated Notes (`./note-taking-ssr`)
+### 6. SSR & Hydrated Notes (`./note-taking-ssr`) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/bmartel/jotai-state-tree/tree/main/examples/note-taking-ssr?file=src/App.tsx)
 - **Core Focus**: Client-side hydration, custom Jotai store isolation, and localStorage persistence.
 - **Key APIs**: `useHydrateStore`, `setGlobalStore`, LocalStorage syncing.
 - **Description**: A note-taking application designed for Server-Side Rendering (SSR) environments. Shows how to prevent hydration mismatches and isolate state tree instances using scoped Jotai stores (vital for multi-user pages or micro-frontends).

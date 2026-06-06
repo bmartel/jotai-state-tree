@@ -62,32 +62,32 @@ cp -r jotai-state-tree/examples/shopping-cart-views my-new-app
 
 Here is a breakdown of the available starter templates and what they demonstrate:
 
-### 1. Todo List with Time Travel (`./examples/todo-list-time-travel`)
+### 1. Todo List with Time Travel (`./examples/todo-list-time-travel`) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/bmartel/jotai-state-tree/tree/main/examples/todo-list-time-travel?file=src/App.tsx)
 - **Key APIs**: `types.model`, `types.array`, `createUndoManager`, `createTimeTravelManager` (with `autoRecord: true`).
 - **Focus**: State history, undo/redo stacks, and time travel scrubbing.
 - **Features**: A clean checklist where additions and toggles trigger snapshot records. Provides an interactive slider allowing users to slide back and forth through history, and an Undo/Redo dashboard with a live JSON patches console feed.
 
-### 2. Collaborative Kanban Board (`./examples/kanban-board-references`)
+### 2. Collaborative Kanban Board (`./examples/kanban-board-references`) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/bmartel/jotai-state-tree/tree/main/examples/kanban-board-references?file=src/App.tsx)
 - **Key APIs**: `types.reference`, `types.safeReference`, `types.map`, `onPatch`, `applySnapshot`.
 - **Focus**: Reference resolution, maps, and snapshot import/export.
 - **Features**: A multi-column board where cards link to user profiles in a separate store via type-safe references. Showcases the automatic resolution and cleanup of `safeReference`—deleting a user profile will automatically set the assignee on their task cards to `undefined` safely.
 
-### 3. Shopping Cart with Views (`./examples/shopping-cart-views`)
+### 3. Shopping Cart with Views (`./examples/shopping-cart-views`) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/bmartel/jotai-state-tree/tree/main/examples/shopping-cart-views?file=src/App.tsx)
 - **Key APIs**: Chained `.views()`, nested models, and asynchronous actions.
 - **Focus**: Computed derivations and async checkout flows.
 - **Features**: A product catalog and checkout counter. Shows how to chain multiple `.views` blocks so dependent derivations (Subtotal -> Discount -> Tax -> Total) can resolve type-safely in TypeScript. Features simulated payment delays and success/fail toasts.
 
-### 4. Telemetry Monitor Dashboard (`./examples/dashboard-live-telemetry`)
+### 4. Telemetry Monitor Dashboard (`./examples/dashboard-live-telemetry`) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/bmartel/jotai-state-tree/tree/main/examples/dashboard-live-telemetry?file=src/App.tsx)
 - **Key APIs**: `afterCreate` and `beforeDestroy` lifecycle hooks, volatile state, and closure-pattern actions.
 - **Focus**: Lifecycles, timer simulations, and internal action calling.
 - **Features**: A live hardware metrics display (CPU, RAM, Network). Shows how `afterCreate` registers a timer loop to update statistics and `beforeDestroy` clears it. Uses volatile state to store the timer ID (preventing serialization in snapshots) and closure actions so local methods call each other without `self` type constraints.
 
-### 5. Dynamic Form Builder (`./examples/form-builder-dynamic`)
+### 5. Dynamic Form Builder (`./examples/form-builder-dynamic`) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/bmartel/jotai-state-tree/tree/main/examples/form-builder-dynamic?file=src/App.tsx)
 - **Key APIs**: `types.union`, `types.late` (recursive types), and recursive validation.
 - **Focus**: Polymorphic data trees, self-referencing models, and recursive walk validation.
 - **Features**: An editor to compile forms dynamically by adding text, number, choice, or toggle questions. Uses a union dispatcher to resolve specialized question sub-models and late binding for recursive section nesting. Includes a live form preview and validation warnings generated via recursive tree-crawling views.
 
-### 6. SSR & Notes Manager (`./examples/note-taking-ssr`)
+### 6. SSR & Notes Manager (`./examples/note-taking-ssr`) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/bmartel/jotai-state-tree/tree/main/examples/note-taking-ssr?file=src/App.tsx)
 - **Key APIs**: `useHydrateStore`, `setGlobalStore`, `createStoreContext`.
 - **Focus**: Server-Side Rendering (SSR) hydration and state isolation.
 - **Features**: A notes manager that syncs to localStorage. Illustrates how to call `setGlobalStore` to bind to an isolated Jotai store instance (vital for avoiding state leaks in multi-user Node.js SSR servers) and `useHydrateStore` to pre-seed the client's memory on startup with server-rendered data.

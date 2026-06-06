@@ -19,7 +19,16 @@ import type {
   IReversibleJsonPatch,
   IDisposer,
 } from "./types";
+// Lifecycle hook handlers set by lifecycle.ts to avoid circular imports
+let lifecycleHookHandlers: {
+  runAfterAttach?: (node: any) => void;
+  runBeforeDetach?: (node: any) => void;
+  runBeforeDestroy?: (node: any) => void;
+} = {};
 
+export function setLifecycleHookHandlers(handlers: typeof lifecycleHookHandlers) {
+  lifecycleHookHandlers = handlers;
+}
 // Re-export IDisposer for convenience
 export type { IDisposer };
 
@@ -266,6 +275,7 @@ export class StateTreeNode implements IStateTreeNode {
     }
     child.$env = child.$env ?? this.$env;
     this.children.set(key, child);
+    lifecycleHookHandlers.runAfterAttach?.(child);
   }
 
   /** Recursively update the path of a node and all its children */
@@ -402,6 +412,9 @@ export class StateTreeNode implements IStateTreeNode {
   destroy() {
     if (!this.$isAlive) return;
 
+    // Run beforeDestroy hook
+    lifecycleHookHandlers.runBeforeDestroy?.(this);
+
     // Destroy children first
     this.children.forEach((child) => child.destroy());
     this.children.clear();
@@ -432,6 +445,9 @@ export class StateTreeNode implements IStateTreeNode {
   /** Detach from parent */
   detach() {
     if (this.$parent) {
+      // Run beforeDetach hook
+      lifecycleHookHandlers.runBeforeDetach?.(this);
+
       // Find our key in parent's children
       for (const [key, child] of this.$parent.children) {
         if (child === this) {

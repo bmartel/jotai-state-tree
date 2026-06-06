@@ -14,6 +14,7 @@ import {
   getStateTreeNode,
   registerActionRecorderHook,
   isActionRunning,
+  setLifecycleHookHandlers,
   type ActionCall,
 } from "./tree";
 
@@ -46,7 +47,22 @@ const nodeHooks = new WeakMap<StateTreeNode, IHooksConfig>();
  */
 export function registerHooks(node: StateTreeNode, hooks: IHooksConfig): void {
   const existing = nodeHooks.get(node) || {};
-  nodeHooks.set(node, { ...existing, ...hooks });
+  const filteredHooks: IHooksConfig = {};
+  for (const [key, value] of Object.entries(hooks)) {
+    if (value !== undefined) {
+      const existingHook = (existing as any)[key];
+      if (existingHook) {
+        (filteredHooks as any)[key] = () => {
+          existingHook();
+          (value as () => void)();
+        };
+      } else {
+        (filteredHooks as any)[key] = value;
+      }
+    }
+  }
+  const merged = { ...existing, ...filteredHooks };
+  nodeHooks.set(node, merged);
 }
 
 /**
@@ -590,3 +606,10 @@ export function withDependencyTracking<T>(
 export function trackDependency(atom: unknown): void {
   currentTracker?.track(atom);
 }
+
+// Register lifecycle hook handlers to break circular imports
+setLifecycleHookHandlers({
+  runAfterAttach,
+  runBeforeDetach,
+  runBeforeDestroy,
+});

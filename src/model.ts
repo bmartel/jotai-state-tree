@@ -35,7 +35,7 @@ import {
   applySnapshotToNode,
   trackNodeAccess,
 } from "./tree";
-import { canWrite } from "./lifecycle";
+import { canWrite, registerHooks, runAfterCreate } from "./lifecycle";
 
 // ============================================================================
 // LRU Cache Implementation
@@ -248,15 +248,23 @@ class ModelType<
     // Set instance on node
     node.setInstance(instance);
 
+    // Register hooks on node hooks WeakMap
+    if (this.config.hooks) {
+      registerHooks(node, {
+        afterCreate: this.config.hooks.afterCreate ? () => this.config.hooks.afterCreate!(instance) : undefined,
+        afterAttach: this.config.hooks.afterAttach ? () => this.config.hooks.afterAttach!(instance) : undefined,
+        beforeDetach: this.config.hooks.beforeDetach ? () => this.config.hooks.beforeDetach!(instance) : undefined,
+        beforeDestroy: this.config.hooks.beforeDestroy ? () => this.config.hooks.beforeDestroy!(instance) : undefined,
+      });
+    }
+
     // Run initializers (afterCreate hooks)
     for (const initializer of this.config.initializers) {
       initializer(instance);
     }
 
-    // Run afterCreate lifecycle hook
-    if (this.config.hooks.afterCreate) {
-      this.config.hooks.afterCreate(instance);
-    }
+    // Run afterCreate lifecycle hook (runs both builder and action hooks)
+    runAfterCreate(node);
 
     return instance;
   }
@@ -511,6 +519,20 @@ class ModelType<
               return (value as Function).apply(proxy, args);
             });
           };
+
+          // If it's an MST lifecycle hook, register it
+          if (
+            key === "afterCreate" ||
+            key === "afterAttach" ||
+            key === "beforeDetach" ||
+            key === "beforeDestroy"
+          ) {
+            registerHooks(node, {
+              [key]: () => {
+                return (value as Function).apply(proxy);
+              },
+            });
+          }
         }
       }
     }

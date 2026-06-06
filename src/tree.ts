@@ -385,7 +385,7 @@ export class StateTreeNode implements IStateTreeNode {
   }
 
   /** Notify patch listeners */
-  private notifyPatch(patch: IJsonPatch, reversePatch: IReversibleJsonPatch) {
+  notifyPatch(patch: IJsonPatch, reversePatch: IReversibleJsonPatch) {
     this.patchListeners.forEach((listener) => listener(patch, reversePatch));
     // Bubble up to parent
     if (this.$parent) {

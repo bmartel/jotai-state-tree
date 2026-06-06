@@ -42,8 +42,6 @@ export function App() {
 
     return () => {
       dispose();
-      undoManager.dispose();
-      timeTravel.dispose();
     };
   }, [store, undoManager, timeTravel]);
 

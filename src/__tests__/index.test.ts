@@ -687,6 +687,51 @@ describe("Patches", () => {
     disposer();
   });
 
+  it("should listen to complex array patches", () => {
+    const Todo = types.model("Todo", {
+      id: types.identifier,
+      title: types.string,
+      done: types.optional(types.boolean, false),
+    });
+
+    const TodoStore = types
+      .model("TodoStore", {
+        todos: types.optional(types.array(Todo), []),
+      })
+      .actions((self) => ({
+        addTodo(title: string) {
+          self.todos.push({
+            id: "1",
+            title,
+            done: false,
+          });
+        },
+      }));
+
+    const store = TodoStore.create({
+      todos: [],
+    });
+
+    const patches: any[] = [];
+    onPatch(store, (patch) => {
+      patches.push(patch);
+    });
+
+    store.addTodo("Learn jotai-state-tree");
+
+    expect(patches).toEqual([
+      {
+        op: "add",
+        path: "/todos/0",
+        value: {
+          id: "1",
+          title: "Learn jotai-state-tree",
+          done: false,
+        },
+      },
+    ]);
+  });
+
   it("should apply patches", () => {
     const Model = types.model("Model", {
       value: types.number,

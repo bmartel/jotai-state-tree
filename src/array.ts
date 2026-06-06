@@ -10,12 +10,15 @@ import type {
   IValidationContext,
   IValidationResult,
   IAnyType,
+  IJsonPatch,
+  IReversibleJsonPatch,
 } from "./types";
 import {
   StateTreeNode,
   $treenode,
   getStateTreeNode,
   getGlobalStore,
+  getSnapshotFromNode,
 } from "./tree";
 import { canWrite } from "./lifecycle";
 
@@ -235,6 +238,9 @@ class MSTArray<T> extends Array<T> implements IMSTArray<T> {
   }
 
   private syncToNode(): void {
+    const oldArray = (this.node.getValue() as unknown[]) || [];
+    const newArray = [...this];
+
     // Collect existing child nodes for cleanup comparison
     const existingChildNodes = new Set<StateTreeNode>();
     for (const [, child] of this.node.getChildren()) {
@@ -303,8 +309,77 @@ class MSTArray<T> extends Array<T> implements IMSTArray<T> {
       this.node.addChild(key, childNode);
     }
 
-    // Update the node's value
-    this.node.setValue([...this]);
+    // Determine diff and generate granular patches
+    const patches: IJsonPatch[] = [];
+    const reversePatches: IReversibleJsonPatch[] = [];
+
+    // Case 1: Simple push (items added at the end)
+    if (newArray.length > oldArray.length && oldArray.every((val, idx) => val === newArray[idx])) {
+      for (let i = oldArray.length; i < newArray.length; i++) {
+        const childNode = this.node.getChild(String(i));
+        const valSnap = childNode ? getSnapshotFromNode(childNode) : newArray[i];
+        patches.push({
+          op: "add",
+          path: `${this.node.$path}/${i}`,
+          value: valSnap,
+        });
+        reversePatches.push({
+          op: "remove",
+          path: `${this.node.$path}/${i}`,
+        });
+      }
+    }
+    // Case 2: Simple pop (items removed from the end)
+    else if (newArray.length < oldArray.length && newArray.every((val, idx) => val === oldArray[idx])) {
+      for (let i = oldArray.length - 1; i >= newArray.length; i--) {
+        const childNode = this.node.getChild(String(i));
+        const oldValSnap = childNode ? getSnapshotFromNode(childNode) : oldArray[i];
+        patches.push({
+          op: "remove",
+          path: `${this.node.$path}/${i}`,
+        });
+        reversePatches.push({
+          op: "add",
+          path: `${this.node.$path}/${i}`,
+          value: oldValSnap,
+        });
+      }
+    }
+    // Case 3: Other mutations (fallback to replace array)
+    else {
+      const oldSnap = oldArray.map((_, idx) => {
+        const childNode = this.node.getChild(String(idx));
+        return childNode ? getSnapshotFromNode(childNode) : oldArray[idx];
+      });
+      const newSnap = newArray.map((_, idx) => {
+        const childNode = this.node.getChild(String(idx));
+        return childNode ? getSnapshotFromNode(childNode) : newArray[idx];
+      });
+
+      patches.push({
+        op: "replace",
+        path: this.node.$path,
+        value: newSnap,
+      });
+      reversePatches.push({
+        op: "replace",
+        path: this.node.$path,
+        value: oldSnap,
+      });
+    }
+
+    // Update the node's value silently
+    const store = getGlobalStore();
+    store.set(this.node.valueAtom, newArray);
+    this.node.invalidateSnapshot();
+
+    // Notify patch listeners
+    patches.forEach((patch, idx) => {
+      this.node.notifyPatch(patch, reversePatches[idx]);
+    });
+
+    // Notify snapshot changes
+    this.node.notifyVolatileChange();
   }
 }
 

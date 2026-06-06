@@ -32,6 +32,8 @@ import {
   getStateTreeNode,
   trackAction,
   getGlobalStore,
+  applySnapshotToNode,
+  trackNodeAccess,
 } from "./tree";
 
 // ============================================================================
@@ -296,6 +298,9 @@ class ModelType<
           return node;
         }
 
+        // Track access to this model node
+        trackNodeAccess(node);
+
         const propStr = String(prop);
 
         // Check properties first
@@ -313,6 +318,8 @@ class ModelType<
                 typeof instance === "object" &&
                 $treenode in instance
               ) {
+                // Track access to child node
+                trackNodeAccess(childNode);
                 return instance;
               }
             }
@@ -360,7 +367,6 @@ class ModelType<
           if (propType._kind === "model") {
             if (existingChildNode) {
               // For models, apply snapshot
-              const { applySnapshotToNode } = require("./tree");
               applySnapshotToNode(existingChildNode, value);
             }
             return true;
@@ -379,6 +385,15 @@ class ModelType<
 
           // Get old value for patch
           const oldValue = existingChildNode?.getValue();
+          const newValue = propType.create(value, node.$env);
+
+          const isOldComplex = oldValue && typeof oldValue === "object" && $treenode in oldValue;
+          const isNewComplex = newValue && typeof newValue === "object" && $treenode in newValue;
+
+          if (existingChildNode && !isOldComplex && !isNewComplex) {
+            existingChildNode.setValue(newValue);
+            return true;
+          }
 
           // Destroy the old child node if it exists
           if (existingChildNode) {
@@ -386,15 +401,8 @@ class ModelType<
             node.getChildren().delete(propStr);
           }
 
-          // Create new value through the type
-          const newValue = propType.create(value, node.$env);
-
           // Check if the new value is a complex type (has tree node)
-          if (
-            newValue &&
-            typeof newValue === "object" &&
-            $treenode in newValue
-          ) {
+          if (isNewComplex) {
             const newChildNode = getStateTreeNode(newValue);
             node.addChild(propStr, newChildNode);
             propertyAtoms.set(propStr, newChildNode.valueAtom);

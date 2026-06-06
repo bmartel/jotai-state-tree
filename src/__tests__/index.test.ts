@@ -871,6 +871,36 @@ describe("Tree Utilities", () => {
 
     expect(isAlive(child)).toBe(true);
   });
+
+  it("should trigger onSnapshot on child nodes", () => {
+    const Child = types.model("Child", {
+      value: types.number,
+    }).actions((self) => ({
+      setValue(v: number) {
+        self.value = v;
+      },
+    }));
+
+    const Parent = types.model("Parent", {
+      child: Child,
+    });
+
+    const parent = Parent.create({
+      child: { value: 10 },
+    });
+
+    const childSnapshots: any[] = [];
+    const disposer = onSnapshot(parent.child, (snapshot) => {
+      childSnapshots.push(snapshot);
+    });
+
+    parent.child.setValue(20);
+
+    expect(childSnapshots.length).toBe(1);
+    expect(childSnapshots[0]).toEqual({ value: 20 });
+
+    disposer();
+  });
 });
 
 describe("Cast Utility", () => {

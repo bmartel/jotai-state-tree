@@ -45,6 +45,26 @@ export function resetGlobalStore() {
   globalStore = createStore();
 }
 
+/** Active tracking function for reactive observation */
+let activeTrackingFn: ((node: StateTreeNode) => void) | null = null;
+
+/** Get the active tracking function */
+export function getActiveTrackingFn(): ((node: StateTreeNode) => void) | null {
+  return activeTrackingFn;
+}
+
+/** Set the active tracking function */
+export function setActiveTrackingFn(fn: ((node: StateTreeNode) => void) | null) {
+  activeTrackingFn = fn;
+}
+
+/** Track access to a state tree node */
+export function trackNodeAccess(node: StateTreeNode) {
+  if (activeTrackingFn) {
+    activeTrackingFn(node);
+  }
+}
+
 // ============================================================================
 // Node Registry with Weak References
 // ============================================================================
@@ -241,7 +261,9 @@ export class StateTreeNode implements IStateTreeNode {
   addChild(key: string, child: StateTreeNode) {
     child.$parent = this;
     const newPath = `${this.$path}/${key}`;
-    this.updatePathRecursively(child, newPath);
+    if (child.$path !== newPath) {
+      this.updatePathRecursively(child, newPath);
+    }
     child.$env = child.$env ?? this.$env;
     this.children.set(key, child);
   }
@@ -344,10 +366,12 @@ export class StateTreeNode implements IStateTreeNode {
 
   /** Notify snapshot listeners */
   private notifySnapshotChange() {
-    // Get the root and notify its listeners
-    const root = this.getRoot();
-    const snapshot = getSnapshotFromNode(root);
-    root.snapshotListeners.forEach((listener) => listener(snapshot));
+    let current: StateTreeNode | null = this;
+    while (current) {
+      const snapshot = getSnapshotFromNode(current);
+      current.snapshotListeners.forEach((listener) => listener(snapshot));
+      current = current.$parent;
+    }
   }
 
   /** Notify about a property change (for use by model proxy) */
@@ -396,6 +420,9 @@ export class StateTreeNode implements IStateTreeNode {
 
     // Unregister from finalization registry (already destroyed, don't need GC cleanup)
     nodeFinalizationRegistry.unregister(this);
+
+    // Clear lifecycle listeners WeakMap entry
+    lifecycleListeners.delete(this);
 
     // Clear listeners
     this.snapshotListeners.clear();

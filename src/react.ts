@@ -31,6 +31,10 @@ import {
   getSnapshot,
   onLifecycleChange,
   type IDisposer,
+  setActiveTrackingFn,
+  getActiveTrackingFn,
+  onPatch,
+  StateTreeNode,
 } from "./tree";
 
 // ============================================================================
@@ -45,7 +49,19 @@ const ObserverTrackingContext = React.createContext<TrackNodeFn | null>(null);
  * Used by hooks like useStore to register accessed nodes for reactivity.
  */
 export function useObserverTracking(): TrackNodeFn | null {
-  return React.useContext(ObserverTrackingContext);
+  const contextFn = React.useContext(ObserverTrackingContext);
+  if (contextFn) return contextFn;
+
+  const activeFn = getActiveTrackingFn();
+  if (activeFn) {
+    return (node: unknown) => {
+      if (hasStateTreeNode(node)) {
+        activeFn(getStateTreeNode(node));
+      }
+    };
+  }
+
+  return null;
 }
 
 // ============================================================================
@@ -66,86 +82,31 @@ export function observer<P extends object>(
 ): ComponentType<P> {
   const displayName = Component.displayName || Component.name || "Component";
 
-  const ObserverComponent = memo((props: P) => {
-    const [, forceUpdate] = useState({});
-    const disposersRef = useRef<Set<IDisposer>>(new Set());
-    const trackedNodesRef = useRef<Set<unknown>>(new Set());
-
-    // Track which state tree nodes are accessed during render
-    const trackNode = (node: unknown) => {
-      if (hasStateTreeNode(node) && !trackedNodesRef.current.has(node)) {
-        trackedNodesRef.current.add(node);
-        const disposer = onSnapshot(node, () => {
-          forceUpdate({});
-        });
-        disposersRef.current.add(disposer);
-      }
-    };
-
-    // Create a proxy for tracking property access
-    const createTrackingProxy = <T extends object>(target: T): T => {
-      if (!target || typeof target !== "object") return target;
-      if (hasStateTreeNode(target)) {
-        trackNode(target);
-      }
-
-      return new Proxy(target, {
-        get(obj, prop) {
-          const value = (obj as Record<string | symbol, unknown>)[prop];
-          if (value && typeof value === "object" && hasStateTreeNode(value)) {
-            trackNode(value);
-            return createTrackingProxy(value as object);
-          }
-          return value;
-        },
-      }) as T;
-    };
-
-    // Clear old subscriptions on re-render
-    useEffect(() => {
-      return () => {
-        disposersRef.current.forEach((d) => d());
-        disposersRef.current.clear();
-        trackedNodesRef.current.clear();
-      };
-    }, []);
-
-    // Wrap props that might be state tree nodes
-    const trackedProps = useMemo(() => {
-      const tracked: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(props)) {
-        if (value && typeof value === "object") {
-          tracked[key] = createTrackingProxy(value as object);
-        } else {
-          tracked[key] = value;
-        }
-      }
-      return tracked as P;
-    }, [props]);
-
-    // Provide tracking context so hooks can register their accessed nodes
-    return React.createElement(
-      ObserverTrackingContext.Provider,
-      { value: trackNode },
-      React.createElement(Component, trackedProps)
-    );
-  });
-
-  ObserverComponent.displayName = `Observer(${displayName})`;
+  let ObserverComponent: any;
 
   if (options?.forwardRef) {
-    const ForwardedComponent = forwardRef<unknown, P>((props, ref) => {
-      const propsWithRef = Object.assign({}, props, { ref });
-      return React.createElement(
-        ObserverComponent as unknown as ComponentType<P>,
-        propsWithRef as P,
-      );
+    ObserverComponent = memo(forwardRef<unknown, P>((props, ref) => {
+      return useObserver(() => {
+        if (typeof Component === "function") {
+          return (Component as any)(props, ref);
+        }
+        return React.createElement(Component, props);
+      });
+    }));
+    ObserverComponent.displayName = `ForwardRef(${displayName})`;
+  } else {
+    ObserverComponent = memo((props: P) => {
+      return useObserver(() => {
+        if (typeof Component === "function") {
+          return (Component as any)(props);
+        }
+        return React.createElement(Component, props);
+      });
     });
-    ForwardedComponent.displayName = `ForwardRef(${displayName})`;
-    return ForwardedComponent as unknown as ComponentType<P>;
+    ObserverComponent.displayName = `Observer(${displayName})`;
   }
 
-  return ObserverComponent as unknown as ComponentType<P>;
+  return ObserverComponent;
 }
 
 // ============================================================================
@@ -178,31 +139,57 @@ export const Observer: FC<ObserverComponentProps> = observer(({ children }) => {
  */
 export function useObserver<T>(fn: () => T): T {
   const [, forceUpdate] = useState({});
-  const disposersRef = useRef<IDisposer[]>([]);
-  const trackedNodes = useRef<Set<unknown>>(new Set());
+  const nextTrackedNodesRef = useRef<Set<StateTreeNode>>(new Set());
+  const subscriptionsRef = useRef<Map<StateTreeNode, IDisposer>>(new Map());
 
-  // Clear previous subscriptions
+  // Clear nextTrackedNodesRef at the beginning of this render
+  nextTrackedNodesRef.current = new Set();
+
+  // Update subscriptions on every render
+  useEffect(() => {
+    const nextNodes = nextTrackedNodesRef.current;
+    const currentSubscriptions = subscriptionsRef.current;
+
+    // Unsubscribe from nodes no longer accessed
+    for (const [node, disposer] of currentSubscriptions.entries()) {
+      if (!nextNodes.has(node)) {
+        disposer();
+        currentSubscriptions.delete(node);
+      }
+    }
+
+    // Subscribe to newly accessed nodes
+    for (const node of nextNodes) {
+      if (!currentSubscriptions.has(node)) {
+        const disposer = node.onSnapshot(() => {
+          forceUpdate({});
+        });
+        currentSubscriptions.set(node, disposer);
+      }
+    }
+  }); // Runs on every render
+
+  // Unsubscribe on unmount
   useEffect(() => {
     return () => {
-      disposersRef.current.forEach((d) => d());
-      disposersRef.current = [];
+      for (const disposer of subscriptionsRef.current.values()) {
+        disposer();
+      }
+      subscriptionsRef.current.clear();
     };
   }, []);
 
-  // Execute the function and track accessed nodes
-  const result = useMemo(() => {
-    // Clear previous tracking
-    trackedNodes.current.clear();
-    disposersRef.current.forEach((d) => d());
-    disposersRef.current = [];
+  // Execute the function under active tracking
+  const prevTrackingFn = getActiveTrackingFn();
+  setActiveTrackingFn((node) => {
+    nextTrackedNodesRef.current.add(node);
+  });
 
-    // Execute and capture result
-    const value = fn();
-
-    return value;
-  }, [fn]);
-
-  return result;
+  try {
+    return fn();
+  } finally {
+    setActiveTrackingFn(prevTrackingFn);
+  }
 }
 
 // ============================================================================
@@ -539,7 +526,6 @@ export function usePatches(
   callback: (patch: { op: string; path: string; value?: unknown }) => void,
 ): void {
   useEffect(() => {
-    const { onPatch } = require("./tree");
     const disposer = onPatch(target, callback);
     return disposer;
   }, [target, callback]);

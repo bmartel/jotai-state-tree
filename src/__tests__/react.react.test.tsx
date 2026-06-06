@@ -29,6 +29,7 @@ import {
   useSyncedStore,
   batch,
   createStoreContext,
+  useObserver,
 } from "../react";
 
 import type { Instance } from "../index";
@@ -332,6 +333,39 @@ describe("React Integration", () => {
 
       // Note: The store itself isn't automatically destroyed on unmount
       // Users need to handle that in their own cleanup if needed
+    });
+  });
+
+  // ============================================================================
+  // useObserver Tests
+  // ============================================================================
+
+  describe("useObserver", () => {
+    it("should re-render when accessed state changes", async () => {
+      const counter = CounterModel.create({ count: 10 });
+      let renderCount = 0;
+
+      function ObserverDisplay() {
+        renderCount++;
+        return useObserver(() => {
+          return <div data-testid="count">{counter.count}</div>;
+        });
+      }
+
+      render(<ObserverDisplay />);
+
+      expect(screen.getByTestId("count").textContent).toBe("10");
+      expect(renderCount).toBe(1);
+
+      act(() => {
+        counter.increment();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("count").textContent).toBe("11");
+      });
+
+      expect(renderCount).toBeGreaterThanOrEqual(2);
     });
   });
 

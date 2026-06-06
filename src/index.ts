@@ -101,6 +101,7 @@ import { model, compose, mixin } from "./model";
 
 import { array } from "./array";
 import { map } from "./map";
+import { getIdentifier } from "./tree";
 
 // ============================================================================
 // Utility Types
@@ -482,7 +483,6 @@ export function castToSnapshot<T>(value: T): T {
  * Cast a value to a reference snapshot (identifier).
  */
 export function castToReferenceSnapshot<T>(value: T): string | number {
-  const { getIdentifier } = require("./tree");
   return getIdentifier(value) ?? (value as unknown as string | number);
 }
 

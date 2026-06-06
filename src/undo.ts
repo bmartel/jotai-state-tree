@@ -4,7 +4,7 @@
  */
 
 import type { IDisposer, IJsonPatch, IReversibleJsonPatch } from './types';
-import { getStateTreeNode, applyPatch, onPatch, getSnapshot, applySnapshot } from './tree';
+import { getStateTreeNode, applyPatch, onPatch, getSnapshot, applySnapshot, onAction } from './tree';
 
 // ============================================================================
 // Types
@@ -490,8 +490,6 @@ class ActionRecorder implements IActionRecorder {
     if (this.recording) return;
     this.recording = true;
     
-    // Import onAction dynamically to avoid circular dependency
-    const { onAction } = require('./tree');
     this.disposer = onAction(this.target, (action: { name: string; path: string; args: unknown[] }) => {
       this.recordedActions.push({
         ...action,

@@ -359,6 +359,9 @@ class ModelType<
         }
 
         // Check actions
+        if (propStr === "toggle") {
+          console.log("PROXY GET toggle:", propStr, "in allActions:", propStr in allActions, "keys:", Object.keys(allActions), "node alive:", node.$isAlive);
+        }
         if (propStr in allActions) {
           return allActions[propStr];
         }

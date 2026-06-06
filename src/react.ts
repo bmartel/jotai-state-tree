@@ -702,6 +702,9 @@ export { hasStateTreeNode };
 // Undo/Redo & Time Travel Hooks
 // ============================================================================
 
+const undoManagersCache = new WeakMap<any, IUndoManager>();
+const timeTravelManagersCache = new WeakMap<any, ITimeTravelManager>();
+
 /**
  * Hook to create and use an UndoManager.
  * Automatically handles the subscription lifecycle and triggers re-renders on changes.
@@ -710,11 +713,12 @@ export function useUndoManager(
   target: unknown,
   options?: IUndoManagerOptions,
 ): IUndoManager {
-  const managerRef = useRef<IUndoManager | null>(null);
   const [, forceUpdate] = useState(0);
 
-  if (!managerRef.current) {
-    managerRef.current = createUndoManager(target, options);
+  let manager = (target && typeof target === "object") ? undoManagersCache.get(target) : undefined;
+  if (!manager && target && typeof target === "object") {
+    manager = createUndoManager(target, options);
+    undoManagersCache.set(target, manager);
   }
 
   useEffect(() => {
@@ -723,14 +727,10 @@ export function useUndoManager(
     });
     return () => {
       disposer();
-      if (managerRef.current) {
-        managerRef.current.dispose();
-        managerRef.current = null;
-      }
     };
   }, [target]);
 
-  return managerRef.current;
+  return manager!;
 }
 
 /**
@@ -744,11 +744,12 @@ export function useTimeTravelManager(
     autoRecord?: boolean;
   },
 ): ITimeTravelManager {
-  const managerRef = useRef<ITimeTravelManager | null>(null);
   const [, forceUpdate] = useState(0);
 
-  if (!managerRef.current) {
-    managerRef.current = createTimeTravelManager(target, options);
+  let manager = (target && typeof target === "object") ? timeTravelManagersCache.get(target) : undefined;
+  if (!manager && target && typeof target === "object") {
+    manager = createTimeTravelManager(target, options);
+    timeTravelManagersCache.set(target, manager);
   }
 
   useEffect(() => {
@@ -757,14 +758,10 @@ export function useTimeTravelManager(
     });
     return () => {
       disposer();
-      if (managerRef.current) {
-        managerRef.current.dispose();
-        managerRef.current = null;
-      }
     };
   }, [target]);
 
-  return managerRef.current;
+  return manager!;
 }
 
 // ============================================================================

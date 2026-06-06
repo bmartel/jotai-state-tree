@@ -170,4 +170,111 @@ describe("TypeScript Type Inference", () => {
     inst.reset();
     expect(inst.x).toBe(0);
   });
+
+  it("should compile types.compose correctly and preserve self in chained views/actions", () => {
+    const ModelA = types
+      .model("ModelA", {
+        aProp: types.string,
+      })
+      .views((self) => ({
+        get doubleA() {
+          return self.aProp + self.aProp;
+        },
+      }))
+      .actions((self) => ({
+        setA(val: string) {
+          self.aProp = val;
+        },
+      }));
+
+    const ModelB = types
+      .model("ModelB", {
+        bProp: types.number,
+      })
+      .views((self) => ({
+        get doubleB() {
+          return self.bProp * 2;
+        },
+      }))
+      .actions((self) => ({
+        setB(val: number) {
+          self.bProp = val;
+        },
+      }));
+
+    const ComposedModel = types.compose("ComposedModel", ModelA, ModelB)
+      .views((self) => ({
+        get combinedView() {
+          // self must have access to both ModelA and ModelB props and views
+          const a: string = self.doubleA;
+          const b: number = self.doubleB;
+          return `${a}-${b}`;
+        },
+      }))
+      .actions((self) => ({
+        setBoth(a: string, b: number) {
+          // self must have access to both ModelA and ModelB actions
+          self.setA(a);
+          self.setB(b);
+        },
+      }));
+
+    const inst = ComposedModel.create({
+      aProp: "hello",
+      bProp: 42,
+    });
+
+    expect(inst.combinedView).toBe("hellohello-84");
+    inst.setBoth("world", 10);
+    expect(inst.aProp).toBe("world");
+    expect(inst.bProp).toBe(10);
+    expect(inst.combinedView).toBe("worldworld-20");
+  });
+
+  it("should compile mixins correctly and preserve self in chained views/actions", () => {
+    const Timestamped = types.mixin({
+      requires: {
+        createdAt: types.number,
+      },
+      views: (self) => ({
+        get formattedDate() {
+          return new Date(self.createdAt).toISOString();
+        },
+      }),
+      actions: (self) => ({
+        updateCreatedAt(val: number) {
+          self.createdAt = val;
+        },
+      }),
+    });
+
+    const ItemModel = types
+      .model("ItemModel", {
+        name: types.string,
+        createdAt: types.number,
+      })
+      .apply(Timestamped)
+      .views((self) => ({
+        get description() {
+          // self must have access to model properties AND mixin views
+          return `${self.name} created at ${self.formattedDate}`;
+        },
+      }))
+      .actions((self) => ({
+        resetCreationDate() {
+          // self must have access to mixin actions
+          self.updateCreatedAt(0);
+        },
+      }));
+
+    const inst = ItemModel.create({
+      name: "Widget",
+      createdAt: 1000,
+    });
+
+    expect(inst.formattedDate).toBe(new Date(1000).toISOString());
+    expect(inst.description).toBe(`Widget created at ${new Date(1000).toISOString()}`);
+    inst.resetCreationDate();
+    expect(inst.createdAt).toBe(0);
+  });
 });

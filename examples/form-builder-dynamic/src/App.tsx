@@ -106,7 +106,7 @@ export function App() {
 }
 
 // Recursive component for editing sections
-function SectionEditor({ section, optionInputs, setOptionInputs, path }: any) {
+function SectionEditor({ section, optionInputs, setOptionInputs, path, onRemove }: any) {
   const handleAddQuestion = (type: 'text' | 'number' | 'choice' | 'toggle') => {
     section.addQuestion(type);
   };
@@ -126,8 +126,8 @@ function SectionEditor({ section, optionInputs, setOptionInputs, path }: any) {
             onChange={(e) => section.setTitle(e.target.value)}
             placeholder="Section Title..."
           />
-          {path !== 'Root' && (
-            <button className="danger" onClick={section.removeSelf} style={{ padding: '6px 8px' }}>
+          {path !== 'Root' && onRemove && (
+            <button className="danger" onClick={onRemove} style={{ padding: '6px 8px' }}>
               Remove
             </button>
           )}
@@ -253,11 +253,6 @@ function SectionEditor({ section, optionInputs, setOptionInputs, path }: any) {
 
       {/* Edit Subsections */}
       {section.subsections.map((sub: any) => {
-        // Setup self-destruct function for subsection
-        if (sub && !sub.removeSelf) {
-          sub.removeSelf = () => section.removeSubsection(sub.id);
-        }
-
         return (
           <div key={sub.id} style={{ marginTop: '16px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
             <SectionEditor
@@ -265,6 +260,7 @@ function SectionEditor({ section, optionInputs, setOptionInputs, path }: any) {
               optionInputs={optionInputs}
               setOptionInputs={setOptionInputs}
               path={`${path} > ${sub.title}`}
+              onRemove={() => section.removeSubsection(sub.id)}
             />
           </div>
         );

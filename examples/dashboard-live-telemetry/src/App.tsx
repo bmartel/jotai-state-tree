@@ -33,6 +33,11 @@ export function App() {
       level: 'info',
     }]);
 
+    // Restart timer if it was cleared by unmount in StrictMode
+    if (!store.timerId && !store.isPaused) {
+      store.restartTimer();
+    }
+
     const dispose = onPatch(store, (patch) => {
       // Check if patch is updating a metric value, e.g. path "/metrics/cpu/value"
       const match = patch.path.match(/^\/metrics\/([a-z]+)\/value$/);
@@ -55,7 +60,10 @@ export function App() {
 
     return () => {
       dispose();
-      destroy(store); // Explicit cleanup on unmount
+      if (store.timerId) {
+        clearInterval(store.timerId);
+        store.setTimerId(null);
+      }
     };
   }, [store]);
 

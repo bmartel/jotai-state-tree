@@ -37,6 +37,9 @@ import {
   onPatch,
   StateTreeNode,
   getGlobalStore,
+  applySnapshotToNode,
+  getIsApplyingSnapshotOrPatch,
+  setIsApplyingSnapshotOrPatch,
 } from "./tree";
 import {
   createUndoManager,
@@ -668,6 +671,18 @@ export function useHydrateStore(
   }
 
   const node = getStateTreeNode(target);
+
+  // Apply the snapshot structure to the tree first so that child nodes exist
+  useMemo(() => {
+    const wasApplying = getIsApplyingSnapshotOrPatch();
+    setIsApplyingSnapshotOrPatch(true);
+    try {
+      applySnapshotToNode(node, snapshot);
+    } finally {
+      setIsApplyingSnapshotOrPatch(wasApplying);
+    }
+  }, [node, snapshot]);
+
   const pairs = useMemo(() => {
     const collectedPairs: [WritableAtom<any, any[], any>, unknown][] = [];
     

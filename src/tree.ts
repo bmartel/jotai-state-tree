@@ -124,10 +124,13 @@ const identifierFinalizationRegistry = new FinalizationRegistry(
   (info: { typeName: string; identifier: string | number }) => {
     const typeMap = identifierRegistry.get(info.typeName);
     if (typeMap) {
-      typeMap.delete(info.identifier);
-      // Clean up empty type maps
-      if (typeMap.size === 0) {
-        identifierRegistry.delete(info.typeName);
+      const ref = typeMap.get(info.identifier);
+      if (!ref || ref.deref() === undefined) {
+        typeMap.delete(info.identifier);
+        // Clean up empty type maps
+        if (typeMap.size === 0) {
+          identifierRegistry.delete(info.typeName);
+        }
       }
     }
   },
@@ -174,6 +177,36 @@ function notifyLifecycleChange(node: StateTreeNode, isAlive: boolean) {
   }
 }
 
+function cloneAndSerialize(value: unknown): unknown {
+  if (value === null || value === undefined) {
+    return value;
+  }
+  if (hasStateTreeNode(value)) {
+    return getSnapshotFromNode(getStateTreeNode(value));
+  }
+  if (Array.isArray(value)) {
+    return value.map(cloneAndSerialize);
+  }
+  if (typeof value === "object") {
+    if (value instanceof Map) {
+      const res: Record<string, unknown> = {};
+      for (const [k, v] of value.entries()) {
+        res[k] = cloneAndSerialize(v);
+      }
+      return res;
+    }
+    const proto = Object.getPrototypeOf(value);
+    if (proto === null || proto === Object.prototype) {
+      const res: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(value)) {
+        res[k] = cloneAndSerialize(v);
+      }
+      return res;
+    }
+  }
+  return value;
+}
+
 // ============================================================================
 // State Tree Node Implementation
 // ============================================================================
@@ -218,6 +251,9 @@ export class StateTreeNode implements IStateTreeNode {
   cachedSnapshot: unknown = undefined;
   isSnapshotDirty = true;
 
+  /** Strong reference to the instance proxy to prevent GC of active nodes */
+  private instance: unknown = null;
+
   invalidateSnapshot() {
     if (!this.isSnapshotDirty) {
       this.isSnapshotDirty = true;
@@ -253,6 +289,7 @@ export class StateTreeNode implements IStateTreeNode {
 
   /** Set the instance reference */
   setInstance(instance: unknown) {
+    this.instance = instance;
     const entry = nodeRegistry.get(this.$id);
     if (entry && instance && typeof instance === "object") {
       entry.instance = new WeakRef(instance as object);
@@ -261,8 +298,7 @@ export class StateTreeNode implements IStateTreeNode {
 
   /** Get the instance */
   getInstance(): unknown {
-    const entry = nodeRegistry.get(this.$id);
-    return entry?.instance?.deref() ?? null;
+    return this.instance;
   }
 
   /** Get current value from atom */
@@ -396,12 +432,33 @@ export class StateTreeNode implements IStateTreeNode {
     };
   }
 
+
   /** Notify patch listeners */
   notifyPatch(patch: IJsonPatch, reversePatch: IReversibleJsonPatch) {
-    this.patchListeners.forEach((listener) => listener(patch, reversePatch));
+    const serializedPatch: IJsonPatch = {
+      ...patch,
+      value: "value" in patch ? cloneAndSerialize(patch.value) : undefined,
+    };
+    if (!("value" in patch)) {
+      delete serializedPatch.value;
+    }
+
+    const serializedReversePatch: IReversibleJsonPatch = {
+      ...reversePatch,
+      value: "value" in reversePatch ? cloneAndSerialize(reversePatch.value) : undefined,
+      oldValue: "oldValue" in reversePatch ? cloneAndSerialize((reversePatch as any).oldValue) : undefined,
+    };
+    if (!("value" in reversePatch)) {
+      delete serializedReversePatch.value;
+    }
+    if (!("oldValue" in reversePatch)) {
+      delete (serializedReversePatch as any).oldValue;
+    }
+
+    this.patchListeners.forEach((listener) => listener(serializedPatch, serializedReversePatch));
     // Bubble up to parent
     if (this.$parent) {
-      this.$parent.notifyPatch(patch, reversePatch);
+      this.$parent.notifyPatch(serializedPatch, serializedReversePatch);
     }
   }
 
@@ -443,6 +500,8 @@ export class StateTreeNode implements IStateTreeNode {
   /** Destroy this node and all children */
   destroy() {
     if (!this.$isAlive) return;
+
+    this.instance = null;
 
     // Run beforeDestroy hook
     lifecycleHookHandlers.runBeforeDestroy?.(this);

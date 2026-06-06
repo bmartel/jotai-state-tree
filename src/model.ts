@@ -35,7 +35,7 @@ import {
   applySnapshotToNode,
   trackNodeAccess,
 } from "./tree";
-import { canWrite, registerHooks, runAfterCreate } from "./lifecycle";
+import { canWrite, registerHooks, runAfterCreate, createMiddlewareRunner } from "./lifecycle";
 
 // ============================================================================
 // LRU Cache Implementation
@@ -307,6 +307,10 @@ class ModelType<
           return node;
         }
 
+        if (!node.$isAlive) {
+          throw new Error(`[jotai-state-tree] Cannot access '${String(prop)}' - the node is dead.`);
+        }
+
         const propStr = String(prop);
 
         // Check properties first
@@ -367,6 +371,9 @@ class ModelType<
 
         // Check if it's a property
         if (propertyAtoms.has(propStr)) {
+          if (!node.$isAlive) {
+            throw new Error(`[jotai-state-tree] Cannot modify '${propStr}' - the node is dead.`);
+          }
           if (!canWrite(node)) {
             throw new Error(`Cannot modify '${propStr}' - the object is protected and can only be modified inside an action.`);
           }
@@ -446,6 +453,9 @@ class ModelType<
 
         // Check if it's volatile state
         if (propStr in node.volatileState) {
+          if (!node.$isAlive) {
+            throw new Error(`[jotai-state-tree] Cannot modify volatile property '${propStr}' - the node is dead.`);
+          }
           if (!canWrite(node)) {
             throw new Error(`Cannot modify volatile property '${propStr}' - the object is protected and can only be modified inside an action.`);
           }
@@ -513,10 +523,13 @@ class ModelType<
       const actions = actionFn(proxy);
       for (const [key, value] of Object.entries(actions)) {
         if (typeof value === "function") {
-          // Wrap action with tracking
+          // Wrap action with tracking and middleware
           allActions[key] = (...args: unknown[]) => {
-            return trackAction(node, key, args, () => {
-              return (value as Function).apply(proxy, args);
+            const runner = createMiddlewareRunner(node, key, args);
+            return runner((currEvent) => {
+              return trackAction(node, currEvent.name, currEvent.args, () => {
+                return (value as Function).apply(proxy, currEvent.args);
+              });
             });
           };
 

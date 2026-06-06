@@ -2034,4 +2034,331 @@ describe("Mixin Types", () => {
       expect(instance.arr.length).toBe(1);
     });
   });
+
+  describe("Asynchronous Actions & Middleware (Extended)", () => {
+    const delay = (ms: number) =>
+      new Promise((resolve) => setTimeout(resolve, ms));
+
+    it("should support direct property writes inside a flow action (protection bypass)", async () => {
+      const Model = types
+        .model("Model", {
+          count: types.optional(types.number, 0),
+          text: types.optional(types.string, "initial"),
+        })
+        .actions((self) => ({
+          incrementAsync: flow(function* () {
+            self.count = 1; // Direct write before yield
+            yield delay(10);
+            self.count = 2; // Direct write after yield
+            self.text = "done";
+          }),
+        }));
+
+      const instance = Model.create({});
+      expect(instance.count).toBe(0);
+      expect(instance.text).toBe("initial");
+
+      // Execution should not throw protection error
+      await instance.incrementAsync();
+
+      expect(instance.count).toBe(2);
+      expect(instance.text).toBe("done");
+    });
+
+    it("should trace middleware events for flows correctly", async () => {
+      const Model = types
+        .model("Model", {
+          count: types.optional(types.number, 0),
+        })
+        .actions((self) => ({
+          incrementAsync: flow(function* () {
+            self.count = 1;
+            yield delay(10);
+            self.count = 2;
+            return "result-value";
+          }),
+        }));
+
+      const instance = Model.create({});
+      const events: any[] = [];
+
+      addMiddleware(instance, (call, next) => {
+        events.push(call);
+        return next(call);
+      });
+
+      const result = await instance.incrementAsync();
+      expect(result).toBe("result-value");
+
+      expect(events.length).toBe(4);
+
+      // Event 1: action
+      expect(events[0].type).toBe("action");
+      expect(events[0].name).toBe("incrementAsync");
+      expect(events[0].parentId).toBe(0);
+      expect(events[0].rootId).toBe(events[0].id);
+
+      // Event 2: flow_spawn
+      expect(events[1].type).toBe("flow_spawn");
+      expect(events[1].name).toBe("incrementAsync");
+      expect(events[1].parentId).toBe(events[0].id);
+      expect(events[1].rootId).toBe(events[0].rootId);
+
+      // Event 3: flow_resume
+      expect(events[2].type).toBe("flow_resume");
+      expect(events[2].name).toBe("incrementAsync");
+      expect(events[2].parentId).toBe(events[1].id);
+      expect(events[2].rootId).toBe(events[0].rootId);
+
+      // Event 4: flow_return
+      expect(events[3].type).toBe("flow_return");
+      expect(events[3].name).toBe("incrementAsync");
+      expect(events[3].parentId).toBe(events[1].id);
+      expect(events[3].rootId).toBe(events[0].rootId);
+      expect(events[3].args).toEqual(["result-value"]);
+    });
+
+    it("should scope middleware to nodes and subtrees", async () => {
+      const Child = types
+        .model("Child", {
+          count: types.optional(types.number, 0),
+        })
+        .actions((self) => ({
+          setCount(v: number) {
+            self.count = v;
+          },
+        }));
+
+      const Parent = types
+        .model("Parent", {
+          child: Child,
+        })
+        .actions((self) => ({
+          setChildCount(v: number) {
+            self.child.setCount(v);
+          },
+        }));
+
+      const parentInstance = Parent.create({ child: { count: 0 } });
+      const parentEvents: string[] = [];
+      const childEvents: string[] = [];
+
+      addMiddleware(parentInstance, (call, next) => {
+        parentEvents.push(call.name);
+        return next(call);
+      });
+
+      addMiddleware(parentInstance.child, (call, next) => {
+        childEvents.push(call.name);
+        return next(call);
+      });
+
+      // Run action on child directly
+      parentInstance.child.setCount(10);
+      expect(parentEvents).toEqual(["setCount"]);
+      expect(childEvents).toEqual(["setCount"]);
+
+      parentEvents.length = 0;
+      childEvents.length = 0;
+
+      // Run action on parent
+      parentInstance.setChildCount(20);
+      // parentEvents should receive parent action and nested child action
+      expect(parentEvents).toEqual(["setChildCount", "setCount"]);
+      // childEvents should ONLY receive the action run on child (setCount)
+      expect(childEvents).toEqual(["setCount"]);
+    });
+
+    it("should handle error recovery inside generator using try-catch", async () => {
+      const Model = types
+        .model("Model", {
+          count: types.optional(types.number, 0),
+        })
+        .actions((self) => ({
+          runWithErrorHandling: flow(function* (shouldFail: boolean) {
+            try {
+              if (shouldFail) {
+                yield Promise.reject(new Error("Async Error"));
+              } else {
+                yield Promise.resolve();
+              }
+              self.count = 1;
+            } catch (err: any) {
+              self.count = -1;
+            }
+            return "completed";
+          }),
+        }));
+
+      const instance = Model.create({});
+      const events: any[] = [];
+
+      addMiddleware(instance, (call, next) => {
+        events.push(call);
+        return next(call);
+      });
+
+      const result = await instance.runWithErrorHandling(true);
+      expect(result).toBe("completed");
+      expect(instance.count).toBe(-1);
+
+      // Verify events sequence contains flow_resume_error instead of flow_throw
+      const eventTypes = events.map((e) => e.type);
+      expect(eventTypes).toContain("flow_spawn");
+      expect(eventTypes).toContain("flow_resume_error");
+      expect(eventTypes).toContain("flow_return");
+      expect(eventTypes).not.toContain("flow_throw");
+    });
+
+    it("should bubble up unhandled async errors and trigger flow_throw", async () => {
+      const Model = types
+        .model("Model", {
+          count: types.optional(types.number, 0),
+        })
+        .actions((self) => ({
+          runWithUnhandledError: flow(function* () {
+            yield Promise.reject(new Error("Async Unhandled Error"));
+            self.count = 1;
+          }),
+        }));
+
+      const instance = Model.create({});
+      const events: any[] = [];
+
+      addMiddleware(instance, (call, next) => {
+        events.push(call);
+        return next(call);
+      });
+
+      await expect(instance.runWithUnhandledError()).rejects.toThrow("Async Unhandled Error");
+
+      const eventTypes = events.map((e) => e.type);
+      expect(eventTypes).toContain("flow_spawn");
+      expect(eventTypes).toContain("flow_resume_error");
+      expect(eventTypes).toContain("flow_throw");
+      expect(eventTypes).not.toContain("flow_return");
+    });
+
+    it("should track nested actions and flow action hierarchy correctly", async () => {
+      const Model = types
+        .model("Model", {
+          count: types.optional(types.number, 0),
+        })
+        .actions((self) => ({
+          syncAction(v: number) {
+            self.count = v;
+          },
+        }))
+        .actions((self) => ({
+          nestedFlow: flow(function* () {
+            self.syncAction(10);
+            yield delay(10);
+            self.syncAction(20);
+          }),
+        }));
+
+      const instance = Model.create({});
+      const events: any[] = [];
+
+      addMiddleware(instance, (call, next) => {
+        events.push(call);
+        return next(call);
+      });
+
+      await instance.nestedFlow();
+
+      // Verify parentEvent and rootId for the nested sync action calls
+      const syncActionEvents = events.filter((e) => e.name === "syncAction");
+      expect(syncActionEvents.length).toBe(2);
+
+      expect(syncActionEvents[0].rootId).toBe(events[0].id); // nestedFlow's rootId
+      expect(syncActionEvents[1].rootId).toBe(events[0].id);
+    });
+
+    it("should reject modifications on dead/destroyed models, arrays, and maps", () => {
+      const Child = types.model("Child", {
+        value: types.optional(types.number, 0)
+      });
+      const Model = types
+        .model("Model", {
+          count: types.optional(types.number, 0),
+          arr: types.optional(types.array(types.number), []),
+          map: types.optional(types.map(types.number), {}),
+          child: types.optional(Child, {})
+        })
+        .volatile((self) => ({
+          vol: "hello"
+        }))
+        .actions((self) => ({
+          increment() {
+            self.count++;
+          },
+          setVol(v: string) {
+            self.vol = v;
+          }
+        }));
+
+      const instance = Model.create({});
+      unprotect(instance);
+
+      // Mutating while alive should work
+      instance.increment();
+      instance.arr.push(1);
+      instance.map.set("a", 1);
+      instance.setVol("world");
+      expect(instance.count).toBe(1);
+      expect(instance.arr[0]).toBe(1);
+      expect(instance.map.get("a")).toBe(1);
+      expect(instance.vol).toBe("world");
+
+      // Destroy node
+      destroy(instance);
+
+      // Mutating while dead should throw "dead" error
+      expect(() => {
+        instance.count = 2;
+      }).toThrow(/dead/);
+
+      expect(() => {
+        instance.setVol("error");
+      }).toThrow(/dead/);
+
+      expect(() => {
+        instance.arr.push(2);
+      }).toThrow(/dead/);
+
+      expect(() => {
+        instance.arr[0] = 5;
+      }).toThrow(/dead/);
+
+      expect(() => {
+        instance.map.set("b", 2);
+      }).toThrow(/dead/);
+    });
+
+    it("should cancel pending flows and reject with FLOW_CANCELLED when node is destroyed mid-flight", async () => {
+      const Model = types
+        .model("Model", {
+          count: types.optional(types.number, 0)
+        })
+        .actions((self) => ({
+          asyncAction: flow(function* () {
+            self.count = 1;
+            yield delay(20);
+            self.count = 2;
+          })
+        }));
+
+      const instance = Model.create({});
+      const promise = instance.asyncAction();
+
+      // Destroy the node asynchronously while the flow is yielding/waiting
+      setTimeout(() => {
+        destroy(instance);
+      }, 5);
+
+      await expect(promise).rejects.toThrow("FLOW_CANCELLED");
+      expect(isAlive(instance)).toBe(false);
+    });
+  });
 });

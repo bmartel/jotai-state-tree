@@ -1003,13 +1003,17 @@ export function recordPatches(target: unknown): {
 // Action Tracking
 // ============================================================================
 
-interface ActionContext {
+export interface ActionContext {
   name: string;
   args: unknown[];
   tree: StateTreeNode;
 }
 
 let currentAction: ActionContext | null = null;
+
+export function getCurrentAction(): ActionContext | null {
+  return currentAction;
+}
 const actionListeners = new Set<(call: ActionCall) => void>();
 
 /** Action recorder hooks - set by lifecycle.ts to avoid circular imports */

@@ -15,6 +15,10 @@ import {
   registerActionRecorderHook,
   isActionRunning,
   setLifecycleHookHandlers,
+  isStateTreeNode,
+  getCurrentAction,
+  trackAction,
+  $treenode,
   type ActionCall,
 } from "./tree";
 
@@ -153,18 +157,40 @@ export interface IActionContext {
   parentActionEvent?: IMiddlewareEvent;
 }
 
-// Global middleware stack - these are global handlers, not per-node
-const middlewareStack: IMiddlewareHandler[] = [];
+// Active middleware event tracking
+export let activeMiddlewareEvent: IMiddlewareEvent | null = null;
 let middlewareIdCounter = 0;
 
+// Global middleware stack - these are global handlers, not per-node
+const middlewareStack: IMiddlewareHandler[] = [];
+
+// Scoped node middlewares
+const nodeMiddlewares = new WeakMap<StateTreeNode, Set<IMiddlewareHandler>>();
+
 /**
- * Add middleware to the global stack
+ * Add middleware to the stack/node
  */
 export function addMiddleware(
   target: unknown,
   handler: IMiddlewareHandler,
   includeHooks: boolean = true,
 ): IDisposer {
+  if (target && isStateTreeNode(target)) {
+    const node = getStateTreeNode(target);
+    let middlewares = nodeMiddlewares.get(node);
+    if (!middlewares) {
+      middlewares = new Set();
+      nodeMiddlewares.set(node, middlewares);
+    }
+    middlewares.add(handler);
+    return () => {
+      const current = nodeMiddlewares.get(node);
+      if (current) {
+        current.delete(handler);
+      }
+    };
+  }
+
   middlewareStack.push(handler);
   return () => {
     const index = middlewareStack.indexOf(handler);
@@ -175,56 +201,254 @@ export function addMiddleware(
 }
 
 /**
+ * Get all active middlewares for a node (ancestors first) plus global ones
+ */
+function getMiddlewaresForNode(node: StateTreeNode): IMiddlewareHandler[] {
+  const handlers: IMiddlewareHandler[] = [];
+  let current: StateTreeNode | null = node;
+  while (current) {
+    const middlewares = nodeMiddlewares.get(current);
+    if (middlewares) {
+      handlers.unshift(...Array.from(middlewares));
+    }
+    current = current.$parent;
+  }
+  return [...Array.from(middlewareStack), ...handlers];
+}
+
+/**
+ * Run a callback through the middleware chain
+ */
+export function runMiddlewares(
+  node: StateTreeNode,
+  event: IMiddlewareEvent,
+  fn: (event: IMiddlewareEvent) => unknown,
+): unknown {
+  const handlers = getMiddlewaresForNode(node);
+  if (handlers.length === 0) {
+    const previousEvent = activeMiddlewareEvent;
+    activeMiddlewareEvent = event;
+    try {
+      return fn(event);
+    } finally {
+      activeMiddlewareEvent = previousEvent;
+    }
+  }
+
+  let index = 0;
+  let aborted = false;
+  let abortValue: unknown;
+
+  const abort = (value: unknown) => {
+    aborted = true;
+    abortValue = value;
+    return value;
+  };
+
+  const next = (
+    call: IMiddlewareEvent,
+    callback?: (value: unknown) => unknown,
+  ): unknown => {
+    if (aborted) return abortValue;
+
+    const previousEvent = activeMiddlewareEvent;
+    activeMiddlewareEvent = call;
+
+    try {
+      if (index >= handlers.length) {
+        const result = fn(call);
+        return callback ? callback(result) : result;
+      }
+
+      const middleware = handlers[index++];
+      return middleware(call, next, abort);
+    } finally {
+      activeMiddlewareEvent = previousEvent;
+    }
+  };
+
+  return next(event);
+}
+
+/**
  * Create a middleware runner
  */
 export function createMiddlewareRunner(
   node: StateTreeNode,
   actionName: string,
   args: unknown[],
-): (fn: () => unknown) => unknown {
-  if (middlewareStack.length === 0) {
-    return (fn) => fn();
-  }
-
+): (fn: (event?: any) => unknown) => unknown {
   const id = ++middlewareIdCounter;
+  const parentEvent = activeMiddlewareEvent;
   const event: IMiddlewareEvent = {
     type: "action",
     name: actionName,
     id,
-    parentId: 0,
-    rootId: id,
+    parentId: parentEvent ? parentEvent.id : 0,
+    rootId: parentEvent ? parentEvent.rootId : id,
     context: node.getInstance(),
     tree: node.getRoot().getInstance(),
     args,
+    parentEvent: parentEvent ?? undefined,
   };
 
-  return (fn: () => unknown) => {
-    let index = 0;
-    let aborted = false;
-    let abortValue: unknown;
+  return (fn: (event?: any) => unknown) => {
+    return runMiddlewares(node, event, fn);
+  };
+}
 
-    const abort = (value: unknown) => {
-      aborted = true;
-      abortValue = value;
-      return value;
-    };
+/**
+ * Creates an async action (generator function) that can be yielded.
+ * Compatible with MST's flow().
+ */
+export function flow<Args extends unknown[], R>(
+  generator: (...args: Args) => Generator<Promise<unknown>, R, unknown>,
+): (...args: Args) => Promise<R> {
+  return function flowAction(this: any, ...args: Args): Promise<R> {
+    const node =
+      (this && typeof this === "object" && $treenode in this
+        ? (this as any)[$treenode]
+        : null) ?? getCurrentAction()?.tree;
 
-    const next = (
-      call: IMiddlewareEvent,
-      callback?: (value: unknown) => unknown,
-    ): unknown => {
-      if (aborted) return abortValue;
+    if (!node) {
+      const gen = generator.apply(this, args);
+      function step(
+        nextFn: () => IteratorResult<Promise<unknown>, R>,
+      ): Promise<R> {
+        let result: IteratorResult<Promise<unknown>, R>;
+        try {
+          result = nextFn();
+        } catch (e) {
+          return Promise.reject(e);
+        }
 
-      if (index >= middlewareStack.length) {
-        const result = fn();
-        return callback ? callback(result) : result;
+        if (result.done) {
+          return Promise.resolve(result.value);
+        }
+
+        return Promise.resolve(result.value).then(
+          (value) => step(() => gen.next(value)),
+          (error) => step(() => gen.throw(error)),
+        );
       }
+      return step(() => gen.next(undefined));
+    }
 
-      const middleware = middlewareStack[index++];
-      return middleware(call, next, abort);
+    const actionName = getCurrentAction()?.name ?? "anonymousFlow";
+    const gen = generator.apply(this, args);
+    const actionEvent = activeMiddlewareEvent;
+
+    const spawnEventId = ++middlewareIdCounter;
+    const spawnEvent: IMiddlewareEvent = {
+      type: "flow_spawn",
+      name: actionName,
+      id: spawnEventId,
+      parentId: actionEvent ? actionEvent.id : 0,
+      rootId: actionEvent ? actionEvent.rootId : spawnEventId,
+      context: node.getInstance(),
+      tree: node.getRoot().getInstance(),
+      args,
+      parentEvent: actionEvent ?? undefined,
     };
 
-    return next(event);
+    return new Promise<R>((resolve, reject) => {
+      runMiddlewares(node, spawnEvent, () => {
+        function step(
+          nextFn: () => IteratorResult<Promise<unknown>, R>,
+          isResume: boolean,
+          resumeError?: unknown,
+        ): void {
+          let result: IteratorResult<Promise<unknown>, R>;
+
+          if (isResume) {
+            if (!node.$isAlive) {
+              gen.return(undefined as any);
+              handleThrow(new Error("FLOW_CANCELLED"));
+              return;
+            }
+            const resumeEventId = ++middlewareIdCounter;
+            const resumeEvent: IMiddlewareEvent = {
+              type: resumeError !== undefined ? "flow_resume_error" : "flow_resume",
+              name: actionName,
+              id: resumeEventId,
+              parentId: spawnEvent.id,
+              rootId: spawnEvent.rootId,
+              context: node.getInstance(),
+              tree: node.getRoot().getInstance(),
+              args: resumeError !== undefined ? [resumeError] : [],
+              parentEvent: spawnEvent,
+            };
+
+            runMiddlewares(node, resumeEvent, () => {
+              try {
+                result = trackAction(node, actionName, args, () => {
+                  return nextFn();
+                });
+              } catch (e) {
+                handleThrow(e);
+                return;
+              }
+              handleResult(result);
+            });
+          } else {
+            try {
+              result = nextFn();
+            } catch (e) {
+              handleThrow(e);
+              return;
+            }
+            handleResult(result);
+          }
+        }
+
+        function handleResult(result: IteratorResult<Promise<unknown>, R>) {
+          if (result.done) {
+            const returnEventId = ++middlewareIdCounter;
+            const returnEvent: IMiddlewareEvent = {
+              type: "flow_return",
+              name: actionName,
+              id: returnEventId,
+              parentId: spawnEvent.id,
+              rootId: spawnEvent.rootId,
+              context: node.getInstance(),
+              tree: node.getRoot().getInstance(),
+              args: [result.value],
+              parentEvent: spawnEvent,
+            };
+
+            runMiddlewares(node, returnEvent, () => {
+              resolve(result.value);
+            });
+          } else {
+            Promise.resolve(result.value).then(
+              (value) => step(() => gen.next(value), true),
+              (error) => step(() => gen.throw(error), true, error),
+            );
+          }
+        }
+
+        function handleThrow(error: unknown) {
+          const throwEventId = ++middlewareIdCounter;
+          const throwEvent: IMiddlewareEvent = {
+            type: "flow_throw",
+            name: actionName,
+            id: throwEventId,
+            parentId: spawnEvent.id,
+            rootId: spawnEvent.rootId,
+            context: node.getInstance(),
+            tree: node.getRoot().getInstance(),
+            args: [error],
+            parentEvent: spawnEvent,
+          };
+
+          runMiddlewares(node, throwEvent, () => {
+            reject(error);
+          });
+        }
+
+        step(() => gen.next(undefined), false);
+      });
+    });
   };
 }
 
@@ -404,6 +628,9 @@ export function isProtected(target: unknown): boolean {
  * Check if we can write to a node
  */
 export function canWrite(node: StateTreeNode): boolean {
+  if (!node.$isAlive) {
+    return false;
+  }
   if (typeof process !== "undefined" && process.env && process.env.NODE_ENV === "production") {
     return true;
   }

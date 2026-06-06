@@ -426,43 +426,7 @@ export {
   cloneFrozen,
 } from "./compat";
 
-// ============================================================================
-// Flow (Async Actions)
-// ============================================================================
-
-/**
- * Creates an async action (generator function) that can be yielded.
- * Compatible with MST's flow().
- */
-export function flow<Args extends unknown[], R>(
-  generator: (...args: Args) => Generator<Promise<unknown>, R, unknown>,
-): (...args: Args) => Promise<R> {
-  return function flowAction(...args: Args): Promise<R> {
-    const gen = generator(...args);
-
-    function step(
-      nextFn: () => IteratorResult<Promise<unknown>, R>,
-    ): Promise<R> {
-      let result: IteratorResult<Promise<unknown>, R>;
-      try {
-        result = nextFn();
-      } catch (e) {
-        return Promise.reject(e);
-      }
-
-      if (result.done) {
-        return Promise.resolve(result.value);
-      }
-
-      return Promise.resolve(result.value).then(
-        (value) => step(() => gen.next(value)),
-        (error) => step(() => gen.throw(error)),
-      );
-    }
-
-    return step(() => gen.next(undefined));
-  };
-}
+export { flow } from "./lifecycle";
 
 /**
  * Cast a value to a different type.

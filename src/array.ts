@@ -39,6 +39,9 @@ class MSTArray<T> extends Array<T> implements IMSTArray<T> {
   }
 
   private checkWrite(): void {
+    if (!this.node.$isAlive) {
+      throw new Error("[jotai-state-tree] Cannot modify array - the node is dead.");
+    }
     if (!canWrite(this.node)) {
       throw new Error(
         `Cannot modify the array - the parent object is protected and can only be modified inside an action.`
@@ -379,12 +382,18 @@ class ArrayType<T extends IAnyType> implements IArrayType<T> {
         if (prop === $treenode) {
           return node;
         }
+        if (!node.$isAlive) {
+          throw new Error("[jotai-state-tree] Cannot access array - the node is dead.");
+        }
         return Reflect.get(target, prop, receiver);
       },
       set(target, prop, value) {
         const propStr = String(prop);
         const isIndex = /^\d+$/.test(propStr);
         if (isIndex || propStr === "length") {
+          if (!node.$isAlive) {
+            throw new Error("[jotai-state-tree] Cannot modify array - the node is dead.");
+          }
           if (!canWrite(node)) {
             throw new Error(
               `Cannot modify the array - the parent object is protected and can only be modified inside an action.`

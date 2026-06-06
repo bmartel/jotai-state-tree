@@ -42,6 +42,9 @@ class MSTMap<V> extends Map<string, V> implements IMSTMap<V> {
   }
 
   private checkWrite(): void {
+    if (!this.node.$isAlive) {
+      throw new Error("[jotai-state-tree] Cannot modify map - the node is dead.");
+    }
     if (!canWrite(this.node)) {
       throw new Error(
         `Cannot modify the map - the parent object is protected and can only be modified inside an action.`
@@ -95,8 +98,10 @@ class MSTMap<V> extends Map<string, V> implements IMSTMap<V> {
     return this;
   }
 
-  // Override get to return the instance from child node for complex types
   get(key: string): V | undefined {
+    if (!this.node.$isAlive) {
+      throw new Error("[jotai-state-tree] Cannot access map - the node is dead.");
+    }
     if (this.valueType._kind === 'model' || this.valueType._kind === 'array' || this.valueType._kind === 'map') {
       const childNode = this.node.getChild(key);
       if (childNode) {

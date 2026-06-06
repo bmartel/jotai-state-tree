@@ -1,3 +1,10 @@
+## [1.3.5](https://github.com/bmartel/jotai-state-tree/compare/v1.3.4...v1.3.5) (2026-06-06)
+
+
+### Bug Fixes
+
+* resolve undo/redo array reconciliation, history manager coordination, and action grouping bugs ([cc45e16](https://github.com/bmartel/jotai-state-tree/commit/cc45e162d582ec417551276b3b01aec1d66363cf))
+
 ## [1.3.4](https://github.com/bmartel/jotai-state-tree/compare/v1.3.3...v1.3.4) (2026-06-06)
 
 

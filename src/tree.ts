@@ -202,6 +202,20 @@ export class StateTreeNode implements IStateTreeNode {
   /** Type name for identifier registry */
   identifierTypeName?: string;
 
+  /** Cached snapshot for structural sharing optimization */
+  cachedSnapshot: unknown = undefined;
+  isSnapshotDirty = true;
+
+  invalidateSnapshot() {
+    if (!this.isSnapshotDirty) {
+      this.isSnapshotDirty = true;
+      this.cachedSnapshot = undefined;
+      if (this.$parent) {
+        this.$parent.invalidateSnapshot();
+      }
+    }
+  }
+
   constructor(
     type: IAnyType,
     initialValue: unknown,
@@ -254,6 +268,9 @@ export class StateTreeNode implements IStateTreeNode {
     }
 
     const oldValue = this.getValue();
+    if (oldValue === value) {
+      return;
+    }
     globalStore.set(this.valueAtom, value);
 
     // Notify patch listeners
@@ -276,6 +293,7 @@ export class StateTreeNode implements IStateTreeNode {
     child.$env = child.$env ?? this.$env;
     this.children.set(key, child);
     lifecycleHookHandlers.runAfterAttach?.(child);
+    this.invalidateSnapshot();
   }
 
   /** Recursively update the path of a node and all its children */
@@ -295,6 +313,7 @@ export class StateTreeNode implements IStateTreeNode {
     if (child) {
       child.destroy();
       this.children.delete(key);
+      this.invalidateSnapshot();
     }
   }
 
@@ -376,6 +395,7 @@ export class StateTreeNode implements IStateTreeNode {
 
   /** Notify snapshot listeners */
   private notifySnapshotChange() {
+    this.invalidateSnapshot();
     let current: StateTreeNode | null = this;
     while (current) {
       const snapshot = getSnapshotFromNode(current);
@@ -464,6 +484,7 @@ export class StateTreeNode implements IStateTreeNode {
       // Run beforeDetach hook
       lifecycleHookHandlers.runBeforeDetach?.(this);
 
+      const parent = this.$parent;
       // Find our key in parent's children
       for (const [key, child] of this.$parent.children) {
         if (child === this) {
@@ -473,6 +494,7 @@ export class StateTreeNode implements IStateTreeNode {
       }
       this.$parent = null;
       this.$path = "";
+      parent.invalidateSnapshot();
     }
   }
 }
@@ -501,50 +523,54 @@ export function hasStateTreeNode(instance: unknown): boolean {
 
 /** Get snapshot from a node */
 export function getSnapshotFromNode(node: StateTreeNode): unknown {
+  if (!node.isSnapshotDirty && node.cachedSnapshot !== undefined) {
+    return node.cachedSnapshot;
+  }
+
   const type = node.$type;
   const value = node.getValue();
+  let snapshot: unknown;
 
   // Handle based on type kind
   if (type._kind === "model") {
-    const snapshot: Record<string, unknown> = {};
+    const modelSnapshot: Record<string, unknown> = {};
     const children = node.getChildren();
 
     for (const [key, childNode] of children) {
-      snapshot[key] = getSnapshotFromNode(childNode);
+      modelSnapshot[key] = getSnapshotFromNode(childNode);
     }
 
     // Apply post processor if exists
     if (node.postProcessor) {
-      return node.postProcessor(snapshot);
+      snapshot = node.postProcessor(modelSnapshot);
+    } else {
+      snapshot = modelSnapshot;
     }
-
-    return snapshot;
-  }
-
-  if (type._kind === "array") {
+  } else if (type._kind === "array") {
     const arr = value as unknown[];
-    return arr.map((_, index) => {
+    snapshot = arr.map((_, index) => {
       const childNode = node.getChild(String(index));
       return childNode ? getSnapshotFromNode(childNode) : arr[index];
     });
-  }
-
-  if (type._kind === "map") {
-    const snapshot: Record<string, unknown> = {};
+  } else if (type._kind === "map") {
+    const mapSnapshot: Record<string, unknown> = {};
     const children = node.getChildren();
     for (const [key, childNode] of children) {
-      snapshot[key] = getSnapshotFromNode(childNode);
+      mapSnapshot[key] = getSnapshotFromNode(childNode);
     }
-    return snapshot;
-  }
-
-  if (type._kind === "reference") {
+    snapshot = mapSnapshot;
+  } else if (type._kind === "reference") {
     // Return the identifier, not the resolved value
-    return node.identifierValue ?? value;
+    snapshot = node.identifierValue ?? value;
+  } else {
+    // For primitives and frozen, return the value directly
+    snapshot = value;
   }
 
-  // For primitives and frozen, return the value directly
-  return value;
+  node.cachedSnapshot = snapshot;
+  node.isSnapshotDirty = false;
+
+  return snapshot;
 }
 
 /** Apply snapshot to a node */

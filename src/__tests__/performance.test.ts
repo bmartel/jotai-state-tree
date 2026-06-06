@@ -270,7 +270,7 @@ describe("Performance", () => {
           },
         }));
 
-      const instance = Model.create({ value: 0 });
+      const instance = Model.create({ value: -1 });
 
       // Add many listeners
       const disposers: (() => void)[] = [];
@@ -312,7 +312,7 @@ describe("Performance", () => {
           },
         }));
 
-      const instance = Model.create({ value: 0 });
+      const instance = Model.create({ value: -1 });
 
       const disposers: (() => void)[] = [];
       let patchCount = 0;

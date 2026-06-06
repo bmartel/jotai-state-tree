@@ -327,11 +327,6 @@ export function useStore<T>(): T {
       "[jotai-state-tree] useStore must be used within a Provider",
     );
   }
-  // If inside an observer component, track the store for reactivity
-  const trackNode = useObserverTracking();
-  if (trackNode && hasStateTreeNode(context.store)) {
-    trackNode(context.store);
-  }
   return context.store as T;
 }
 
@@ -409,11 +404,6 @@ export function createStoreContext<T>() {
       throw new Error(
         "[jotai-state-tree] useStore must be used within a Provider",
       );
-    }
-    // If inside an observer component, track the store for reactivity
-    const trackNode = useObserverTracking();
-    if (trackNode && hasStateTreeNode(store)) {
-      trackNode(store);
     }
     return store;
   }

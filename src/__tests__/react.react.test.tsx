@@ -10,6 +10,7 @@ import userEvent from "@testing-library/user-event";
 import {
   types,
   destroy,
+  unprotect,
   getSnapshot,
   onSnapshot,
   clearAllRegistries,
@@ -172,7 +173,7 @@ describe("React Integration", () => {
       render(<CountOnly s={store} />);
       expect(renderCount).toBe(1);
 
-      // Change unrelated field - should still trigger since we subscribe to the whole node
+      // Change unrelated field - should NOT trigger since we do property-level tracking
       act(() => {
         store.setUnrelated("changed");
       });
@@ -180,8 +181,110 @@ describe("React Integration", () => {
       // Give time for any potential re-renders
       await new Promise((r) => setTimeout(r, 50));
 
-      // The observer subscribes to snapshot changes on the node, so it will re-render
-      // This is expected behavior - fine-grained tracking would require more complex implementation
+      expect(renderCount).toBe(1);
+
+      // Increment count - should trigger a re-render
+      act(() => {
+        store.increment();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("count").textContent).toBe("1");
+      });
+
+      expect(renderCount).toBe(2);
+    });
+
+    it("should handle exact property-level updates and child node replacement", async () => {
+      const AuthorModel = types.model("Author", {
+        name: types.string,
+      });
+      const BookModel = types
+        .model("Book", {
+          title: types.string,
+          author: types.maybeNull(AuthorModel),
+        })
+        .actions((self) => ({
+          setTitle(title: string) {
+            self.title = title;
+          },
+          setAuthor(author: any) {
+            self.author = author;
+          },
+        }));
+
+      const book = BookModel.create({ title: "Clean Code", author: { name: "Robert" } });
+      unprotect(book);
+      let authorRenderCount = 0;
+      let titleRenderCount = 0;
+
+      const AuthorView = observer(function AuthorView({ b }: { b: typeof book }) {
+        authorRenderCount++;
+        return <div data-testid="author">{b.author ? b.author.name : "none"}</div>;
+      });
+
+      const TitleView = observer(function TitleView({ b }: { b: typeof book }) {
+        titleRenderCount++;
+        return <div data-testid="title">{b.title}</div>;
+      });
+
+      render(
+        <div>
+          <AuthorView b={book} />
+          <TitleView b={book} />
+        </div>
+      );
+
+      expect(authorRenderCount).toBe(1);
+      expect(titleRenderCount).toBe(1);
+
+      // Mutate title only - AuthorView should not re-render, TitleView should
+      act(() => {
+        book.setTitle("Refactoring");
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("title").textContent).toBe("Refactoring");
+      });
+
+      expect(authorRenderCount).toBe(1);
+      expect(titleRenderCount).toBe(2);
+
+      // Mutate author's name inside the sub-model - AuthorView should re-render, TitleView should not
+      act(() => {
+        book.author!.name = "Uncle Bob";
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("author").textContent).toBe("Uncle Bob");
+      });
+
+      expect(authorRenderCount).toBe(2);
+      expect(titleRenderCount).toBe(2);
+
+      // Replace author sub-model entirely - AuthorView should re-render and subscribe to new model, TitleView should not
+      act(() => {
+        book.setAuthor({ name: "Martin" });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("author").textContent).toBe("Martin");
+      });
+
+      expect(authorRenderCount).toBe(3);
+      expect(titleRenderCount).toBe(2);
+
+      // Mutate the NEW author's name - AuthorView should re-render, TitleView should not
+      act(() => {
+        book.author!.name = "Martin Fowler";
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("author").textContent).toBe("Martin Fowler");
+      });
+
+      expect(authorRenderCount).toBe(4);
+      expect(titleRenderCount).toBe(2);
     });
 
     it("should handle nested state tree nodes", async () => {

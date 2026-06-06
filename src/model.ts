@@ -307,15 +307,15 @@ class ModelType<
           return node;
         }
 
-        // Track access to this model node
-        trackNodeAccess(node);
-
         const propStr = String(prop);
 
         // Check properties first
         if (propertyAtoms.has(propStr)) {
           const childNode = node.getChild(propStr);
           if (childNode) {
+            // Track access to the property's child node for granular updates
+            trackNodeAccess(childNode);
+
             // Check if the child node has an instance (complex types like model, array, map)
             // This handles both direct complex types and wrapper types (maybe, late, optional)
             // that contain complex types
@@ -327,8 +327,6 @@ class ModelType<
                 typeof instance === "object" &&
                 $treenode in instance
               ) {
-                // Track access to child node
-                trackNodeAccess(childNode);
                 return instance;
               }
             }
@@ -339,6 +337,8 @@ class ModelType<
 
         // Check volatile state
         if (propStr in node.volatileState) {
+          // Volatile state is stored at the parent node level, so track parent node access
+          trackNodeAccess(node);
           return node.volatileState[propStr];
         }
 

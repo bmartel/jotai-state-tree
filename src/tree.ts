@@ -437,6 +437,15 @@ export class StateTreeNode implements IStateTreeNode {
     // Clear lifecycle listeners WeakMap entry
     lifecycleListeners.delete(this);
 
+    // Notify snapshot listeners before they are cleared to trigger re-renders on components observing this node
+    this.snapshotListeners.forEach((listener) => {
+      try {
+        listener(undefined);
+      } catch (e) {
+        // Ignore listener errors during destruction
+      }
+    });
+
     // Clear listeners
     this.snapshotListeners.clear();
     this.patchListeners.clear();
@@ -822,6 +831,7 @@ export function clone<T>(target: T, keepEnvironment: boolean = true): T {
 /** Get snapshot from an instance */
 export function getSnapshot<S>(target: unknown): S {
   const node = getStateTreeNode(target);
+  trackNodeAccess(node);
   return getSnapshotFromNode(node) as S;
 }
 

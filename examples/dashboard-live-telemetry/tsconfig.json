@@ -15,8 +15,14 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "jotai-state-tree/react": ["../../src/react.ts"],
-      "jotai-state-tree": ["../../src/index.ts"]
+      "jotai-state-tree/react": [
+        "../../src/react.ts",
+        "node_modules/jotai-state-tree/dist/react.d.ts"
+      ],
+      "jotai-state-tree": [
+        "../../src/index.ts",
+        "node_modules/jotai-state-tree/dist/index.d.ts"
+      ]
     },
 
     /* Linting */

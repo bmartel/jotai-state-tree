@@ -32,5 +32,19 @@
     "private": false,
     "inherited": true,
     "external": false
-  }
+  },
+  "intentionallyNotExported": [
+    "ModelCreationType",
+    "ModelSnapshotType",
+    "ModelInstanceType",
+    "ObserverComponentProps",
+    "StateTreeNode",
+    "TrackNodeFn",
+    "CustomTypeOptions",
+    "ProviderProps",
+    "ModelViews",
+    "ModelActions",
+    "ModelVolatile",
+    "ActionCall"
+  ]
 }

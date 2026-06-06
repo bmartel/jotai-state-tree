@@ -653,9 +653,14 @@ describe("React Integration", () => {
         return <div>{String(store)}</div>;
       }
 
-      expect(() => render(<BadComponent />)).toThrow(
-        "[jotai-state-tree] useStore must be used within a Provider",
-      );
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        expect(() => render(<BadComponent />)).toThrow(
+          "[jotai-state-tree] useStore must be used within a Provider",
+        );
+      } finally {
+        consoleErrorSpy.mockRestore();
+      }
     });
   });
 
@@ -1011,9 +1016,14 @@ describe("React Integration", () => {
         return <div>{store.count}</div>;
       }
 
-      expect(() => render(<BadComponent />)).toThrow(
-        "[jotai-state-tree] useStore must be used within a Provider",
-      );
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        expect(() => render(<BadComponent />)).toThrow(
+          "[jotai-state-tree] useStore must be used within a Provider",
+        );
+      } finally {
+        consoleErrorSpy.mockRestore();
+      }
     });
 
     it("should provide typed useIsAlive hook", () => {

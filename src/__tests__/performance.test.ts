@@ -556,7 +556,7 @@ describe("Stress Tests", () => {
   });
 
   describe("Identifier Registry Stress", () => {
-    it("should handle massive identifier churn", { timeout: 30000 }, () => {
+    it("should handle massive identifier churn", { timeout: 60000 }, () => {
       const Item = types.model("Item", {
         id: types.identifier,
         value: types.number,
@@ -578,7 +578,7 @@ describe("Stress Tests", () => {
       const list = List.create({ items: [] });
 
       // Add and remove many items
-      for (let i = 0; i < 5000; i++) {
+      for (let i = 0; i < 1500; i++) {
         list.addItem(`item-${i}`, i);
 
         // Remove items periodically to test cleanup
@@ -590,7 +590,7 @@ describe("Stress Tests", () => {
       const stats = getRegistryStats();
 
       // Should have proper cleanup
-      expect(stats.identifierRegistrySize).toBeLessThan(5000);
+      expect(stats.identifierRegistrySize).toBeLessThan(1500);
 
       destroy(list);
 

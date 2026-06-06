@@ -1,3 +1,10 @@
+## [1.4.1](https://github.com/bmartel/jotai-state-tree/compare/v1.4.0...v1.4.1) (2026-06-06)
+
+
+### Bug Fixes
+
+* **timetravel:** Undo/redo was not recording history correctly ([6d70799](https://github.com/bmartel/jotai-state-tree/commit/6d70799d3af3856f7abfea9ced6fc027d7d2b0ad))
+
 # [1.4.0](https://github.com/bmartel/jotai-state-tree/compare/v1.3.7...v1.4.0) (2026-06-06)
 
 

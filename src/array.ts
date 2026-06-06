@@ -374,7 +374,7 @@ class MSTArray<T> extends Array<T> implements IMSTArray<T> {
     // Update the node's value silently
     const store = getGlobalStore();
     store.set(this.node.valueAtom, newArray);
-    this.node.invalidateSnapshot();
+    this.node.notifySnapshotChange();
 
     // Notify patch listeners
     patches.forEach((patch, idx) => {

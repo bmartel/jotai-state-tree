@@ -285,14 +285,14 @@ export class StateTreeNode implements IStateTreeNode {
     }
     globalStore.set(this.valueAtom, value);
 
+    // Notify snapshot listeners (bubble up to root)
+    this.notifySnapshotChange();
+
     // Notify patch listeners
     this.notifyPatch(
       { op: "replace", path: this.$path, value },
       { op: "replace", path: this.$path, value: oldValue, oldValue },
     );
-
-    // Notify snapshot listeners (bubble up to root)
-    this.notifySnapshotChange();
   }
 
   /** Add a child node */
@@ -406,7 +406,7 @@ export class StateTreeNode implements IStateTreeNode {
   }
 
   /** Notify snapshot listeners */
-  private notifySnapshotChange() {
+  notifySnapshotChange() {
     let current: StateTreeNode | null = this;
     while (current) {
       current.invalidateSnapshot();
@@ -419,11 +419,11 @@ export class StateTreeNode implements IStateTreeNode {
   /** Notify about a property change (for use by model proxy) */
   notifyPropertyChange(propName: string, newValue: unknown, oldValue: unknown) {
     const path = this.$path ? `${this.$path}/${propName}` : `/${propName}`;
+    this.notifySnapshotChange();
     this.notifyPatch(
       { op: "replace", path, value: newValue },
       { op: "replace", path, value: oldValue, oldValue },
     );
-    this.notifySnapshotChange();
   }
 
   /** Notify about a volatile state change (triggers snapshot listeners without patches) */

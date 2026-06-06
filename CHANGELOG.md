@@ -1,3 +1,10 @@
+## [1.3.4](https://github.com/bmartel/jotai-state-tree/compare/v1.3.3...v1.3.4) (2026-06-06)
+
+
+### Bug Fixes
+
+* resolve StrictMode time-travel bugs and emit granular array patches ([2110242](https://github.com/bmartel/jotai-state-tree/commit/2110242ae4c1819e0b41e76c85c72374f1cbc8dc))
+
 ## [1.3.3](https://github.com/bmartel/jotai-state-tree/compare/v1.3.2...v1.3.3) (2026-06-06)
 
 

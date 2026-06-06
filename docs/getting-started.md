@@ -116,3 +116,4 @@ Now that you have your first store running:
 - Learn in-depth about views, actions, and lifecycle hooks in [Models & State](models-and-state.md).
 - Explore all types, identifiers, unions, and late definitions in [Types & Composition](types-and-composition.md).
 - Integrate your store with React components using hooks in [React Integration](react-integration.md).
+- Start building with one of our pre-configured Vite starter templates in [Examples & Templates](examples-and-templates.md).

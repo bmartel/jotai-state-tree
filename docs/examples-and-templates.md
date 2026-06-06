@@ -1,0 +1,93 @@
+# Examples & Templates
+
+`jotai-state-tree` comes with a set of 6 pre-configured, type-safe, and minimalist Vite starter templates to jump-start your application development. These examples showcase everything from basic undo history to complex tree hierarchies, asynchronous checkout actions, and client-side hydration.
+
+---
+
+## Scaffolding a New Project from a Template
+
+You can instantly scaffold a new Vite application from any of these examples using either `degit` (recommended) or by cloning the repository.
+
+### Method 1: Using `degit` (Fastest)
+
+`degit` downloads a copy of the subfolder from the repository without its git history, instantly preparing a clean project template.
+
+```bash
+# 1. Scaffold a project from the Todo List template
+npx degit bmartel/jotai-state-tree/examples/todo-list-time-travel my-new-app
+
+# 2. Enter the project folder
+cd my-new-app
+
+# 3. Update the package.json dependency (see note below)
+# Change "jotai-state-tree": "file:../.." to "jotai-state-tree": "^1.2.1"
+
+# 4. Install dependencies
+npm install
+
+# 5. Start the development server
+npm run dev
+```
+
+> [!IMPORTANT]
+> **Dependency Update Note**: Because these templates reside inside the library's repository workspace, their `package.json` references a local path: `"jotai-state-tree": "file:../.."`.
+> After downloading or copying a template, open its `package.json` and replace it with the latest npm version:
+> ```json
+> "dependencies": {
+>   "jotai": "^2.6.0",
+>   "jotai-state-tree": "^1.2.1",
+>   "react": "^18.2.0",
+>   "react-dom": "^18.3.1"
+> }
+> ```
+
+### Method 2: Manual Clone & Copy
+
+If you prefer not to use `npx degit`, you can clone the main repository and copy a template directory manually.
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/bmartel/jotai-state-tree.git
+
+# 2. Copy the desired template folder
+cp -r jotai-state-tree/examples/shopping-cart-views my-new-app
+
+# 3. Open my-new-app/package.json and update "jotai-state-tree" to "^1.2.1"
+# 4. Run: cd my-new-app && npm install && npm run dev
+```
+
+---
+
+## Template Directory Index
+
+Here is a breakdown of the available starter templates and what they demonstrate:
+
+### 1. Todo List with Time Travel (`./examples/todo-list-time-travel`)
+- **Key APIs**: `types.model`, `types.array`, `createUndoManager`, `createTimeTravelManager` (with `autoRecord: true`).
+- **Focus**: State history, undo/redo stacks, and time travel scrubbing.
+- **Features**: A clean checklist where additions and toggles trigger snapshot records. Provides an interactive slider allowing users to slide back and forth through history, and an Undo/Redo dashboard with a live JSON patches console feed.
+
+### 2. Collaborative Kanban Board (`./examples/kanban-board-references`)
+- **Key APIs**: `types.reference`, `types.safeReference`, `types.map`, `onPatch`, `applySnapshot`.
+- **Focus**: Reference resolution, maps, and snapshot import/export.
+- **Features**: A multi-column board where cards link to user profiles in a separate store via type-safe references. Showcases the automatic resolution and cleanup of `safeReference`—deleting a user profile will automatically set the assignee on their task cards to `undefined` safely.
+
+### 3. Shopping Cart with Views (`./examples/shopping-cart-views`)
+- **Key APIs**: Chained `.views()`, nested models, and asynchronous actions.
+- **Focus**: Computed derivations and async checkout flows.
+- **Features**: A product catalog and checkout counter. Shows how to chain multiple `.views` blocks so dependent derivations (Subtotal -> Discount -> Tax -> Total) can resolve type-safely in TypeScript. Features simulated payment delays and success/fail toasts.
+
+### 4. Telemetry Monitor Dashboard (`./examples/dashboard-live-telemetry`)
+- **Key APIs**: `afterCreate` and `beforeDestroy` lifecycle hooks, volatile state, and closure-pattern actions.
+- **Focus**: Lifecycles, timer simulations, and internal action calling.
+- **Features**: A live hardware metrics display (CPU, RAM, Network). Shows how `afterCreate` registers a timer loop to update statistics and `beforeDestroy` clears it. Uses volatile state to store the timer ID (preventing serialization in snapshots) and closure actions so local methods call each other without `self` type constraints.
+
+### 5. Dynamic Form Builder (`./examples/form-builder-dynamic`)
+- **Key APIs**: `types.union`, `types.late` (recursive types), and recursive validation.
+- **Focus**: Polymorphic data trees, self-referencing models, and recursive walk validation.
+- **Features**: An editor to compile forms dynamically by adding text, number, choice, or toggle questions. Uses a union dispatcher to resolve specialized question sub-models and late binding for recursive section nesting. Includes a live form preview and validation warnings generated via recursive tree-crawling views.
+
+### 6. SSR & Notes Manager (`./examples/note-taking-ssr`)
+- **Key APIs**: `useHydrateStore`, `setGlobalStore`, `createStoreContext`.
+- **Focus**: Server-Side Rendering (SSR) hydration and state isolation.
+- **Features**: A notes manager that syncs to localStorage. Illustrates how to call `setGlobalStore` to bind to an isolated Jotai store instance (vital for avoiding state leaks in multi-user Node.js SSR servers) and `useHydrateStore` to pre-seed the client's memory on startup with server-rendered data.

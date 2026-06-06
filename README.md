@@ -67,6 +67,7 @@ Explore our detailed, exhaustive guides to master `jotai-state-tree`:
 5. **[React Integration](docs/react-integration.md)** - Observables HOCs, typed context Providers, hooks (`useSnapshot`, `useWatchPath`), and update batching.
 6. **[Advanced Features](docs/advanced-features.md)** - Undo/Redo managers, Time Travel, Action recorders, dynamic plugins/registry, and middleware pipelines.
 7. **[Migration from MobX-State-Tree](docs/mst-migration.md)** - Step-by-step replacement guide, performance comparisons, and key differences.
+8. **[Examples & Templates](docs/examples-and-templates.md)** - 6 pre-configured Vite starter templates, features breakdown, and project scaffolding instructions.
 
 ---
 

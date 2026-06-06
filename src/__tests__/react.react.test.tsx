@@ -30,6 +30,7 @@ import {
   batch,
   createStoreContext,
   useObserver,
+  useHydrateStore,
 } from "../react";
 
 import type { Instance } from "../index";
@@ -840,6 +841,43 @@ describe("React Integration", () => {
       );
 
       expect(screen.getByTestId("alive").textContent).toBe("yes");
+    });
+  });
+
+  describe("useHydrateStore", () => {
+    it("should hydrate a store with a snapshot using Jotai hydration patterns", () => {
+      const StoreModel = types.model("StoreModel", {
+        count: types.number,
+        title: types.string,
+      }).actions(self => ({
+        increment() { self.count++; }
+      }));
+
+      const store = StoreModel.create({ count: 0, title: "Initial" });
+
+      function HydratedComponent({ initialSnapshot }: { initialSnapshot: any }) {
+        useHydrateStore(store, initialSnapshot);
+        const snapshot = useSnapshot<{ count: number; title: string }>(store);
+        
+        return (
+          <div>
+            <div data-testid="count">{snapshot.count}</div>
+            <div data-testid="title">{snapshot.title}</div>
+          </div>
+        );
+      }
+
+      render(
+        <HydratedComponent initialSnapshot={{ count: 10, title: "Hydrated" }} />
+      );
+
+      expect(screen.getByTestId("count").textContent).toBe("10");
+      expect(screen.getByTestId("title").textContent).toBe("Hydrated");
+
+      act(() => {
+        store.increment();
+      });
+      expect(screen.getByTestId("count").textContent).toBe("11");
     });
   });
 });

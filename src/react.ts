@@ -24,6 +24,7 @@ import {
   type Atom,
   type WritableAtom,
 } from "jotai";
+import { useHydrateAtoms } from "jotai/utils";
 import {
   getStateTreeNode,
   hasStateTreeNode,
@@ -35,6 +36,7 @@ import {
   getActiveTrackingFn,
   onPatch,
   StateTreeNode,
+  getGlobalStore,
 } from "./tree";
 
 // ============================================================================
@@ -633,6 +635,63 @@ export function useCleanup(cleanupFn: () => void): void {
       cleanupRef.current();
     };
   }, []);
+}
+
+// ============================================================================
+// Hydration Hooks
+// ============================================================================
+
+function getValueAtPath(obj: any, path: string): any {
+  if (path === "") return obj;
+  const parts = path.split("/").filter(Boolean);
+  let current = obj;
+  for (const part of parts) {
+    if (current && typeof current === "object" && part in current) {
+      current = current[part];
+    } else {
+      return undefined;
+    }
+  }
+  return current;
+}
+
+/**
+ * Hydrates a state tree node (and all its sub-nodes/properties)
+ * with a provided snapshot using Jotai's useHydrateAtoms.
+ * Crucial for React SSR hydration mismatch prevention.
+ */
+export function useHydrateStore(
+  target: unknown,
+  snapshot: unknown,
+  options?: { store?: ReturnType<typeof getGlobalStore> }
+): void {
+  if (!hasStateTreeNode(target) || !snapshot) {
+    return;
+  }
+
+  const node = getStateTreeNode(target);
+  const pairs = useMemo(() => {
+    const collectedPairs: [WritableAtom<any, any[], any>, unknown][] = [];
+    
+    function collect(n: any) {
+      const val = getValueAtPath(snapshot, n.$path);
+      if (val !== undefined && n.valueAtom) {
+        collectedPairs.push([n.valueAtom, val]);
+      }
+      if (n instanceof StateTreeNode) {
+        for (const child of (n as any).children.values()) {
+          collect(child);
+        }
+      }
+    }
+
+    collect(node);
+    return collectedPairs;
+  }, [node, snapshot]);
+
+  if (pairs.length > 0) {
+    useHydrateAtoms(pairs, { store: options?.store ?? getGlobalStore() });
+  }
 }
 
 // ============================================================================

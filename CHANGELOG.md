@@ -1,3 +1,10 @@
+## [1.3.7](https://github.com/bmartel/jotai-state-tree/compare/v1.3.6...v1.3.7) (2026-06-06)
+
+
+### Bug Fixes
+
+* implement action grouping in TimeTravelManager to prevent intermediate state recording ([17c3479](https://github.com/bmartel/jotai-state-tree/commit/17c3479d84eb9c539fb66e0793cde2d7de8db06b))
+
 ## [1.3.6](https://github.com/bmartel/jotai-state-tree/compare/v1.3.5...v1.3.6) (2026-06-06)
 
 

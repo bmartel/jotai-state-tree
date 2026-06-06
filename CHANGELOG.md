@@ -1,3 +1,19 @@
+# [1.2.0](https://github.com/bmartel/jotai-state-tree/compare/v1.1.2...v1.2.0) (2026-06-06)
+
+
+### Bug Fixes
+
+* resolve CI test timeout and clean up documentation warnings ([7445053](https://github.com/bmartel/jotai-state-tree/commit/744505305ca703570b334151a60132dd30508f10))
+
+
+### Features
+
+* implement precision property-level granular updates for model properties ([efd2784](https://github.com/bmartel/jotai-state-tree/commit/efd27845441b06d757f4d32a136b8080ccd891af))
+* implement production-optimized protection checks, memory safety tests, and performance benchmarks ([53b7900](https://github.com/bmartel/jotai-state-tree/commit/53b7900f7a44a18efcd99b029d302fac4435093a))
+* **react:** implement useHydrateStore hook utilizing Jotai's useHydrateAtoms ([707935c](https://github.com/bmartel/jotai-state-tree/commit/707935c8b05e2e536cf086adbf09dfc4f3574589))
+* **types:** implement perfect TypeScript typing support without hacks ([b7d1c74](https://github.com/bmartel/jotai-state-tree/commit/b7d1c74a8f060d511346091ebc0b5c637bb0c16a))
+* use precise non-bubbling store.sub in useObserver and add deep list over-render tests ([36a5166](https://github.com/bmartel/jotai-state-tree/commit/36a5166fbd0a623e0294a1192ddd9ffc91a5b523))
+
 ## [1.1.2](https://github.com/bmartel/jotai-state-tree/compare/v1.1.1...v1.1.2) (2026-01-09)
 
 

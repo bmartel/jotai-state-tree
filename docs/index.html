@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>jotai-state-tree | MobX-State-Tree compatible API powered by Jotai</title>
+  <meta name="description" content="A state management library that provides the API and features of MobX-State-Tree (MST) but runs on top of Jotai's atomic state model.">
+  <meta name="keywords" content="jotai, mobx-state-tree, mst, react, typescript, state-management, state-tree">
+  
+  <!-- Open Graph -->
+  <meta property="og:title" content="jotai-state-tree">
+  <meta property="og:description" content="MobX-State-Tree API compatible library powered by Jotai. Tree-structured state, snapshots, JSON patches, references, and actions.">
+  <meta property="og:type" content="website">
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Prism JS Theme -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+  
+  <style>
+    :root {
+      --bg-dark: #0b0f19;
+      --bg-card: #111827;
+      --bg-sidebar: #0f1423;
+      --border-color: rgba(255, 255, 255, 0.08);
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --primary: #7c3aed;
+      --primary-glow: rgba(124, 58, 237, 0.15);
+      --accent-cyan: #06b6d4;
+      --accent-blue: #3b82f6;
+      --accent-green: #10b981;
+      --sidebar-width: 280px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      line-height: 1.6;
+      display: flex;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Scrollbar Styling */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg-dark);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Sidebar Styling */
+    aside {
+      width: var(--sidebar-width);
+      background-color: var(--bg-sidebar);
+      border-right: 1px solid var(--border-color);
+      height: 100vh;
+      position: fixed;
+      left: 0;
+      top: 0;
+      display: flex;
+      flex-direction: column;
+      z-index: 100;
+      transition: transform 0.3s ease;
+    }
+
+    .sidebar-header {
+      padding: 24px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .brand-title {
+      font-size: 20px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #a78bfa, #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-badge {
+      font-size: 11px;
+      font-weight: 600;
+      background-color: rgba(124, 58, 237, 0.2);
+      color: #c084fc;
+      padding: 2px 8px;
+      border-radius: 99px;
+      border: 1px solid rgba(124, 58, 237, 0.3);
+      width: fit-content;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      color: var(--text-muted);
+      text-decoration: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .nav-item:hover {
+      color: var(--text-main);
+      background-color: rgba(255, 255, 255, 0.03);
+    }
+
+    .nav-item.active {
+      color: var(--text-main);
+      background: linear-gradient(90deg, var(--primary-glow) 0%, rgba(124, 58, 237, 0.02) 100%);
+      border-left: 3px solid var(--primary);
+      padding-left: 11px;
+    }
+
+    .nav-divider {
+      height: 1px;
+      background-color: var(--border-color);
+      margin: 12px 14px;
+    }
+
+    .nav-section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: rgba(255, 255, 255, 0.3);
+      padding: 8px 14px;
+    }
+
+    .sidebar-footer {
+      padding: 20px 24px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .github-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13px;
+      transition: color 0.2s;
+    }
+
+    .github-link:hover {
+      color: var(--text-main);
+    }
+
+    /* Main Container Styling */
+    main {
+      margin-left: var(--sidebar-width);
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* Mobile Header */
+    .mobile-header {
+      display: none;
+      background-color: var(--bg-sidebar);
+      border-bottom: 1px solid var(--border-color);
+      padding: 16px 24px;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 90;
+    }
+
+    .menu-toggle {
+      background: none;
+      border: none;
+      color: var(--text-main);
+      font-size: 24px;
+      cursor: pointer;
+    }
+
+    /* Content Area Styling */
+    .content-container {
+      max-width: 960px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 48px 40px;
+      flex: 1;
+    }
+
+    /* Dashboard View */
+    .dashboard {
+      display: flex;
+      flex-direction: column;
+      gap: 48px;
+    }
+
+    .hero {
+      text-align: center;
+      padding: 40px 0 20px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .hero h1 {
+      font-size: 56px;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      line-height: 1.1;
+      background: linear-gradient(135deg, #c084fc, #6366f1, #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero p {
+      font-size: 20px;
+      color: var(--text-muted);
+      max-width: 600px;
+      font-weight: 400;
+    }
+
+    .hero-ctas {
+      display: flex;
+      gap: 16px;
+      margin-top: 12px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background-color: var(--primary);
+      color: white;
+      box-shadow: 0 4px 14px rgba(124, 58, 237, 0.4);
+    }
+
+    .btn-primary:hover {
+      background-color: #6d28d9;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(124, 58, 237, 0.5);
+    }
+
+    .btn-secondary {
+      background-color: rgba(255, 255, 255, 0.05);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background-color: rgba(255, 255, 255, 0.08);
+      transform: translateY(-2px);
+    }
+
+    .install-box {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      max-width: 500px;
+      width: 100%;
+      margin: 0 auto;
+      font-family: 'Fira Code', monospace;
+      font-size: 14px;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .install-text {
+      color: var(--accent-cyan);
+      user-select: all;
+    }
+
+    .copy-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .copy-btn:hover {
+      color: var(--text-main);
+      background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 24px;
+      margin-top: 16px;
+    }
+
+    .feature-card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transition: all 0.3s ease;
+    }
+
+    .feature-card:hover {
+      border-color: rgba(124, 58, 237, 0.3);
+      transform: translateY(-4px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .feature-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      background-color: rgba(124, 58, 237, 0.1);
+      color: #a78bfa;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .feature-card h3 {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .feature-card p {
+      color: var(--text-muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* Documentation Markdown Rendering Styling */
+    .doc-viewer {
+      display: none;
+    }
+
+    .doc-navigation {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 64px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .nav-btn {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      text-decoration: none;
+      max-width: 45%;
+    }
+
+    .nav-btn-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .nav-btn-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--primary);
+      transition: color 0.2s;
+    }
+
+    .nav-btn:hover .nav-btn-title {
+      color: #a78bfa;
+    }
+
+    .nav-btn-next {
+      text-align: right;
+      align-items: flex-end;
+    }
+
+    /* Markdown styling class */
+    .markdown-body {
+      font-size: 16px;
+      color: #e5e7eb;
+    }
+
+    .markdown-body h1 {
+      font-size: 38px;
+      font-weight: 800;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 12px;
+      letter-spacing: -0.02em;
+    }
+
+    .markdown-body h2 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-top: 40px;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 8px;
+    }
+
+    .markdown-body h3 {
+      font-size: 19px;
+      font-weight: 600;
+      margin-top: 24px;
+      margin-bottom: 12px;
+    }
+
+    .markdown-body p {
+      margin-bottom: 20px;
+    }
+
+    .markdown-body a {
+      color: var(--accent-cyan);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .markdown-body a:hover {
+      text-decoration: underline;
+    }
+
+    .markdown-body ul, .markdown-body ol {
+      margin-bottom: 20px;
+      padding-left: 24px;
+    }
+
+    .markdown-body li {
+      margin-bottom: 8px;
+    }
+
+    .markdown-body code {
+      font-family: 'Fira Code', Consolas, Monaco, monospace;
+      background-color: rgba(255, 255, 255, 0.06);
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-size: 85%;
+      color: #f472b6;
+    }
+
+    .markdown-body pre {
+      margin-bottom: 24px;
+      margin-top: 12px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .markdown-body pre code {
+      font-family: 'Fira Code', Consolas, Monaco, monospace;
+      display: block;
+      padding: 20px;
+      overflow-x: auto;
+      background-color: #111827 !important;
+      color: #e5e7eb;
+      font-size: 14px;
+    }
+
+    .markdown-body blockquote {
+      border-left: 4px solid var(--primary);
+      background-color: rgba(124, 58, 237, 0.05);
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      border-radius: 0 8px 8px 0;
+      color: #d1d5db;
+    }
+
+    .markdown-body blockquote p {
+      margin-bottom: 0;
+    }
+
+    .markdown-body hr {
+      border: 0;
+      height: 1px;
+      background-color: var(--border-color);
+      margin: 40px 0;
+    }
+
+    .markdown-body table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 24px;
+    }
+
+    .markdown-body th, .markdown-body td {
+      border: 1px solid var(--border-color);
+      padding: 12px 16px;
+      text-align: left;
+    }
+
+    .markdown-body th {
+      background-color: rgba(255, 255, 255, 0.02);
+      font-weight: 600;
+    }
+
+    .markdown-body tr:nth-child(even) td {
+      background-color: rgba(255, 255, 255, 0.01);
+    }
+
+    /* Spinner */
+    .spinner-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 0;
+      gap: 16px;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(124, 58, 237, 0.1);
+      border-radius: 50%;
+      border-top-color: var(--primary);
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Error Message */
+    .error-container {
+      text-align: center;
+      padding: 60px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .error-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #ef4444;
+    }
+
+    /* Footer */
+    footer {
+      padding: 40px 0;
+      border-top: 1px solid var(--border-color);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-top: auto;
+    }
+
+    /* Overlay for mobile */
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background-color: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+      z-index: 95;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      aside {
+        transform: translateX(-100%);
+      }
+
+      aside.open {
+        transform: translateX(0);
+      }
+
+      .sidebar-overlay.open {
+        display: block;
+      }
+
+      main {
+        margin-left: 0;
+      }
+
+      .mobile-header {
+        display: flex;
+      }
+
+      .content-container {
+        padding: 32px 20px;
+      }
+
+      .hero h1 {
+        font-size: 40px;
+      }
+
+      .hero p {
+        font-size: 17px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar Overlay -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- Sidebar -->
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <a href="#" class="brand-title">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #a78bfa;">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+        jotai-state-tree
+      </a>
+      <span class="brand-badge">v1.1.2</span>
+    </div>
+    
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-item active" data-route="home">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Home
+      </a>
+      
+      <div class="nav-divider"></div>
+      <div class="nav-section-title">Documentation</div>
+      
+      <a href="#getting-started" class="nav-item" data-route="getting-started">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        Getting Started
+      </a>
+      <a href="#models-and-state" class="nav-item" data-route="models-and-state">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+        Models & State
+      </a>
+      <a href="#types-and-composition" class="nav-item" data-route="types-and-composition">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2/2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+        Types & Composition
+      </a>
+      <a href="#tree-utilities" class="nav-item" data-route="tree-utilities">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        Tree Utilities
+      </a>
+      <a href="#react-integration" class="nav-item" data-route="react-integration">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M17.66 17.66l1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M6.34 17.66l-1.41 1.41"/><path d="M19.07 4.93l-1.41 1.41"/></svg>
+        React Integration
+      </a>
+      <a href="#advanced-features" class="nav-item" data-route="advanced-features">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Advanced Features
+      </a>
+      <a href="#mst-migration" class="nav-item" data-route="mst-migration">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        MST Migration
+      </a>
+      
+      <div class="nav-divider"></div>
+      <div class="nav-section-title">Reference</div>
+      
+      <a href="api/index.html" class="nav-item" target="_self">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        API Reference
+      </a>
+    </nav>
+    
+    <div class="sidebar-footer">
+      <a href="https://github.com/bmartel/jotai-state-tree" class="github-link" target="_blank" rel="noopener noreferrer">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+        </svg>
+        GitHub
+      </a>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main>
+    <!-- Mobile Header -->
+    <div class="mobile-header">
+      <a href="#" class="brand-title">
+        jotai-state-tree
+      </a>
+      <button class="menu-toggle" id="menuToggle" aria-label="Toggle Menu">
+        &#9776;
+      </button>
+    </div>
+
+    <!-- Dynamic Content Area -->
+    <div class="content-container">
+      
+      <!-- Dashboard View -->
+      <div class="dashboard" id="dashboardView">
+        <div class="hero">
+          <h1>jotai-state-tree</h1>
+          <p>MobX-State-Tree API compatible library powered by Jotai's highly performant, zero-leak atomic state engine.</p>
+          <div class="hero-ctas">
+            <a href="#getting-started" class="btn btn-primary">
+              Get Started
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </a>
+            <a href="api/index.html" class="btn btn-secondary">API Reference</a>
+          </div>
+        </div>
+
+        <div class="install-box">
+          <span class="install-text">npm install jotai-state-tree jotai</span>
+          <button class="copy-btn" id="copyInstallBtn" title="Copy to clipboard" aria-label="Copy installation command">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon">🌳</div>
+            <h3>Structured State Tree</h3>
+            <p>Organize your application state in a well-typed tree of models with clear parent-child relationships, paths, and identifiers.</p>
+          </div>
+          
+          <div class="feature-card">
+            <div class="feature-icon">📸</div>
+            <h3>Snapshots & Patches</h3>
+            <p>Serialize, restore, and track changes out-of-the-box. Generate standard JSON Patches for undo/redo stacks or WebSocket sync.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">🔗</div>
+            <h3>Lazy References</h3>
+            <p>Safely link nodes in different branches of the tree by their identifiers. Resolved dynamically and lazily with compile-time type safety.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">🧪</div>
+            <h3>Jotai Power</h3>
+            <p>Runs on top of Jotai. Enjoy granular property-level reactive updates, zero leaks, and seamless concurrent React compatibility.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">⚡</div>
+            <h3>MST Compatibility</h3>
+            <p>Migrate effortlessly from MobX-State-Tree. Employs the same syntax structure (`types.model().views().actions()`) without the bulk.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">🛠️</div>
+            <h3>Fully Type-Safe</h3>
+            <p>Designed from scratch for perfect TypeScript integration, inferring types directly from your runtime models.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Markdown Doc View -->
+      <div class="doc-viewer" id="docView">
+        <div class="markdown-body" id="docContent">
+          <!-- Rendered Markdown will go here -->
+        </div>
+
+        <!-- Previous / Next Navigation -->
+        <div class="doc-navigation">
+          <a href="#" class="nav-btn nav-btn-prev" id="prevBtn">
+            <span class="nav-btn-label">Previous</span>
+            <span class="nav-btn-title" id="prevTitle">Home</span>
+          </a>
+          <a href="#" class="nav-btn nav-btn-next" id="nextBtn">
+            <span class="nav-btn-label">Next</span>
+            <span class="nav-btn-title" id="nextTitle">Getting Started</span>
+          </a>
+        </div>
+      </div>
+
+      <footer>
+        &copy; 2026 jotai-state-tree. Released under the MIT License.
+      </footer>
+    </div>
+  </main>
+
+  <!-- Markdown Parser (Marked) -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- Prism Syntax Highlighter -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-jsx.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-tsx.min.js"></script>
+
+  <script>
+    // List of docs in ordering
+    const DOCS = [
+      { id: 'getting-started', title: 'Getting Started', file: 'getting-started.md' },
+      { id: 'models-and-state', title: 'Models & State', file: 'models-and-state.md' },
+      { id: 'types-and-composition', title: 'Types & Composition', file: 'types-and-composition.md' },
+      { id: 'tree-utilities', title: 'Tree Utilities', file: 'tree-utilities.md' },
+      { id: 'react-integration', title: 'React Integration', file: 'react-integration.md' },
+      { id: 'advanced-features', title: 'Advanced Features', file: 'advanced-features.md' },
+      { id: 'mst-migration', title: 'MST Migration', file: 'mst-migration.md' }
+    ];
+
+    const sidebar = document.getElementById('sidebar');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    const menuToggle = document.getElementById('menuToggle');
+    const dashboardView = document.getElementById('dashboardView');
+    const docView = document.getElementById('docView');
+    const docContent = document.getElementById('docContent');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const prevTitle = document.getElementById('prevTitle');
+    const nextTitle = document.getElementById('nextTitle');
+    const copyInstallBtn = document.getElementById('copyInstallBtn');
+
+    // Mobile navigation toggle
+    function toggleSidebar() {
+      sidebar.classList.toggle('open');
+      sidebarOverlay.classList.toggle('open');
+    }
+
+    menuToggle.addEventListener('click', toggleSidebar);
+    sidebarOverlay.addEventListener('click', toggleSidebar);
+
+    // Copy install command
+    copyInstallBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText('npm install jotai-state-tree jotai').then(() => {
+        const icon = copyInstallBtn.innerHTML;
+        copyInstallBtn.innerHTML = `
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        `;
+        setTimeout(() => {
+          copyInstallBtn.innerHTML = icon;
+        }, 2000);
+      });
+    });
+
+    // Hash Router
+    function getRoute() {
+      const hash = window.location.hash.slice(1);
+      return hash || 'home';
+    }
+
+    async function loadRoute() {
+      const route = getRoute();
+      
+      // Close sidebar on mobile
+      sidebar.classList.remove('open');
+      sidebarOverlay.classList.remove('open');
+
+      // Scroll to top
+      window.scrollTo(0, 0);
+
+      // Update active nav items
+      document.querySelectorAll('.nav-item').forEach(item => {
+        if (item.getAttribute('data-route') === route) {
+          item.classList.add('active');
+        } else {
+          item.classList.remove('active');
+        }
+      });
+
+      if (route === 'home') {
+        dashboardView.style.display = 'flex';
+        docView.style.display = 'none';
+        document.title = 'jotai-state-tree | MobX-State-Tree compatible API powered by Jotai';
+        return;
+      }
+
+      const docItem = DOCS.find(d => d.id === route);
+      if (!docItem) {
+        renderError("Page Not Found", `The page <code>#${route}</code> does not exist.`);
+        return;
+      }
+
+      renderLoading();
+      document.title = `${docItem.title} | jotai-state-tree`;
+
+      try {
+        const response = await fetch(docItem.file);
+        if (!response.ok) {
+          throw new Error(`Failed to load ${docItem.file} (Status: ${response.status})`);
+        }
+        let markdown = await response.text();
+
+        // Render Markdown
+        const html = marked.parse(markdown);
+        docContent.innerHTML = html;
+
+        // Apply syntax highlighting
+        Prism.highlightAllUnder(docContent);
+
+        // Update Prev/Next Buttons
+        const index = DOCS.findIndex(d => d.id === route);
+        
+        // Prev button setup
+        if (index === 0) {
+          prevBtn.href = '#';
+          prevTitle.textContent = 'Home';
+          prevBtn.style.visibility = 'visible';
+        } else if (index > 0) {
+          const prevDoc = DOCS[index - 1];
+          prevBtn.href = `#${prevDoc.id}`;
+          prevTitle.textContent = prevDoc.title;
+          prevBtn.style.visibility = 'visible';
+        } else {
+          prevBtn.style.visibility = 'hidden';
+        }
+
+        // Next button setup
+        if (index < DOCS.length - 1) {
+          const nextDoc = DOCS[index + 1];
+          nextBtn.href = `#${nextDoc.id}`;
+          nextTitle.textContent = nextDoc.title;
+          nextBtn.style.visibility = 'visible';
+        } else {
+          nextBtn.style.visibility = 'hidden';
+        }
+
+        dashboardView.style.display = 'none';
+        docView.style.display = 'block';
+
+      } catch (err) {
+        console.error(err);
+        renderError("Failed to Load Document", `There was an issue fetching the document <code>${docItem.file}</code>. Make sure it is available on the server.`);
+      }
+    }
+
+    function renderLoading() {
+      dashboardView.style.display = 'none';
+      docView.style.display = 'block';
+      docContent.innerHTML = `
+        <div class="spinner-container">
+          <div class="spinner"></div>
+          <p style="color: var(--text-muted); font-size: 14px;">Loading documentation...</p>
+        </div>
+      `;
+      prevBtn.style.visibility = 'hidden';
+      nextBtn.style.visibility = 'hidden';
+    }
+
+    function renderError(title, message) {
+      dashboardView.style.display = 'none';
+      docView.style.display = 'block';
+      docContent.innerHTML = `
+        <div class="error-container">
+          <div class="error-title">${title}</div>
+          <p style="color: var(--text-muted); max-width: 500px;">${message}</p>
+          <a href="#" class="btn btn-secondary" style="margin-top: 16px;">Back to Home</a>
+        </div>
+      `;
+      prevBtn.style.visibility = 'hidden';
+      nextBtn.style.visibility = 'hidden';
+    }
+
+    // Intercept link clicks inside rendered Markdown
+    // Translates links like models-and-state.md into hash links like #models-and-state
+    docContent.addEventListener('click', (e) => {
+      const target = e.target.closest('a');
+      if (!target) return;
+
+      const href = target.getAttribute('href');
+      // If it's a relative link pointing to a markdown file
+      if (href && href.endsWith('.md') && !href.startsWith('http') && !href.startsWith('/') && !href.startsWith('#')) {
+        e.preventDefault();
+        const docId = href.replace('.md', '');
+        window.location.hash = `#${docId}`;
+      }
+    });
+
+    // Handle hash change
+    window.addEventListener('hashchange', loadRoute);
+    
+    // Initial Load
+    window.addEventListener('DOMContentLoaded', loadRoute);
+  </script>
+</body>
+</html>

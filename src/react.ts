@@ -161,9 +161,10 @@ export function useObserver<T>(fn: () => T): T {
     }
 
     // Subscribe to newly accessed nodes
+    const store = getGlobalStore();
     for (const node of nextNodes) {
       if (!currentSubscriptions.has(node)) {
-        const disposer = node.onSnapshot(() => {
+        const disposer = store.sub(node.valueAtom, () => {
           forceUpdate({});
         });
         currentSubscriptions.set(node, disposer);

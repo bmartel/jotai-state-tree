@@ -287,6 +287,93 @@ describe("React Integration", () => {
       expect(titleRenderCount).toBe(2);
     });
 
+    it("should prevent over-rendering at varying depths (nested models and arrays)", async () => {
+      const ItemModel = types
+        .model("Item", {
+          id: types.identifier,
+          value: types.string,
+        })
+        .actions((self) => ({
+          setValue(val: string) {
+            self.value = val;
+          },
+        }));
+
+      const ListContainer = types
+        .model("ListContainer", {
+          items: types.array(ItemModel),
+        })
+        .actions((self) => ({
+          addItem(id: string, value: string) {
+            self.items.push({ id, value });
+          },
+        }));
+
+      const container = ListContainer.create({
+        items: [
+          { id: "1", value: "one" },
+          { id: "2", value: "two" },
+        ],
+      });
+      unprotect(container);
+
+      let containerRenderCount = 0;
+      let item1RenderCount = 0;
+      let item2RenderCount = 0;
+
+      // Component rendering the container list (only iterates/accesses the items array reference)
+      const ContainerListView = observer(function ContainerListView({ c }: { c: typeof container }) {
+        containerRenderCount++;
+        return (
+          <div>
+            <div data-testid="list-length">{c.items.length}</div>
+            {c.items.map((item) => (
+              <ItemView key={item.id} item={item} />
+            ))}
+          </div>
+        );
+      });
+
+      // Individual item view
+      const ItemView = observer(function ItemView({ item }: { item: Instance<typeof ItemModel> }) {
+        if (item.id === "1") item1RenderCount++;
+        if (item.id === "2") item2RenderCount++;
+        return <div data-testid={`item-${item.id}`}>{item.value}</div>;
+      });
+
+      render(<ContainerListView c={container} />);
+
+      expect(containerRenderCount).toBe(1);
+      expect(item1RenderCount).toBe(1);
+      expect(item2RenderCount).toBe(1);
+
+      // Mutate item 1 value - ONLY Item 1 should re-render. ContainerListView and Item 2 should NOT!
+      act(() => {
+        container.items[0].setValue("one-updated");
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("item-1").textContent).toBe("one-updated");
+      });
+
+      // Assert precise tracking at varying depth
+      expect(item1RenderCount).toBe(2);
+      expect(item2RenderCount).toBe(1);
+      expect(containerRenderCount).toBe(1); // Crucial! Container ListView did NOT re-render!
+
+      // Add a new item - ContainerListView should re-render (since array changed structure/length)
+      act(() => {
+        container.addItem("3", "three");
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("list-length").textContent).toBe("3");
+      });
+
+      expect(containerRenderCount).toBe(2);
+      expect(item1RenderCount).toBe(2); // React may re-render children, but the parent re-rendered
+    });
+
     it("should handle nested state tree nodes", async () => {
       const todoList = TodoListModel.create({
         todos: [

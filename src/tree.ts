@@ -446,6 +446,13 @@ export class StateTreeNode implements IStateTreeNode {
       }
     });
 
+    // Notify atom subscribers of destruction
+    try {
+      globalStore.set(this.valueAtom, undefined);
+    } catch (e) {
+      // Ignore store errors during teardown
+    }
+
     // Clear listeners
     this.snapshotListeners.clear();
     this.patchListeners.clear();

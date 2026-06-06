@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/bmartel/jotai-state-tree/compare/v1.2.1...v1.3.0) (2026-06-06)
+
+
+### Features
+
+* implement comprehensive support for async actions (flow) and middleware scoping/tracing ([4b55264](https://github.com/bmartel/jotai-state-tree/commit/4b55264cfbd5d92bc7228acf47e877f78c8b3232))
+
 ## [1.2.1](https://github.com/bmartel/jotai-state-tree/compare/v1.2.0...v1.2.1) (2026-06-06)
 
 

@@ -1,3 +1,10 @@
+## [1.3.3](https://github.com/bmartel/jotai-state-tree/compare/v1.3.2...v1.3.3) (2026-06-06)
+
+
+### Bug Fixes
+
+* resolve runtime crashes by reading views directly from store instance instead of snapshot ([6039cfd](https://github.com/bmartel/jotai-state-tree/commit/6039cfd2838ae0fa84aa530e30f2f6abec9a1626))
+
 ## [1.3.2](https://github.com/bmartel/jotai-state-tree/compare/v1.3.1...v1.3.2) (2026-06-06)
 
 

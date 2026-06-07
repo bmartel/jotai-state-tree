@@ -1,3 +1,10 @@
+## [1.4.2](https://github.com/bmartel/jotai-state-tree/compare/v1.4.1...v1.4.2) (2026-06-07)
+
+
+### Bug Fixes
+
+* synchronize UndoManager and TimeTravelManager indexes to prevent broken states on time travel ([bf4fa1f](https://github.com/bmartel/jotai-state-tree/commit/bf4fa1fe3181283deaca002d0f3308bedd2bc352))
+
 ## [1.4.1](https://github.com/bmartel/jotai-state-tree/compare/v1.4.0...v1.4.1) (2026-06-06)
 
 

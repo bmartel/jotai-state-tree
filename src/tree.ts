@@ -9,7 +9,7 @@
  * - Properly cleans up all registries on node destruction
  */
 
-import { atom, createStore, type WritableAtom } from "jotai";
+import { atom, createStore, type WritableAtom, type Atom } from "jotai";
 import type {
   IStateTreeNode,
   IType,
@@ -226,6 +226,12 @@ export class StateTreeNode implements IStateTreeNode {
   /** Atom storing the raw value/snapshot */
   valueAtom: WritableAtom<unknown, [unknown], void>;
 
+  /** Derived atom representing the snapshot of the entire node subtree */
+  snapshotAtom: Atom<unknown>;
+
+  /** Atom tracking the isAlive status */
+  isAliveAtom: WritableAtom<boolean, [boolean], void>;
+
   /** Snapshot listeners */
   private snapshotListeners = new Set<(snapshot: unknown) => void>();
 
@@ -279,6 +285,47 @@ export class StateTreeNode implements IStateTreeNode {
 
     // Create the value atom
     this.valueAtom = atom(initialValue);
+
+    this.isAliveAtom = atom(true);
+
+    this.snapshotAtom = atom((get) => {
+      const value = get(this.valueAtom);
+
+      if (this.$type._kind === "model") {
+        const res: Record<string, unknown> = {};
+        for (const [key, childNode] of this.children.entries()) {
+          res[key] = get(childNode.snapshotAtom);
+        }
+        if (value && typeof value === "object") {
+          for (const key of Object.keys(value)) {
+            if (!this.children.has(key)) {
+              res[key] = (value as Record<string, unknown>)[key];
+            }
+          }
+        }
+        return this.postProcessor ? this.postProcessor(res) : res;
+      }
+
+      if (this.$type._kind === "array") {
+        const res: unknown[] = [];
+        const childrenKeys = Array.from(this.children.keys()).sort((a, b) => Number(a) - Number(b));
+        for (const key of childrenKeys) {
+          const childNode = this.children.get(key)!;
+          res.push(get(childNode.snapshotAtom));
+        }
+        return res;
+      }
+
+      if (this.$type._kind === "map") {
+        const res: Record<string, unknown> = {};
+        for (const [key, childNode] of this.children.entries()) {
+          res[key] = get(childNode.snapshotAtom);
+        }
+        return res;
+      }
+
+      return value;
+    });
 
     // Register this node with WeakRef
     nodeRegistry.set(this.$id, { node: new WeakRef(this), instance: null });
@@ -515,6 +562,11 @@ export class StateTreeNode implements IStateTreeNode {
 
     // Mark as dead
     this.$isAlive = false;
+    try {
+      globalStore.set(this.isAliveAtom, false);
+    } catch (e) {
+      // Ignore store errors during teardown
+    }
 
     // Notify lifecycle listeners
     notifyLifecycleChange(this, false);
@@ -800,6 +852,11 @@ export function clearAllRegistries(): void {
     const node = entry.node.deref();
     if (node) {
       node.$isAlive = false;
+      try {
+        globalStore.set(node.isAliveAtom, false);
+      } catch (e) {
+        // Ignore store errors during teardown
+      }
     }
   }
   nodeRegistry.clear();

@@ -18,6 +18,7 @@ import React, {
   type FC,
 } from "react";
 import {
+  atom,
   useAtom,
   useAtomValue,
   useSetAtom,
@@ -218,43 +219,12 @@ export function useLocalObservable<T>(
   initializer: () => T,
   dependencies: unknown[] = [],
 ): T {
-  const [, forceUpdate] = useState({});
-  const storeRef = useRef<T | null>(null);
-  const disposerRef = useRef<IDisposer | null>(null);
-
-  // Initialize store
-  if (storeRef.current === null) {
-    storeRef.current = initializer();
-
-    // Subscribe to changes
-    if (hasStateTreeNode(storeRef.current)) {
-      disposerRef.current = onSnapshot(storeRef.current, () => {
-        forceUpdate({});
-      });
-    }
+  const store = useMemo(initializer, dependencies);
+  if (hasStateTreeNode(store)) {
+    const node = getStateTreeNode(store);
+    useAtomValue(node.snapshotAtom, { store: getGlobalStore() });
   }
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      disposerRef.current?.();
-    };
-  }, []);
-
-  // Reinitialize if dependencies change
-  useEffect(() => {
-    if (dependencies.length > 0) {
-      disposerRef.current?.();
-      storeRef.current = initializer();
-      if (hasStateTreeNode(storeRef.current)) {
-        disposerRef.current = onSnapshot(storeRef.current, () => {
-          forceUpdate({});
-        });
-      }
-    }
-  }, dependencies);
-
-  return storeRef.current;
+  return store;
 }
 
 // ============================================================================
@@ -266,36 +236,11 @@ export function useLocalObservable<T>(
  * This provides better concurrent mode support.
  */
 export function useSyncedStore<T>(store: T): T {
-  // Cache the snapshot to provide stable reference for useSyncExternalStore
-  const snapshotRef = useRef<unknown>(null);
-
-  const subscribe = useCallback(
-    (callback: () => void) => {
-      if (!hasStateTreeNode(store)) {
-        return () => {};
-      }
-      return onSnapshot(store, () => {
-        // Update cached snapshot on change
-        snapshotRef.current = getSnapshot(store);
-        callback();
-      });
-    },
-    [store],
-  );
-
-  const getSnapshotValue = useCallback(() => {
-    if (!hasStateTreeNode(store)) {
-      return null;
-    }
-    // Return cached snapshot for stable reference comparison
-    if (snapshotRef.current === null) {
-      snapshotRef.current = getSnapshot(store);
-    }
-    return snapshotRef.current;
-  }, [store]);
-
-  useSyncExternalStore(subscribe, getSnapshotValue, getSnapshotValue);
-
+  if (!hasStateTreeNode(store)) {
+    return store;
+  }
+  const node = getStateTreeNode(store);
+  useAtomValue(node.snapshotAtom, { store: getGlobalStore() });
   return store;
 }
 
@@ -350,22 +295,12 @@ export function useStoreSnapshot<T>(): T;
 export function useStoreSnapshot<T, S>(selector: (store: T) => S): S;
 export function useStoreSnapshot<T, S>(selector?: (store: T) => S): T | S {
   const store = useStore<T>();
-  const [, forceUpdate] = useState({});
-
-  useEffect(() => {
-    if (hasStateTreeNode(store)) {
-      return onSnapshot(store, () => {
-        forceUpdate({});
-      });
-    }
-    return () => {};
-  }, [store]);
-
-  if (selector) {
-    return selector(store);
+  if (!hasStateTreeNode(store)) {
+    return store;
   }
-
-  return store;
+  const node = getStateTreeNode(store);
+  useAtomValue(node.snapshotAtom, { store: getGlobalStore() });
+  return selector ? selector(store) : store;
 }
 
 // ============================================================================
@@ -424,22 +359,12 @@ export function createStoreContext<T>() {
   function useTypedStoreSnapshot<S>(selector: (store: T) => S): S;
   function useTypedStoreSnapshot<S>(selector?: (store: T) => S): T | S {
     const store = useTypedStore();
-    const [, forceUpdate] = useState({});
-
-    useEffect(() => {
-      if (hasStateTreeNode(store)) {
-        return onSnapshot(store, () => {
-          forceUpdate({});
-        });
-      }
-      return () => {};
-    }, [store]);
-
-    if (selector) {
-      return selector(store);
+    if (!hasStateTreeNode(store)) {
+      return store;
     }
-
-    return store;
+    const node = getStateTreeNode(store);
+    useAtomValue(node.snapshotAtom, { store: getGlobalStore() });
+    return selector ? selector(store) : store;
   }
 
   /**
@@ -463,20 +388,12 @@ export function createStoreContext<T>() {
 // Snapshot Hooks
 // ============================================================================
 
-/**
- * Hook that returns the current snapshot and re-renders on changes.
- */
 export function useSnapshot<T>(target: unknown): T {
-  const [snapshot, setSnapshot] = useState<T>(() => getSnapshot(target));
-
-  useEffect(() => {
-    const disposer = onSnapshot(target, (newSnapshot) => {
-      setSnapshot(newSnapshot as T);
-    });
-    return disposer;
-  }, [target]);
-
-  return snapshot;
+  if (!hasStateTreeNode(target)) {
+    return target as T;
+  }
+  const node = getStateTreeNode(target);
+  return useAtomValue(node.snapshotAtom, { store: getGlobalStore() }) as T;
 }
 
 /**
@@ -487,39 +404,27 @@ export function useWatchPath<T>(
   path: string,
   defaultValue?: T,
 ): T {
-  const [value, setValue] = useState<T>(() => {
-    const snapshot = getSnapshot(target) as Record<string, unknown>;
-    const parts = path.split(".");
-    let current: unknown = snapshot;
-    for (const part of parts) {
-      if (current && typeof current === "object" && part in current) {
-        current = (current as Record<string, unknown>)[part];
-      } else {
-        return defaultValue as T;
-      }
-    }
-    return current as T;
-  });
-
-  useEffect(() => {
-    const disposer = onSnapshot(target, (newSnapshot) => {
-      const snapshot = newSnapshot as Record<string, unknown>;
+  if (!hasStateTreeNode(target)) {
+    return defaultValue as T;
+  }
+  const node = getStateTreeNode(target);
+  const pathAtom = useMemo(() => {
+    return atom((get) => {
+      const snapshot = get(node.snapshotAtom) as Record<string, unknown>;
       const parts = path.split(".");
       let current: unknown = snapshot;
       for (const part of parts) {
         if (current && typeof current === "object" && part in current) {
           current = (current as Record<string, unknown>)[part];
         } else {
-          setValue(defaultValue as T);
-          return;
+          return defaultValue as T;
         }
       }
-      setValue(current as T);
+      return current as T;
     });
-    return disposer;
-  }, [target, path, defaultValue]);
+  }, [node, path, defaultValue]);
 
-  return value;
+  return useAtomValue(pathAtom, { store: getGlobalStore() });
 }
 
 /**
@@ -602,27 +507,9 @@ export function scheduleUpdate(update: () => void): void {
  * Uses proper subscription instead of polling for better performance.
  */
 export function useIsAlive(target: unknown): boolean {
-  const [isAlive, setIsAlive] = useState(() => {
-    if (!hasStateTreeNode(target)) return false;
-    return getStateTreeNode(target).$isAlive;
-  });
-
-  useEffect(() => {
-    if (!hasStateTreeNode(target)) return;
-
-    const node = getStateTreeNode(target);
-    setIsAlive(node.$isAlive);
-
-    // Subscribe to lifecycle changes using proper event system
-    // This is much more efficient than polling
-    const disposer = onLifecycleChange(node, (alive) => {
-      setIsAlive(alive);
-    });
-
-    return disposer;
-  }, [target]);
-
-  return isAlive;
+  if (!hasStateTreeNode(target)) return false;
+  const node = getStateTreeNode(target);
+  return useAtomValue(node.isAliveAtom, { store: getGlobalStore() });
 }
 
 /**

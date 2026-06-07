@@ -1536,8 +1536,9 @@ describe("Undo Manager", () => {
     // Perform time travel
     timeTravel.goBack(); // count=0
     expect(counter.count).toBe(0);
-    // UndoManager should NOT have recorded a new history entry because of the time travel!
-    expect(undoManager.undoLevels).toBe(1);
+    // UndoManager should NOT have recorded a new history entry because of the time travel,
+    // and its index should be synced back to the start (-1), meaning undoLevels is 0.
+    expect(undoManager.undoLevels).toBe(0);
 
     undoManager.dispose();
     timeTravel.dispose();

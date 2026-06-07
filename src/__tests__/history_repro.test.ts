@@ -83,14 +83,13 @@ describe("Todo app history integration", () => {
     expect(store.todos.length).toBe(4);
     // Time travel should not have recorded new snapshots during undo
     expect(timeTravel.snapshotCount).toBe(4);
-    expect(timeTravel.currentIndex).toBe(3);
+    expect(timeTravel.currentIndex).toBe(2); // Synced index (was 3 before undo)
 
-    // 5. Time travel back 2 steps
-    timeTravel.goBack(); // Back to state after toggle
+    // We are already at the state after toggle (index 2)
     expect(store.todos.length).toBe(4);
     expect(store.todos[3].done).toBe(true);
 
-    timeTravel.goBack(); // Back to state after addTodo
+    timeTravel.goBack(); // Go back to state after addTodo (index 1)
     expect(store.todos.length).toBe(4);
     expect(store.todos[3].done).toBe(false);
 

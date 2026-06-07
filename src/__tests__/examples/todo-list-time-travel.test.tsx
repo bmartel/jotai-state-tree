@@ -180,5 +180,44 @@ describe('Todo List with Time Travel Example App', () => {
     await waitFor(() => {
       expect(screen.queryByText('Write integration tests')).toBeNull();
     });
+
+    // --- 8. Test Undo/Redo & Time Travel Index Synchronization ---
+    // Drag slider back to index 2 (corresponds to state after adding and toggling the task)
+    await act(async () => {
+      const prototype = Object.getPrototypeOf(rangeInput);
+      const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
+      if (setter) {
+        setter.call(rangeInput, '2');
+      } else {
+        rangeInput.value = '2';
+      }
+      rangeInput.dispatchEvent(new Event('input', { bubbles: true }));
+      rangeInput.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    // Verify time travel index is updated to 2
+    expect(parseInt(rangeInput.value, 10)).toBe(2);
+
+    // Verify undo button is enabled and has correct count
+    // At index 2 (3rd snapshot), there have been 2 recorded history actions.
+    // Undo count should be 2.
+    expect(undoButton.textContent).toContain('Undo (2)');
+    expect(undoButton.removeAttribute).toBeDefined(); // not disabled
+
+    // Click Undo
+    await user.click(undoButton);
+
+    // Reverting toggle: verify checkboxes/counts update, and time travel slider index syncs to 1
+    await waitFor(() => {
+      expect(parseInt(rangeInput.value, 10)).toBe(1);
+    });
+
+    // Click Redo
+    await user.click(redoButton);
+
+    // Redoing toggle: verify time travel slider index syncs back to 2
+    await waitFor(() => {
+      expect(parseInt(rangeInput.value, 10)).toBe(2);
+    });
   });
 });

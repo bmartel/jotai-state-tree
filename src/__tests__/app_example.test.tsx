@@ -246,7 +246,7 @@ describe("Todo List Time Travel Example App", () => {
 
     // 6. Test Time Travel (snapshots)
     const rangeInput = screen.getByRole("slider");
-    expect((rangeInput as HTMLInputElement).value).toBe("2"); // Snapshots count: 3 (initial, add, toggle => index 2)
+    expect((rangeInput as HTMLInputElement).value).toBe("1"); // Synced index: 1 (after 2 undos and 1 redo)
     
     // Drag slider back to 0 (initial state)
     await fireEventChange(rangeInput, 0);

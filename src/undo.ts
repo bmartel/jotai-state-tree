@@ -58,6 +58,13 @@ export interface IUndoManager {
 }
 
 // ============================================================================
+// Registries for index synchronization
+// ============================================================================
+
+const undoManagersRegistry = new WeakMap<any, any>();
+const timeTravelManagersRegistry = new WeakMap<any, any>();
+
+// ============================================================================
 // UndoManager Implementation
 // ============================================================================
 
@@ -84,6 +91,9 @@ class UndoManager implements IUndoManager {
       groupByTime: options.groupByTime ?? false,
       groupingWindow: options.groupingWindow ?? 200,
     };
+
+    // Register this instance
+    undoManagersRegistry.set(target, this);
 
     // Subscribe to patches
     this.disposer = onPatch(target, (patch, reversePatch) => {
@@ -209,6 +219,15 @@ class UndoManager implements IUndoManager {
         applyPatch(this.target, entry.patches[i]);
       }
       this.currentIndex--;
+
+      // Sync TimeTravelManager if active
+      const tt = timeTravelManagersRegistry.get(this.target) as any;
+      if (tt) {
+        const N = tt.snapshots.length;
+        const M = this.historyEntries.length;
+        const ttIndex = this.currentIndex + 1 + (N - 1 - M);
+        tt.index = Math.max(0, Math.min(N - 1, ttIndex));
+      }
     } finally {
       this.isUndoing = false;
       rootNode.$isApplyingHistory = wasApplying;
@@ -231,6 +250,15 @@ class UndoManager implements IUndoManager {
       // Apply inverse patches in order
       for (const patch of entry.inversePatches) {
         applyPatch(this.target, patch);
+      }
+
+      // Sync TimeTravelManager if active
+      const tt = timeTravelManagersRegistry.get(this.target) as any;
+      if (tt) {
+        const N = tt.snapshots.length;
+        const M = this.historyEntries.length;
+        const ttIndex = this.currentIndex + 1 + (N - 1 - M);
+        tt.index = Math.max(0, Math.min(N - 1, ttIndex));
       }
     } finally {
       this.isRedoing = false;
@@ -298,6 +326,7 @@ class UndoManager implements IUndoManager {
   }
 
   dispose(): void {
+    undoManagersRegistry.delete(this.target);
     if (this.disposer) {
       this.disposer();
       this.disposer = null;
@@ -375,6 +404,9 @@ class TimeTravelManager implements ITimeTravelManager {
     this.target = target;
     this.maxSnapshots = options.maxSnapshots ?? 50;
     this.autoRecord = options.autoRecord ?? false;
+
+    // Register this instance
+    timeTravelManagersRegistry.set(target, this);
 
     // Record initial snapshot
     this.record();
@@ -477,6 +509,15 @@ class TimeTravelManager implements ITimeTravelManager {
     try {
       this.index = index;
       applySnapshot(this.target, this.snapshots[index]);
+
+      // Sync UndoManager if active
+      const undo = undoManagersRegistry.get(this.target) as any;
+      if (undo) {
+        const N = this.snapshots.length;
+        const M = undo.historyEntries.length;
+        const undoIndex = this.index - 1 - (N - 1 - M);
+        undo.currentIndex = Math.max(-1, Math.min(M - 1, undoIndex));
+      }
     } finally {
       this.isApplying = false;
       rootNode.$isApplyingHistory = wasApplying;
@@ -498,6 +539,7 @@ class TimeTravelManager implements ITimeTravelManager {
   }
 
   dispose(): void {
+    timeTravelManagersRegistry.delete(this.target);
     if (this.disposer) {
       this.disposer();
       this.disposer = null;

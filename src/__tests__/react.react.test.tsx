@@ -34,6 +34,8 @@ import {
   createStoreContext,
   useObserver,
   useHydrateStore,
+  useUndoManager,
+  useTimeTravelManager,
 } from "../react";
 
 import type { Instance } from "../index";
@@ -1128,6 +1130,116 @@ describe("React Integration", () => {
         store.increment();
       });
       expect(screen.getByTestId("count").textContent).toBe("11");
+    });
+  });
+
+  describe("useUndoManager and useTimeTravelManager", () => {
+    const CounterModel = types
+      .model("Counter", {
+        count: types.number,
+      })
+      .actions((self) => ({
+        increment() {
+          self.count++;
+        },
+      }));
+
+    it("should update reactive values in React components on state change", async () => {
+      const counter = CounterModel.create({ count: 10 });
+
+      function HistoryControls() {
+        const undoManager = useUndoManager(counter);
+        const timeTravel = useTimeTravelManager(counter, { autoRecord: true });
+
+        return (
+          <div>
+            <div data-testid="count">{counter.count}</div>
+            <button data-testid="undo-btn" onClick={() => undoManager.undo()} disabled={!undoManager.canUndo}>
+              Undo ({undoManager.undoLevels})
+            </button>
+            <button data-testid="redo-btn" onClick={() => undoManager.redo()} disabled={!undoManager.canRedo}>
+              Redo
+            </button>
+            <div data-testid="tt-index">
+              Index: {timeTravel.currentIndex} / {timeTravel.snapshotCount - 1}
+            </div>
+            <button data-testid="tt-back-btn" onClick={() => timeTravel.goBack()} disabled={!timeTravel.canGoBack}>
+              TT Back
+            </button>
+            <button data-testid="tt-forward-btn" onClick={() => timeTravel.goForward()} disabled={!timeTravel.canGoForward}>
+              TT Forward
+            </button>
+          </div>
+        );
+      }
+
+      render(<HistoryControls />);
+
+      // Initial state
+      expect(screen.getByTestId("count").textContent).toBe("10");
+      expect(screen.getByTestId("undo-btn").textContent).toBe("Undo (0)");
+      expect((screen.getByTestId("undo-btn") as HTMLButtonElement).disabled).toBe(true);
+      expect(screen.getByTestId("tt-index").textContent).toBe("Index: 0 / 0");
+
+      // Change state
+      act(() => {
+        counter.increment();
+      });
+
+      // Verify react component re-rendered and updated the buttons/labels automatically
+      await waitFor(() => {
+        expect(screen.getByTestId("undo-btn").textContent).toBe("Undo (1)");
+      });
+      expect((screen.getByTestId("undo-btn") as HTMLButtonElement).disabled).toBe(false);
+      expect(screen.getByTestId("tt-index").textContent).toBe("Index: 1 / 1");
+
+      // Perform Undo
+      act(() => {
+        screen.getByTestId("undo-btn").click();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("count").textContent).toBe("10");
+      });
+      expect(screen.getByTestId("undo-btn").textContent).toBe("Undo (0)");
+      expect((screen.getByTestId("undo-btn") as HTMLButtonElement).disabled).toBe(true);
+      expect((screen.getByTestId("redo-btn") as HTMLButtonElement).disabled).toBe(false);
+      expect(screen.getByTestId("tt-index").textContent).toBe("Index: 0 / 1");
+
+      // Perform Redo
+      act(() => {
+        screen.getByTestId("redo-btn").click();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("count").textContent).toBe("11");
+      });
+      expect(screen.getByTestId("undo-btn").textContent).toBe("Undo (1)");
+      expect((screen.getByTestId("undo-btn") as HTMLButtonElement).disabled).toBe(false);
+      expect((screen.getByTestId("redo-btn") as HTMLButtonElement).disabled).toBe(true);
+      expect(screen.getByTestId("tt-index").textContent).toBe("Index: 1 / 1");
+
+      // Time travel back using helper method
+      act(() => {
+        screen.getByTestId("tt-back-btn").click();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("count").textContent).toBe("10");
+      });
+      expect(screen.getByTestId("undo-btn").textContent).toBe("Undo (0)");
+      expect(screen.getByTestId("tt-index").textContent).toBe("Index: 0 / 1");
+
+      // Time travel forward
+      act(() => {
+        screen.getByTestId("tt-forward-btn").click();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("count").textContent).toBe("11");
+      });
+      expect(screen.getByTestId("undo-btn").textContent).toBe("Undo (1)");
+      expect(screen.getByTestId("tt-index").textContent).toBe("Index: 1 / 1");
     });
   });
 });

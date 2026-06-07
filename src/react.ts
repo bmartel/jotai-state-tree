@@ -44,6 +44,7 @@ import {
 import {
   createUndoManager,
   createTimeTravelManager,
+  getOrCreateHistoryTracker,
   type IUndoManager,
   type ITimeTravelManager,
   type IUndoManagerOptions,
@@ -717,9 +718,6 @@ export { hasStateTreeNode };
 // Undo/Redo & Time Travel Hooks
 // ============================================================================
 
-const undoManagersCache = new WeakMap<any, IUndoManager>();
-const timeTravelManagersCache = new WeakMap<any, ITimeTravelManager>();
-
 /**
  * Hook to create and use an UndoManager.
  * Automatically handles the subscription lifecycle and triggers re-renders on changes.
@@ -728,24 +726,57 @@ export function useUndoManager(
   target: unknown,
   options?: IUndoManagerOptions,
 ): IUndoManager {
-  const [, forceUpdate] = useState(0);
-
-  let manager = (target && typeof target === "object") ? undoManagersCache.get(target) : undefined;
-  if (!manager && target && typeof target === "object") {
-    manager = createUndoManager(target, options);
-    undoManagersCache.set(target, manager);
+  if (!target || typeof target !== "object") {
+    throw new Error("[jotai-state-tree] target must be an object");
   }
 
-  useEffect(() => {
-    const disposer = onPatch(target, () => {
-      forceUpdate((t) => t + 1);
-    });
-    return () => {
-      disposer();
-    };
-  }, [target]);
+  const tracker = getOrCreateHistoryTracker(target, options);
+  tracker.autoRecord = true; // UndoManager always auto-records
+  const historyState = useAtomValue(tracker.historyAtom, { store: getGlobalStore() });
 
-  return manager!;
+  return useMemo(() => {
+    return {
+      get canUndo() {
+        return historyState.currentIndex >= 0;
+      },
+      get canRedo() {
+        return historyState.currentIndex < historyState.entries.length - 1;
+      },
+      get undoLevels() {
+        return historyState.currentIndex + 1;
+      },
+      get redoLevels() {
+        return historyState.entries.length - historyState.currentIndex - 1;
+      },
+      get history() {
+        return historyState.entries;
+      },
+      get historyIndex() {
+        return historyState.currentIndex;
+      },
+      undo() {
+        tracker.undo();
+      },
+      redo() {
+        tracker.redo();
+      },
+      clear() {
+        tracker.clear();
+      },
+      startGroup() {
+        tracker.startGroup();
+      },
+      endGroup() {
+        tracker.endGroup();
+      },
+      withoutUndo<T>(fn: () => T): T {
+        return tracker.withoutUndo(fn);
+      },
+      dispose() {
+        tracker.dispose();
+      },
+    };
+  }, [tracker, historyState]);
 }
 
 /**
@@ -759,24 +790,56 @@ export function useTimeTravelManager(
     autoRecord?: boolean;
   },
 ): ITimeTravelManager {
-  const [, forceUpdate] = useState(0);
-
-  let manager = (target && typeof target === "object") ? timeTravelManagersCache.get(target) : undefined;
-  if (!manager && target && typeof target === "object") {
-    manager = createTimeTravelManager(target, options);
-    timeTravelManagersCache.set(target, manager);
+  if (!target || typeof target !== "object") {
+    throw new Error("[jotai-state-tree] target must be an object");
   }
 
-  useEffect(() => {
-    const disposer = onPatch(target, () => {
-      forceUpdate((t) => t + 1);
-    });
-    return () => {
-      disposer();
-    };
-  }, [target]);
+  const tracker = getOrCreateHistoryTracker(target, options);
+  if (options?.autoRecord) {
+    tracker.autoRecord = true;
+  }
+  const historyState = useAtomValue(tracker.historyAtom, { store: getGlobalStore() });
 
-  return manager!;
+  return useMemo(() => {
+    const snapshotsCount = historyState.entries.length + 1;
+    const currentSnapshotIndex = historyState.currentIndex + 1;
+
+    return {
+      get currentIndex() {
+        return currentSnapshotIndex;
+      },
+      get snapshotCount() {
+        return snapshotsCount;
+      },
+      get canGoBack() {
+        return currentSnapshotIndex > 0;
+      },
+      get canGoForward() {
+        return currentSnapshotIndex < snapshotsCount - 1;
+      },
+      record() {
+        tracker.record();
+      },
+      goBack() {
+        tracker.goBack();
+      },
+      goForward() {
+        tracker.goForward();
+      },
+      goTo(index: number) {
+        tracker.goTo(index);
+      },
+      getSnapshot(index: number) {
+        return tracker.getSnapshot(index);
+      },
+      clear() {
+        tracker.clear();
+      },
+      dispose() {
+        tracker.dispose();
+      },
+    };
+  }, [tracker, historyState]);
 }
 
 // ============================================================================

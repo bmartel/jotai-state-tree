@@ -1,10 +1,21 @@
 /**
  * Undo/Redo Manager for jotai-state-tree
- * Provides time-travel debugging capabilities
+ * Provides time-travel debugging capabilities using Jotai atoms
  */
 
+import { atom, type WritableAtom } from 'jotai';
 import type { IDisposer, IJsonPatch, IReversibleJsonPatch } from './types';
-import { getStateTreeNode, applyPatch, onPatch, getSnapshot, applySnapshot, onAction, isActionRunning, getCurrentAction } from './tree';
+import {
+  getStateTreeNode,
+  applyPatch,
+  onPatch,
+  getSnapshot,
+  applySnapshot,
+  onAction,
+  isActionRunning,
+  getCurrentAction,
+  getGlobalStore,
+} from './tree';
 
 // ============================================================================
 // Types
@@ -26,6 +37,8 @@ export interface IHistoryEntry {
   inversePatches: IReversibleJsonPatch[];
   /** Timestamp when this entry was created */
   timestamp: number;
+  /** Snapshot of the target after applying inversePatches (internal/optional) */
+  snapshot?: unknown;
 }
 
 export interface IUndoManager {
@@ -57,306 +70,6 @@ export interface IUndoManager {
   dispose(): void;
 }
 
-// ============================================================================
-// Registries for index synchronization
-// ============================================================================
-
-const undoManagersRegistry = new WeakMap<any, any>();
-const timeTravelManagersRegistry = new WeakMap<any, any>();
-
-// ============================================================================
-// UndoManager Implementation
-// ============================================================================
-
-class UndoManager implements IUndoManager {
-  private target: unknown;
-  private options: Required<IUndoManagerOptions>;
-  private historyEntries: IHistoryEntry[] = [];
-  private currentIndex: number = -1;
-  private isUndoing: boolean = false;
-  private isRedoing: boolean = false;
-  private skipRecording: boolean = false;
-  private grouping: boolean = false;
-  private actionGrouping: boolean = false;
-  private currentGroup: IReversibleJsonPatch[] = [];
-  private currentGroupInverse: IReversibleJsonPatch[] = [];
-  private disposer: IDisposer | null = null;
-  private actionDisposer: IDisposer | null = null;
-  private lastChangeTime: number = 0;
-
-  constructor(target: unknown, options: IUndoManagerOptions = {}) {
-    this.target = target;
-    this.options = {
-      maxHistoryLength: options.maxHistoryLength ?? 100,
-      groupByTime: options.groupByTime ?? false,
-      groupingWindow: options.groupingWindow ?? 200,
-    };
-
-    // Register this instance
-    undoManagersRegistry.set(target, this);
-
-    // Subscribe to patches
-    this.disposer = onPatch(target, (patch, reversePatch) => {
-      this.recordPatch(patch, reversePatch);
-    });
-
-    // Subscribe to actions to end grouping synchronously on top-level action completion
-    this.actionDisposer = onAction(target, () => {
-      const current = getCurrentAction();
-      if (current && !current.parent) {
-        if (this.actionGrouping) {
-          this.endGroup();
-        }
-      }
-    });
-  }
-
-  get canUndo(): boolean {
-    return this.currentIndex >= 0;
-  }
-
-  get canRedo(): boolean {
-    return this.currentIndex < this.historyEntries.length - 1;
-  }
-
-  get undoLevels(): number {
-    return this.currentIndex + 1;
-  }
-
-  get redoLevels(): number {
-    return this.historyEntries.length - this.currentIndex - 1;
-  }
-
-  get history(): IHistoryEntry[] {
-    return [...this.historyEntries];
-  }
-
-  get historyIndex(): number {
-    return this.currentIndex;
-  }
-
-  private recordPatch(patch: IJsonPatch, reversePatch: IReversibleJsonPatch): void {
-    if (this.isUndoing || this.isRedoing || this.skipRecording) {
-      return;
-    }
-    const node = getStateTreeNode(this.target);
-    if (node.getRoot().$isApplyingHistory) {
-      return;
-    }
-
-    const now = Date.now();
-
-    if (isActionRunning() && !this.grouping) {
-      this.grouping = true;
-      this.actionGrouping = true;
-      this.currentGroup = [];
-      this.currentGroupInverse = [];
-      Promise.resolve().then(() => {
-        if (this.actionGrouping) {
-          this.endGroup();
-        }
-      });
-    }
-
-    if (this.grouping) {
-      // Add to current group
-      this.currentGroup.push(reversePatch);
-      this.currentGroupInverse.push({ ...patch } as IReversibleJsonPatch);
-      return;
-    }
-
-    // Check if we should group with previous entry
-    if (
-      this.options.groupByTime &&
-      this.historyEntries.length > 0 &&
-      now - this.lastChangeTime < this.options.groupingWindow &&
-      this.currentIndex === this.historyEntries.length - 1
-    ) {
-      // Add to the last entry
-      const lastEntry = this.historyEntries[this.currentIndex];
-      lastEntry.patches.push(reversePatch);
-      lastEntry.inversePatches.push({ ...patch } as IReversibleJsonPatch);
-      lastEntry.timestamp = now;
-    } else {
-      // Remove any redo entries
-      if (this.currentIndex < this.historyEntries.length - 1) {
-        this.historyEntries.splice(this.currentIndex + 1);
-      }
-
-      // Add new entry
-      this.historyEntries.push({
-        patches: [reversePatch],
-        inversePatches: [{ ...patch } as IReversibleJsonPatch],
-        timestamp: now,
-      });
-      this.currentIndex++;
-
-      // Trim history if needed
-      if (this.historyEntries.length > this.options.maxHistoryLength) {
-        const excess = this.historyEntries.length - this.options.maxHistoryLength;
-        this.historyEntries.splice(0, excess);
-        this.currentIndex -= excess;
-      }
-    }
-
-    this.lastChangeTime = now;
-  }
-
-  undo(): void {
-    if (!this.canUndo) {
-      return;
-    }
-
-    const node = getStateTreeNode(this.target);
-    const rootNode = node.getRoot();
-    const wasApplying = rootNode.$isApplyingHistory;
-    rootNode.$isApplyingHistory = true;
-    this.isUndoing = true;
-    try {
-      const entry = this.historyEntries[this.currentIndex];
-      // Apply patches in reverse order
-      for (let i = entry.patches.length - 1; i >= 0; i--) {
-        applyPatch(this.target, entry.patches[i]);
-      }
-      this.currentIndex--;
-
-      // Sync TimeTravelManager if active
-      const tt = timeTravelManagersRegistry.get(this.target) as any;
-      if (tt) {
-        const N = tt.snapshots.length;
-        const M = this.historyEntries.length;
-        const ttIndex = this.currentIndex + 1 + (N - 1 - M);
-        tt.index = Math.max(0, Math.min(N - 1, ttIndex));
-      }
-    } finally {
-      this.isUndoing = false;
-      rootNode.$isApplyingHistory = wasApplying;
-    }
-  }
-
-  redo(): void {
-    if (!this.canRedo) {
-      return;
-    }
-
-    const node = getStateTreeNode(this.target);
-    const rootNode = node.getRoot();
-    const wasApplying = rootNode.$isApplyingHistory;
-    rootNode.$isApplyingHistory = true;
-    this.isRedoing = true;
-    try {
-      this.currentIndex++;
-      const entry = this.historyEntries[this.currentIndex];
-      // Apply inverse patches in order
-      for (const patch of entry.inversePatches) {
-        applyPatch(this.target, patch);
-      }
-
-      // Sync TimeTravelManager if active
-      const tt = timeTravelManagersRegistry.get(this.target) as any;
-      if (tt) {
-        const N = tt.snapshots.length;
-        const M = this.historyEntries.length;
-        const ttIndex = this.currentIndex + 1 + (N - 1 - M);
-        tt.index = Math.max(0, Math.min(N - 1, ttIndex));
-      }
-    } finally {
-      this.isRedoing = false;
-      rootNode.$isApplyingHistory = wasApplying;
-    }
-  }
-
-  clear(): void {
-    this.historyEntries = [];
-    this.currentIndex = -1;
-    this.currentGroup = [];
-    this.currentGroupInverse = [];
-    this.grouping = false;
-    this.actionGrouping = false;
-  }
-
-  startGroup(): void {
-    this.grouping = true;
-    this.actionGrouping = false;
-    this.currentGroup = [];
-    this.currentGroupInverse = [];
-  }
-
-  endGroup(): void {
-    if (!this.grouping) {
-      return;
-    }
-
-    this.grouping = false;
-    this.actionGrouping = false;
-
-    if (this.currentGroup.length > 0) {
-      // Remove any redo entries
-      if (this.currentIndex < this.historyEntries.length - 1) {
-        this.historyEntries.splice(this.currentIndex + 1);
-      }
-
-      // Add grouped entry
-      this.historyEntries.push({
-        patches: this.currentGroup,
-        inversePatches: this.currentGroupInverse,
-        timestamp: Date.now(),
-      });
-      this.currentIndex++;
-
-      // Trim history if needed
-      if (this.historyEntries.length > this.options.maxHistoryLength) {
-        const excess = this.historyEntries.length - this.options.maxHistoryLength;
-        this.historyEntries.splice(0, excess);
-        this.currentIndex -= excess;
-      }
-    }
-
-    this.currentGroup = [];
-    this.currentGroupInverse = [];
-  }
-
-  withoutUndo<T>(fn: () => T): T {
-    this.skipRecording = true;
-    try {
-      return fn();
-    } finally {
-      this.skipRecording = false;
-    }
-  }
-
-  dispose(): void {
-    undoManagersRegistry.delete(this.target);
-    if (this.disposer) {
-      this.disposer();
-      this.disposer = null;
-    }
-    if (this.actionDisposer) {
-      this.actionDisposer();
-      this.actionDisposer = null;
-    }
-    this.clear();
-  }
-}
-
-// ============================================================================
-// Factory Function
-// ============================================================================
-
-/**
- * Create an undo manager for a state tree
- */
-export function createUndoManager(
-  target: unknown,
-  options?: IUndoManagerOptions
-): IUndoManager {
-  return new UndoManager(target, options);
-}
-
-// ============================================================================
-// Snapshot-based Time Travel
-// ============================================================================
-
 export interface ITimeTravelManager {
   /** Current snapshot index */
   readonly currentIndex: number;
@@ -382,164 +95,380 @@ export interface ITimeTravelManager {
   dispose(): void;
 }
 
-class TimeTravelManager implements ITimeTravelManager {
-  private target: unknown;
-  private snapshots: unknown[] = [];
-  private index: number = -1;
-  private maxSnapshots: number;
-  private isApplying: boolean = false;
-  private disposer: IDisposer | null = null;
-  private actionDisposer: IDisposer | null = null;
-  private autoRecord: boolean;
-  private pendingRecord: boolean = false;
-  private actionGrouping: boolean = false;
+export interface IHistoryState {
+  entries: IHistoryEntry[];
+  currentIndex: number; // Pointer into entries. -1 represents the initial state.
+  initialSnapshot: unknown; // The snapshot before any changes
+}
+
+// ============================================================================
+// HistoryTracker & Registry
+// ============================================================================
+
+export const historyTrackersRegistry = new WeakMap<any, HistoryTracker>();
+
+export class HistoryTracker {
+  readonly target: unknown;
+  readonly historyAtom: WritableAtom<IHistoryState, [IHistoryState | ((prev: IHistoryState) => IHistoryState)], void>;
+
+  // Settings
+  maxHistoryLength: number;
+  groupByTime: boolean;
+  groupingWindow: number;
+
+  // Transient state
+  autoRecord: boolean = false;
+  isApplyingHistory: boolean = false;
+  skipRecording: boolean = false;
+  grouping: boolean = false;
+  actionGrouping: boolean = false;
+  currentGroup: IReversibleJsonPatch[] = [];
+  currentGroupInverse: IReversibleJsonPatch[] = [];
+  lastChangeTime: number = 0;
+
+  disposer: IDisposer | null = null;
+  actionDisposer: IDisposer | null = null;
 
   constructor(
     target: unknown,
-    options: {
-      maxSnapshots?: number;
-      autoRecord?: boolean;
-    } = {}
+    options: IUndoManagerOptions & { maxSnapshots?: number; autoRecord?: boolean } = {}
   ) {
     this.target = target;
-    this.maxSnapshots = options.maxSnapshots ?? 50;
+    this.maxHistoryLength = options.maxHistoryLength ?? options.maxSnapshots ?? 100;
+    this.groupByTime = options.groupByTime ?? false;
+    this.groupingWindow = options.groupingWindow ?? 200;
     this.autoRecord = options.autoRecord ?? false;
 
-    // Register this instance
-    timeTravelManagersRegistry.set(target, this);
+    const initialSnapshot = getSnapshot(target);
+    this.historyAtom = atom<IHistoryState>({
+      entries: [],
+      currentIndex: -1,
+      initialSnapshot,
+    });
 
-    // Record initial snapshot
-    this.record();
+    // Subscribe to patches
+    this.disposer = onPatch(target, (patch, reversePatch) => {
+      this.recordPatch(patch, reversePatch);
+    });
 
-    // Auto-record on changes if enabled
-    if (this.autoRecord) {
-      this.disposer = onPatch(target, () => {
-        if (this.isApplying) return;
-        const node = getStateTreeNode(this.target);
-        if (node.getRoot().$isApplyingHistory) {
-          return;
+    // Subscribe to actions to end grouping synchronously on top-level action completion
+    this.actionDisposer = onAction(target, () => {
+      const current = getCurrentAction();
+      if (current && !current.parent) {
+        if (this.actionGrouping) {
+          this.endGroup();
         }
+      }
+    });
+  }
 
-        if (isActionRunning()) {
-          this.pendingRecord = true;
-          if (!this.actionGrouping) {
-            this.actionGrouping = true;
-            Promise.resolve().then(() => {
-              if (this.actionGrouping) {
-                this.commitPendingRecord();
-              }
-            });
-          }
-        } else {
-          this.record();
+  private recordPatch(patch: IJsonPatch, reversePatch: IReversibleJsonPatch): void {
+    if (!this.autoRecord) {
+      return;
+    }
+    if (this.isApplyingHistory || this.skipRecording) {
+      return;
+    }
+    const node = getStateTreeNode(this.target);
+    if (node.getRoot().$isApplyingHistory) {
+      return;
+    }
+
+    const store = getGlobalStore();
+    const now = Date.now();
+
+    if (isActionRunning() && !this.grouping) {
+      this.grouping = true;
+      this.actionGrouping = true;
+      this.currentGroup = [];
+      this.currentGroupInverse = [];
+      Promise.resolve().then(() => {
+        if (this.actionGrouping) {
+          this.endGroup();
         }
       });
+    }
 
-      this.actionDisposer = onAction(target, () => {
-        const current = getCurrentAction();
-        if (current && !current.parent) {
-          if (this.actionGrouping) {
-            this.commitPendingRecord();
-          }
+    if (this.grouping) {
+      this.currentGroup.push(reversePatch);
+      this.currentGroupInverse.push({ ...patch } as IReversibleJsonPatch);
+      return;
+    }
+
+    store.set(this.historyAtom, (prev) => {
+      // Truncate future entries if we were in the middle of history
+      let entries = prev.currentIndex < prev.entries.length - 1
+        ? prev.entries.slice(0, prev.currentIndex + 1)
+        : [...prev.entries];
+
+      // Check if we should group with previous entry
+      if (
+        this.groupByTime &&
+        entries.length > 0 &&
+        now - this.lastChangeTime < this.groupingWindow &&
+        prev.currentIndex === prev.entries.length - 1
+      ) {
+        const lastEntry = { ...entries[entries.length - 1] };
+        lastEntry.patches = [...lastEntry.patches, reversePatch];
+        lastEntry.inversePatches = [...lastEntry.inversePatches, { ...patch } as IReversibleJsonPatch];
+        lastEntry.timestamp = now;
+        lastEntry.snapshot = getSnapshot(this.target);
+        entries[entries.length - 1] = lastEntry;
+
+        this.lastChangeTime = now;
+        return {
+          ...prev,
+          entries,
+        };
+      } else {
+        const newEntry: IHistoryEntry = {
+          patches: [reversePatch],
+          inversePatches: [{ ...patch } as IReversibleJsonPatch],
+          timestamp: now,
+          snapshot: getSnapshot(this.target),
+        };
+
+        entries.push(newEntry);
+        let newIndex = entries.length - 1;
+
+        // Trim history if needed
+        if (entries.length > this.maxHistoryLength) {
+          const excess = entries.length - this.maxHistoryLength;
+          entries = entries.slice(excess);
+          newIndex -= excess;
         }
-      });
-    }
+
+        this.lastChangeTime = now;
+        return {
+          ...prev,
+          entries,
+          currentIndex: newIndex,
+        };
+      }
+    });
   }
 
-  private commitPendingRecord() {
-    this.actionGrouping = false;
-    if (this.pendingRecord) {
-      this.pendingRecord = false;
-      this.record();
-    }
-  }
-
-  get currentIndex(): number {
-    return this.index;
-  }
-
-  get snapshotCount(): number {
-    return this.snapshots.length;
-  }
-
-  get canGoBack(): boolean {
-    return this.index > 0;
-  }
-
-  get canGoForward(): boolean {
-    return this.index < this.snapshots.length - 1;
-  }
-
-  record(): void {
-    // Remove any future snapshots
-    if (this.index < this.snapshots.length - 1) {
-      this.snapshots.splice(this.index + 1);
+  undo(): void {
+    const store = getGlobalStore();
+    const state = store.get(this.historyAtom);
+    if (state.currentIndex < 0) {
+      return;
     }
 
-    // Add new snapshot
-    this.snapshots.push(getSnapshot(this.target));
-    this.index++;
-
-    // Trim if needed
-    if (this.snapshots.length > this.maxSnapshots) {
-      const excess = this.snapshots.length - this.maxSnapshots;
-      this.snapshots.splice(0, excess);
-      this.index -= excess;
-    }
-  }
-
-  goBack(): void {
-    if (!this.canGoBack) return;
-    this.goTo(this.index - 1);
-  }
-
-  goForward(): void {
-    if (!this.canGoForward) return;
-    this.goTo(this.index + 1);
-  }
-
-  goTo(index: number): void {
-    if (index < 0 || index >= this.snapshots.length) return;
-    
     const node = getStateTreeNode(this.target);
     const rootNode = node.getRoot();
     const wasApplying = rootNode.$isApplyingHistory;
     rootNode.$isApplyingHistory = true;
-    this.isApplying = true;
-    try {
-      this.index = index;
-      applySnapshot(this.target, this.snapshots[index]);
+    this.isApplyingHistory = true;
 
-      // Sync UndoManager if active
-      const undo = undoManagersRegistry.get(this.target) as any;
-      if (undo) {
-        const N = this.snapshots.length;
-        const M = undo.historyEntries.length;
-        const undoIndex = this.index - 1 - (N - 1 - M);
-        undo.currentIndex = Math.max(-1, Math.min(M - 1, undoIndex));
+    try {
+      const entry = state.entries[state.currentIndex];
+      // Apply patches in reverse order
+      for (let i = entry.patches.length - 1; i >= 0; i--) {
+        applyPatch(this.target, entry.patches[i]);
       }
+
+      store.set(this.historyAtom, (prev) => ({
+        ...prev,
+        currentIndex: prev.currentIndex - 1,
+      }));
     } finally {
-      this.isApplying = false;
+      this.isApplyingHistory = false;
       rootNode.$isApplyingHistory = wasApplying;
     }
   }
 
+  redo(): void {
+    const store = getGlobalStore();
+    const state = store.get(this.historyAtom);
+    if (state.currentIndex >= state.entries.length - 1) {
+      return;
+    }
+
+    const node = getStateTreeNode(this.target);
+    const rootNode = node.getRoot();
+    const wasApplying = rootNode.$isApplyingHistory;
+    rootNode.$isApplyingHistory = true;
+    this.isApplyingHistory = true;
+
+    try {
+      const nextIndex = state.currentIndex + 1;
+      const entry = state.entries[nextIndex];
+      // Apply forward patches in order
+      for (const patch of entry.inversePatches) {
+        applyPatch(this.target, patch);
+      }
+
+      store.set(this.historyAtom, (prev) => ({
+        ...prev,
+        currentIndex: nextIndex,
+      }));
+    } finally {
+      this.isApplyingHistory = false;
+      rootNode.$isApplyingHistory = wasApplying;
+    }
+  }
+
+  goTo(index: number): void {
+    const store = getGlobalStore();
+    const state = store.get(this.historyAtom);
+    const maxIdx = state.entries.length;
+    if (index < 0 || index > maxIdx) {
+      return;
+    }
+
+    const node = getStateTreeNode(this.target);
+    const rootNode = node.getRoot();
+    const wasApplying = rootNode.$isApplyingHistory;
+    rootNode.$isApplyingHistory = true;
+    this.isApplyingHistory = true;
+
+    try {
+      const targetSnapshot = index === 0 ? state.initialSnapshot : state.entries[index - 1].snapshot;
+      applySnapshot(this.target, targetSnapshot);
+
+      store.set(this.historyAtom, (prev) => ({
+        ...prev,
+        currentIndex: index - 1,
+      }));
+    } finally {
+      this.isApplyingHistory = false;
+      rootNode.$isApplyingHistory = wasApplying;
+    }
+  }
+
+  goBack(): void {
+    const store = getGlobalStore();
+    const state = store.get(this.historyAtom);
+    const currentSnapshotIndex = state.currentIndex + 1;
+    if (currentSnapshotIndex > 0) {
+      this.goTo(currentSnapshotIndex - 1);
+    }
+  }
+
+  goForward(): void {
+    const store = getGlobalStore();
+    const state = store.get(this.historyAtom);
+    const currentSnapshotIndex = state.currentIndex + 1;
+    if (currentSnapshotIndex < state.entries.length) {
+      this.goTo(currentSnapshotIndex + 1);
+    }
+  }
+
+  record(): void {
+    const store = getGlobalStore();
+    const state = store.get(this.historyAtom);
+
+    // Truncate future entries if we were in the middle of history
+    let entries = state.currentIndex < state.entries.length - 1
+      ? state.entries.slice(0, state.currentIndex + 1)
+      : [...state.entries];
+
+    const newEntry: IHistoryEntry = {
+      patches: [],
+      inversePatches: [],
+      timestamp: Date.now(),
+      snapshot: getSnapshot(this.target),
+    };
+
+    entries.push(newEntry);
+    let newIndex = entries.length - 1;
+
+    // Trim history if needed
+    if (entries.length > this.maxHistoryLength) {
+      const excess = entries.length - this.maxHistoryLength;
+      entries = entries.slice(excess);
+      newIndex -= excess;
+    }
+
+    store.set(this.historyAtom, {
+      ...state,
+      entries,
+      currentIndex: newIndex,
+    });
+  }
+
   getSnapshot(index: number): unknown {
-    if (index < 0 || index >= this.snapshots.length) {
+    const store = getGlobalStore();
+    const state = store.get(this.historyAtom);
+    if (index < 0 || index > state.entries.length) {
       throw new Error(`[jotai-state-tree] Invalid snapshot index: ${index}`);
     }
-    return this.snapshots[index];
+    return index === 0 ? state.initialSnapshot : state.entries[index - 1].snapshot;
   }
 
   clear(): void {
-    this.snapshots = [];
-    this.index = -1;
-    // Record current state
-    this.record();
+    const store = getGlobalStore();
+    store.set(this.historyAtom, {
+      entries: [],
+      currentIndex: -1,
+      initialSnapshot: getSnapshot(this.target),
+    });
+    this.currentGroup = [];
+    this.currentGroupInverse = [];
+    this.grouping = false;
+    this.actionGrouping = false;
+  }
+
+  startGroup(): void {
+    this.grouping = true;
+    this.actionGrouping = false;
+    this.currentGroup = [];
+    this.currentGroupInverse = [];
+  }
+
+  endGroup(): void {
+    if (!this.grouping) {
+      return;
+    }
+    this.grouping = false;
+    this.actionGrouping = false;
+
+    if (this.currentGroup.length > 0) {
+      const store = getGlobalStore();
+      store.set(this.historyAtom, (prev) => {
+        let entries = prev.currentIndex < prev.entries.length - 1
+          ? prev.entries.slice(0, prev.currentIndex + 1)
+          : [...prev.entries];
+
+        const newEntry: IHistoryEntry = {
+          patches: [...this.currentGroup],
+          inversePatches: [...this.currentGroupInverse],
+          timestamp: Date.now(),
+          snapshot: getSnapshot(this.target),
+        };
+
+        entries.push(newEntry);
+        let newIndex = entries.length - 1;
+
+        if (entries.length > this.maxHistoryLength) {
+          const excess = entries.length - this.maxHistoryLength;
+          entries = entries.slice(excess);
+          newIndex -= excess;
+        }
+
+        return {
+          ...prev,
+          entries,
+          currentIndex: newIndex,
+        };
+      });
+    }
+    this.currentGroup = [];
+    this.currentGroupInverse = [];
+  }
+
+  withoutUndo<T>(fn: () => T): T {
+    this.skipRecording = true;
+    try {
+      return fn();
+    } finally {
+      this.skipRecording = false;
+    }
   }
 
   dispose(): void {
-    timeTravelManagersRegistry.delete(this.target);
+    historyTrackersRegistry.delete(this.target);
     if (this.disposer) {
       this.disposer();
       this.disposer = null;
@@ -549,6 +478,82 @@ class TimeTravelManager implements ITimeTravelManager {
       this.actionDisposer = null;
     }
   }
+}
+
+export function getOrCreateHistoryTracker(
+  target: unknown,
+  options: IUndoManagerOptions & { maxSnapshots?: number; autoRecord?: boolean } = {}
+): HistoryTracker {
+  let tracker = historyTrackersRegistry.get(target);
+  if (!tracker) {
+    tracker = new HistoryTracker(target, options);
+    historyTrackersRegistry.set(target, tracker);
+  }
+  return tracker;
+}
+
+// ============================================================================
+// Factory Functions
+// ============================================================================
+
+/**
+ * Create an undo manager for a state tree
+ */
+export function createUndoManager(
+  target: unknown,
+  options?: IUndoManagerOptions
+): IUndoManager {
+  const tracker = getOrCreateHistoryTracker(target, options);
+  tracker.autoRecord = true; // UndoManager always auto-records
+  const store = getGlobalStore();
+
+  return {
+    get canUndo() {
+      const state = store.get(tracker.historyAtom);
+      return state.currentIndex >= 0;
+    },
+    get canRedo() {
+      const state = store.get(tracker.historyAtom);
+      return state.currentIndex < state.entries.length - 1;
+    },
+    get undoLevels() {
+      const state = store.get(tracker.historyAtom);
+      return state.currentIndex + 1;
+    },
+    get redoLevels() {
+      const state = store.get(tracker.historyAtom);
+      return state.entries.length - state.currentIndex - 1;
+    },
+    get history() {
+      const state = store.get(tracker.historyAtom);
+      return state.entries;
+    },
+    get historyIndex() {
+      const state = store.get(tracker.historyAtom);
+      return state.currentIndex;
+    },
+    undo() {
+      tracker.undo();
+    },
+    redo() {
+      tracker.redo();
+    },
+    clear() {
+      tracker.clear();
+    },
+    startGroup() {
+      tracker.startGroup();
+    },
+    endGroup() {
+      tracker.endGroup();
+    },
+    withoutUndo<T>(fn: () => T): T {
+      return tracker.withoutUndo(fn);
+    },
+    dispose() {
+      tracker.dispose();
+    },
+  };
 }
 
 /**
@@ -561,7 +566,51 @@ export function createTimeTravelManager(
     autoRecord?: boolean;
   }
 ): ITimeTravelManager {
-  return new TimeTravelManager(target, options);
+  const tracker = getOrCreateHistoryTracker(target, options);
+  if (options?.autoRecord) {
+    tracker.autoRecord = true;
+  }
+  const store = getGlobalStore();
+
+  return {
+    get currentIndex() {
+      const state = store.get(tracker.historyAtom);
+      return state.currentIndex + 1;
+    },
+    get snapshotCount() {
+      const state = store.get(tracker.historyAtom);
+      return state.entries.length + 1;
+    },
+    get canGoBack() {
+      const state = store.get(tracker.historyAtom);
+      return state.currentIndex + 1 > 0;
+    },
+    get canGoForward() {
+      const state = store.get(tracker.historyAtom);
+      return state.currentIndex + 1 < state.entries.length + 1 - 1;
+    },
+    record() {
+      tracker.record();
+    },
+    goBack() {
+      tracker.goBack();
+    },
+    goForward() {
+      tracker.goForward();
+    },
+    goTo(index: number) {
+      tracker.goTo(index);
+    },
+    getSnapshot(index: number) {
+      return tracker.getSnapshot(index);
+    },
+    clear() {
+      tracker.clear();
+    },
+    dispose() {
+      tracker.dispose();
+    },
+  };
 }
 
 // ============================================================================
@@ -621,7 +670,7 @@ class ActionRecorder implements IActionRecorder {
   start(): void {
     if (this.recording) return;
     this.recording = true;
-    
+
     this.disposer = onAction(this.target, (action: { name: string; path: string; args: unknown[] }) => {
       this.recordedActions.push({
         ...action,
@@ -644,7 +693,7 @@ class ActionRecorder implements IActionRecorder {
 
   replay(target: unknown): void {
     const node = getStateTreeNode(target);
-    
+
     for (const action of this.recordedActions) {
       // Navigate to the correct node
       let currentNode = node;
@@ -659,7 +708,7 @@ class ActionRecorder implements IActionRecorder {
           currentNode = child;
         }
       }
-      
+
       const instance = currentNode.getInstance() as Record<string, Function>;
       if (typeof instance[action.name] === 'function') {
         instance[action.name](...action.args);

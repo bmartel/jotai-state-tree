@@ -38,6 +38,11 @@ Each template demonstrates specific parts of the library, ranging from basic mod
 - **Key APIs**: `useHydrateStore`, `setGlobalStore`, LocalStorage syncing.
 - **Description**: A note-taking application designed for Server-Side Rendering (SSR) environments. Shows how to prevent hydration mismatches and isolate state tree instances using scoped Jotai stores (vital for multi-user pages or micro-frontends).
 
+### 7. Multipage Bookstore Router (`./multipage-router`) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/bmartel/jotai-state-tree/tree/main/examples/multipage-router?file=src/App.tsx)
+- **Core Focus**: URL routing, route parameters, wildcards, query parameters, navigation guards, and transition logging.
+- **Key APIs**: `createRouter`, `RouteView`, `useRouter`, `beforeNavigate`, `afterNavigate`.
+- **Description**: A multi-page mock bookstore directory. Showcases dynamic parameter routing for book details, query parameters for search/category filters, a wildcard file page, and a secure administration dashboard protected by navigation guards that redirect unauthenticated visits.
+
 ---
 
 ## Quick Start
@@ -74,6 +79,9 @@ npm run example:form
 
 # SSR Notes App
 npm run example:notes
+
+# Multipage Bookstore Router
+npm run example:router
 ```
 
 ---

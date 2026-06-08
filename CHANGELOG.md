@@ -1,3 +1,10 @@
+# [1.7.0](https://github.com/bmartel/jotai-state-tree/compare/v1.6.0...v1.7.0) (2026-06-08)
+
+
+### Features
+
+* add multipage router example template and integration tests ([36e4452](https://github.com/bmartel/jotai-state-tree/commit/36e4452b320c0a73b920139dd013539814d3514a))
+
 # [1.6.0](https://github.com/bmartel/jotai-state-tree/compare/v1.5.0...v1.6.0) (2026-06-08)
 
 

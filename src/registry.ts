@@ -185,11 +185,23 @@ export function resolveModelAsync<T extends IAnyType = IAnyType>(
 
   // Create pending resolution
   return new Promise((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
+    let timeoutId: any;
+
+    const wrappedResolve = (type: IAnyType) => {
+      clearTimeout(timeoutId);
+      resolve(type as T);
+    };
+
+    const wrappedReject = (error: Error) => {
+      clearTimeout(timeoutId);
+      reject(error);
+    };
+
+    timeoutId = setTimeout(() => {
       // Remove from pending
       const pending = pendingResolutions.get(name);
       if (pending) {
-        const index = pending.findIndex((p) => p.resolve === resolve);
+        const index = pending.findIndex((p) => p.reject === wrappedReject);
         if (index >= 0) {
           pending.splice(index, 1);
           if (pending.length === 0) {
@@ -203,16 +215,6 @@ export function resolveModelAsync<T extends IAnyType = IAnyType>(
         ),
       );
     }, timeout);
-
-    const wrappedResolve = (type: IAnyType) => {
-      clearTimeout(timeoutId);
-      resolve(type as T);
-    };
-
-    const wrappedReject = (error: Error) => {
-      clearTimeout(timeoutId);
-      reject(error);
-    };
 
     if (!pendingResolutions.has(name)) {
       pendingResolutions.set(name, []);

@@ -17,6 +17,7 @@ import {
   RouteView,
   RouterContext,
   useSyncedStore,
+  useLocalObservable,
   useSnapshot,
   useIsAlive,
   useWatchPath,
@@ -25,7 +26,10 @@ import {
   batch,
   scheduleUpdate,
   useUndoManager,
+  useObserverTracking,
+  createStoreContext,
 } from '../react';
+import { $treenode } from '../tree';
 
 describe('React Extra Hooks & Bindings', () => {
   const Todo = types.model('Todo', {
@@ -353,6 +357,166 @@ describe('React Extra Hooks & Bindings', () => {
     act(() => {
       screen.getByTestId('trigger').click();
     });
+    cleanup();
+  });
+
+  it('react additional edge cases and branch coverage', () => {
+    // 1. useObserverTracking within an observer component
+    const Child = types.model({ name: types.string });
+    const inst = Child.create({ name: 'alice' });
+    let trackFn: any = null;
+    const TestTracking = observer(() => {
+      trackFn = useObserverTracking();
+      return null;
+    });
+    render(<TestTracking />);
+    expect(trackFn).toBeTypeOf('function');
+    trackFn(inst);
+    cleanup();
+
+    // 2. Provider plain object context and useStoreSnapshot / useTypedStoreSnapshot
+    const plainStore = { text: 'plain' };
+    const TestPlainSnap = () => {
+      const snap = useStoreSnapshot<any>();
+      return <div data-testid="plain-snap">{snap.text}</div>;
+    };
+    render(
+      <Provider store={plainStore}>
+        <TestPlainSnap />
+      </Provider>
+    );
+    expect(screen.getByTestId('plain-snap').textContent).toBe('plain');
+    cleanup();
+
+    const { Provider: TypedProvider, useStoreSnapshot: useTypedSnapshot } = createStoreContext<any>();
+    const TestTypedPlainSnap = () => {
+      const snap = useTypedSnapshot();
+      return <div data-testid="typed-plain-snap">{snap.text}</div>;
+    };
+    render(
+      <TypedProvider store={plainStore}>
+        <TestTypedPlainSnap />
+      </TypedProvider>
+    );
+    expect(screen.getByTestId('typed-plain-snap').textContent).toBe('plain');
+    cleanup();
+
+    // 3. observer HOC called with a class component
+    const ClassComponent = class extends React.Component<any> {
+      render() {
+        return <div data-testid="class-comp">{this.props.name}</div>;
+      }
+    };
+    const ObservedClass = observer(ClassComponent);
+    render(<ObservedClass name="test-class" />);
+    expect(screen.getByTestId('class-comp').textContent).toBe('test-class');
+    cleanup();
+
+    // 4. useHydrateStore missing properties and non-StateTreeNode target
+    const ModelHydrate = types.model({
+      child: types.model({ name: types.string }),
+    });
+    const instHydrate = ModelHydrate.create({ child: { name: 'alice' } });
+    const HydrateMissingComp = observer(() => {
+      useHydrateStore(instHydrate, {});
+      return null;
+    });
+    render(<HydrateMissingComp />);
+    cleanup();
+
+    const mockRootNodeObj = {
+      $isAlive: true,
+      $path: '',
+      $type: { name: 'RootType' },
+      getInstance: () => instMock,
+      setValue: vi.fn(),
+    } as any;
+    const instMock = {
+      [$treenode]: mockRootNodeObj,
+    };
+    const HydrateMockComp = observer(() => {
+      useHydrateStore(instMock, { val: 1 });
+      return null;
+    });
+    render(<HydrateMockComp />);
+    cleanup();
+
+    // 5. getters on UndoManager and TimeTravelManager
+    const storeUndo = Todo.create({ id: '1', text: 'Initial' });
+    const TestUndoGetters = observer(() => {
+      const undoMgr = useUndoManager(storeUndo);
+      const timeTravelMgr = useTimeTravelManager(storeUndo);
+      return (
+        <div data-testid="getters">
+          {undoMgr.historyIndex} - {undoMgr.history.length} - {timeTravelMgr.canGoForward ? 'yes' : 'no'} - {timeTravelMgr.getSnapshot(0) !== undefined ? 'yes' : 'no'}
+        </div>
+      );
+    });
+    render(<TestUndoGetters />);
+    expect(screen.getByTestId('getters').textContent).toContain('-1 - 0 - no - yes');
+    cleanup();
+
+    // 6. RouteView without fallback renders null
+    const pagesRoute = { home: () => <div>Home</div> };
+    const mockRouterNoRoute = {
+      currentRouteName: 'unknown',
+      params: {},
+      query: {},
+    };
+    const { container } = render(<RouteView router={mockRouterNoRoute} pages={pagesRoute} />);
+    expect(container.firstChild).toBeNull();
+    cleanup();
+
+    // 7. useObserverTracking non-node call
+    let trackFnMock: any = null;
+    const TestTrackingNonNode = observer(() => {
+      trackFnMock = useObserverTracking();
+      return null;
+    });
+    render(<TestTrackingNonNode />);
+    expect(trackFnMock).toBeTypeOf('function');
+    expect(() => trackFnMock(null)).not.toThrow();
+    cleanup();
+
+    // 8. observer with functional component with forwardRef true option
+    const ForwardRefFunc = observer((props: any, ref: any) => {
+      React.useImperativeHandle(ref, () => ({ inner: 'val' }));
+      return <div data-testid="fr-func">FR Func</div>;
+    }, { forwardRef: true });
+    const refFunc = React.createRef<any>();
+    render(<ForwardRefFunc ref={refFunc} />);
+    expect(screen.getByTestId('fr-func').textContent).toBe('FR Func');
+    expect(refFunc.current.inner).toBe('val');
+    cleanup();
+
+    // 9. useLocalObservable with plain object
+    const TestLocalPlain = () => {
+      const res = useLocalObservable(() => ({ x: 42 }));
+      return <div data-testid="local-plain">{res.x}</div>;
+    };
+    render(<TestLocalPlain />);
+    expect(screen.getByTestId('local-plain').textContent).toBe('42');
+    cleanup();
+
+    // 10. useObserverTracking outside observer context returns null
+    const TestTrackingOutside = () => {
+      const track = useObserverTracking();
+      expect(track).toBeNull();
+      return <div data-testid="outside">outside</div>;
+    };
+    render(<TestTrackingOutside />);
+    cleanup();
+
+    // 11. observer HOC called with Class component and forwardRef: true option
+    class LegacyClassComp extends React.Component<any> {
+      render() {
+        return <div data-testid="legacy">{this.props.name}</div>;
+      }
+    }
+    const ObservedLegacy = observer(LegacyClassComp, { forwardRef: true });
+    const refLegacy = React.createRef<any>();
+    render(<ObservedLegacy name="legacy-val" ref={refLegacy} />);
+    expect(screen.getByTestId('legacy').textContent).toBe('legacy-val');
     cleanup();
   });
 });

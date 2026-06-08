@@ -71,6 +71,13 @@ describe('Compatibility Utilities', () => {
     const instance = Model.create({ name: 'test' });
     expect(isInstanceOf(instance, Model)).toBe(true);
     expect(isInstanceOf({}, Model)).toBe(false);
+
+    // Same name but different type reference
+    const ModelWithSameName = types.model('TestModel', {
+      name: types.string,
+      other: types.optional(types.number, 0),
+    });
+    expect(isInstanceOf(instance, ModelWithSameName)).toBe(true);
   });
 
   it('getOrCreate', () => {
@@ -96,6 +103,12 @@ describe('Compatibility Utilities', () => {
     expect(info.identifier).toBe('1');
     expect(info.isAlive).toBe(true);
     expect(info.snapshot).toEqual({ id: '1', name: 'test' });
+
+    // Model without identifier
+    const SimpleModel = types.model('Simple', { name: types.string });
+    const simpleInst = SimpleModel.create({ name: 'hello' });
+    const simpleInfo = getDebugInfo(simpleInst);
+    expect(simpleInfo.identifier).toBeNull();
   });
 
   it('printTree', () => {

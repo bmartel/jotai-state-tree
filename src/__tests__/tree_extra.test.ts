@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   types,
   getRoot,
@@ -39,6 +39,7 @@ import {
   getMembers,
   cleanupStaleEntries,
   getRegistryStats,
+  getSnapshot,
 } from '../index';
 import {
   $treenode,
@@ -47,7 +48,14 @@ import {
   applySnapshotToNode,
   registerActionRecorderHook,
   getNodesOfType,
+  nodeRegistry,
+  identifierRegistry,
+  StateTreeNode,
+  getSnapshotFromNode,
+  clearAllRegistries,
+  getGlobalStore,
 } from '../tree';
+import * as lifecycleModule from '../lifecycle';
 
 describe('Tree Utilities Extra', () => {
   const Child = types.model('Child', {
@@ -614,6 +622,242 @@ describe('Tree Utilities Additional Coverage', () => {
 
     const stats = getTreeStats(inst);
     expect(stats.nodeCount).toBe(1);
+  });
+
+  it('tree additional coverage edge cases', async () => {
+    // 1. MockFinalizationRegistry for identifierFinalizationRegistry
+    vi.resetModules();
+    let cleanupCallback: any = null;
+    const OriginalFinalizationRegistry = global.FinalizationRegistry;
+    global.FinalizationRegistry = class MockFinalizationRegistry {
+      constructor(callback: any) {
+        cleanupCallback = callback;
+      }
+      register() {}
+      unregister() {}
+    } as any;
+    
+    // Re-import tree module to capture callback
+    const treeMock = await import('../tree');
+    global.FinalizationRegistry = OriginalFinalizationRegistry;
+
+    // Now test callback logic
+    expect(cleanupCallback).toBeTypeOf('function');
+    // typeMap not found
+    cleanupCallback({ typeName: 'NonExistentType', identifier: 'id1' });
+
+    // typeMap exists but ref deref is undefined
+    const mockMap = new Map();
+    mockMap.set('id1', { deref: () => undefined });
+    treeMock.identifierRegistry.set('TestType', mockMap);
+    cleanupCallback({ typeName: 'TestType', identifier: 'id1' });
+    expect(mockMap.has('id1')).toBe(false);
+    expect(treeMock.identifierRegistry.has('TestType')).toBe(false); // size was 0, so deleted
+
+    // typeMap size > 0 not deleted
+    const mockMap2 = new Map();
+    mockMap2.set('id1', { deref: () => undefined });
+    mockMap2.set('id2', { deref: () => ({}) }); // still alive
+    treeMock.identifierRegistry.set('TestType2', mockMap2);
+    cleanupCallback({ typeName: 'TestType2', identifier: 'id1' });
+    expect(mockMap2.has('id1')).toBe(false);
+    expect(treeMock.identifierRegistry.has('TestType2')).toBe(true);
+
+    // Restore modules
+    vi.resetModules();
+
+    // 2. onLifecycleChange called twice
+    const ModelL = types.model('L', {});
+    const instL = ModelL.create({});
+    const nodeL = getStateTreeNode(instL);
+    const dispL1 = onLifecycleChange(nodeL, () => {});
+    const dispL2 = onLifecycleChange(nodeL, () => {});
+    dispL1();
+    dispL2();
+
+    // 3. cloneAndSerialize with a class instance
+    const ModelF = types.model({ x: types.frozen() });
+    const instF = ModelF.create({ x: {} });
+    unprotect(instF);
+    class CustomClass { prop = 42; }
+    const customInstance = new CustomClass();
+    instF.x = customInstance;
+    expect(instF.x).toEqual({ prop: 42 });
+
+    // 4. setInstance primitive / null value
+    nodeL.setInstance(null);
+    nodeL.setInstance(123);
+
+    // 5. removeChild nonExistent
+    expect(() => nodeL.removeChild('nonExistentKey')).not.toThrow();
+
+    // 6. notifyPropertyChange root path vs child path
+    const ModelNested = types.model('Nested', {
+      val: types.number,
+    });
+    const ModelP = types.model('P', {
+      prim: types.number,
+      child: ModelNested,
+    });
+    const instP = ModelP.create({ prim: 1, child: { val: 10 } });
+    const nodeP = getStateTreeNode(instP);
+    const nodeChild = getStateTreeNode(instP.child);
+    
+    // root path change path = /prim
+    nodeP.notifyPropertyChange('prim', 2, 1);
+    // child path change path = /child/val
+    nodeChild.notifyPropertyChange('val', 11, 10);
+
+    // 7. detach on root node
+    nodeP.detach();
+
+    // 8. detach child from parent with multiple children
+    const ModelMulti = types.model('Multi', {
+      c1: ModelNested,
+      c2: ModelNested,
+    });
+    const instMulti = ModelMulti.create({
+      c1: { val: 1 },
+      c2: { val: 2 },
+    });
+    const nodeC1 = getStateTreeNode(instMulti.c1);
+    nodeC1.detach();
+
+    // 9. getSnapshot from reference node with null identifierValue fallback
+    const TargetRef = types.model('TargetRef', { id: types.identifier });
+    const unresolvedRefNode = new StateTreeNode(
+      types.reference(TargetRef),
+      'unresolved-id',
+      undefined,
+      undefined,
+      'ref'
+    );
+    unresolvedRefNode.identifierValue = undefined as any;
+    expect(getSnapshotFromNode(unresolvedRefNode)).toBe('unresolved-id');
+
+    // 10. getNodesOfType with a stale entry
+    const typeMapGet = new Map();
+    typeMapGet.set('stale-id', { deref: () => undefined } as any);
+    identifierRegistry.set('StaleModel', typeMapGet);
+    expect(getNodesOfType('StaleModel').length).toBe(0);
+
+    // 11. clearAllRegistries with stale entry
+    nodeRegistry.set('stale-node-id', { node: { deref: () => undefined } as any });
+    clearAllRegistries();
+
+    // 12. getPathParts on root node
+    expect(getPathParts(instL)).toEqual([]);
+
+    // 13. clone(node, false)
+    const storeClone = ModelL.create({});
+    const cloned = clone(storeClone, false);
+    expect(cloned).toBeDefined();
+
+    // 14. applyPatch "add" with key "-" to array
+    const ModelArr = types.model('Arr', {
+      numbers: types.array(types.number),
+    });
+    const instArr = ModelArr.create({ numbers: [1, 2] });
+    unprotect(instArr);
+    applyPatch(instArr, { op: 'add', path: '/numbers/-', value: 3 });
+    expect(instArr.numbers.toJSON()).toEqual([1, 2, 3]);
+
+    // 15. applyPatch "add" on non-existent property on raw value
+    applyPatch(instArr, { op: 'add', path: '/extraProp', value: 'hello' });
+
+    // 16. applyPatch "replace" on non-existent property on raw value
+    applyPatch(instArr, { op: 'replace', path: '/extraProp', value: 'world' });
+
+    // 17. applyPatch "remove" on non-existent property on raw value
+    applyPatch(instArr, { op: 'remove', path: '/extraProp' });
+
+    // 18. Patch recorder with manual listener re-registration
+    const recorderNode = getStateTreeNode(instArr);
+    const recorder = recordPatches(instArr);
+    const recorderListener = Array.from(recorderNode.patchListeners)[0];
+    recorder.stop();
+    // Add back listener manually when recording is false
+    recorderNode.patchListeners.add(recorderListener);
+    instArr.numbers.push(4);
+    recorderNode.patchListeners.delete(recorderListener);
+
+    // 19. getRelativePath(node, node) -> "."
+    expect(getRelativePath(instL, instL)).toBe('.');
+
+    // 20. extraProp in model snapshot creation (line 302 and branch 301)
+    const ModelExtra = types.model('ModelExtra', {
+      x: types.number,
+    });
+    const instExtra = ModelExtra.create({ x: 1 });
+    const nodeExtra = getStateTreeNode(instExtra);
+    nodeExtra.setValue({ x: 1, extraProp: 'hello' });
+    const snapExtra = getGlobalStore().get(nodeExtra.snapshotAtom) as any;
+    expect(snapExtra.extraProp).toBe('hello');
+
+    // 21. finalizer registry cleanup with falsy ref (line 128)
+    let cleanupCallback3: any = null;
+    const OriginalFinalizationRegistry2 = global.FinalizationRegistry;
+    global.FinalizationRegistry = class MockFinalizationRegistry {
+      constructor(callback: any) {
+        cleanupCallback3 = callback;
+      }
+      register() {}
+      unregister() {}
+    } as any;
+    const treeMock2 = await import('../tree');
+    global.FinalizationRegistry = OriginalFinalizationRegistry2;
+    
+    const mockMap3 = new Map();
+    treeMock2.identifierRegistry.set('TestType3', mockMap3);
+    cleanupCallback3({ typeName: 'TestType3', identifier: 'nonExistent' });
+    expect(treeMock2.identifierRegistry.has('TestType3')).toBe(false);
+
+    // 22. cloneAndSerialize with proto === null and other prototype (line 199)
+    const ModelF2 = types.model({ x: types.frozen() });
+    const instF2 = ModelF2.create({ x: {} });
+    unprotect(instF2);
+    const objNullProto = Object.create(null);
+    objNullProto.a = 123;
+    instF2.x = objNullProto;
+    expect(instF2.x).toEqual({ a: 123 });
+    class MyClass { foo = 'bar'; }
+    const customInstance2 = new MyClass();
+    const childNodeF = getStateTreeNode(instF2).getChild('x')!;
+    childNodeF.setValue(customInstance2);
+    expect(instF2.x).toBe(customInstance2);
+
+    // 23. postProcessor truthy (line 306)
+    const PostProcessedModel = types.model('PostProcessedModel', {
+      value: types.string,
+    }).postProcessSnapshot((snapshot: any) => {
+      return { value: (snapshot.value || '').toUpperCase() };
+    });
+    const ppm = PostProcessedModel.create({ value: 'hello' });
+    const snap = getGlobalStore().get(getStateTreeNode(ppm).snapshotAtom) as any;
+    expect(snap.value).toBe('HELLO');
+
+    // 24. child === this false branch (line 613)
+    const instMulti2 = ModelMulti.create({
+      c1: { val: 1 },
+      c2: { val: 2 },
+    });
+    const nodeC2 = getStateTreeNode(instMulti2.c2);
+    nodeC2.detach();
+
+    // 25. applyPatch add/remove on primitive node (lines 1107 and 1127)
+    const mockStringNode = {
+      $isAlive: true,
+      getInstance: () => null,
+      getValue: () => "hello",
+      setValue: vi.fn(),
+      getChild: () => null,
+      getRoot: function() { return this; },
+    } as any;
+    const stringWrapper = { [$treenode]: mockStringNode };
+    
+    applyPatch(stringWrapper, { op: 'add', path: '/foo', value: 123 });
+    applyPatch(stringWrapper, { op: 'remove', path: '/foo' });
+    expect(mockStringNode.setValue).not.toHaveBeenCalled();
   });
 });
 

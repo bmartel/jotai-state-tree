@@ -17,6 +17,10 @@ import {
   getType,
   isType,
   getChildType,
+  canWrite,
+  getHooks,
+  recordActions,
+  notifyActionRecorders,
 } from '../lifecycle';
 import { $treenode } from '../tree';
 
@@ -331,6 +335,119 @@ describe('Lifecycle & Middleware Extra', () => {
     });
 
     expect(root.target.val).toBe('updated');
+  });
+
+  it('additional lifecycle and middleware coverage edge cases', async () => {
+    // 1. getHooks directly
+    const Target = types.model('Target', { val: types.string });
+    const instance = Target.create({ val: 'test' });
+    const node = (instance as any)[$treenode];
+    expect(getHooks(node)).toEqual({});
+    const mockNode = {} as any;
+    expect(getHooks(mockNode)).toBeUndefined();
+
+    // 2. addMiddleware disposer branches
+    // Global disposer index < 0 (calling twice)
+    const dispGlobal = addMiddleware(null, () => {});
+    dispGlobal();
+    dispGlobal(); // should noop
+
+    // Node disposer when current is falsy
+    const dispNode = addMiddleware(instance, () => {});
+    const origGet = WeakMap.prototype.get;
+    WeakMap.prototype.get = function(this: any, key: any) {
+      if (key === node) {
+        return undefined;
+      }
+      return origGet.call(this, key);
+    };
+    dispNode();
+    WeakMap.prototype.get = origGet;
+
+    // 3. aborted check in next() (middleware abort then calling next)
+    const ModelWithAction = types.model('M', {}).actions(self => ({
+      run() { return 100; }
+    }));
+    const targetWithAction = ModelWithAction.create({});
+    const dispAbort = addMiddleware(targetWithAction, (call, next, abort) => {
+      abort(99);
+      return next(call); // this will trigger the aborted check in next()
+    });
+    const resAbort = targetWithAction.run();
+    expect(resAbort).toBe(99);
+    dispAbort();
+
+    // 4. flow execution on a node but outside an action
+    // 4. flow execution on a node but outside an action
+    const myFlow = flow(function* () {
+      const p = yield Promise.resolve(42);
+      return p;
+    });
+    const resFlow = await myFlow.call(targetWithAction);
+    expect(resFlow).toBe(42);
+
+    // 5. flow initial step throwing error (isResume = false path)
+    const throwingFlow = flow(function* () {
+      throw new Error('immediate flow error');
+    });
+    await expect(throwingFlow.call(targetWithAction)).rejects.toThrow('immediate flow error');
+
+    // 6. recordActions edge cases
+    // Multiple recorders on same node
+    const rec1 = recordActions(targetWithAction);
+    const rec2 = recordActions(targetWithAction);
+    
+    // Trigger action to record
+    targetWithAction.run();
+    
+    // Stop rec1 (size goes from 2 to 1, size > 0 branch)
+    rec1.stop();
+    // Stop rec2 (size goes from 1 to 0, size === 0 branch)
+    rec2.stop();
+
+    // stop() when currentRecorders is falsy
+    const rec3 = recordActions(targetWithAction);
+    const tNode = (targetWithAction as any)[$treenode];
+    const origGet2 = WeakMap.prototype.get;
+    WeakMap.prototype.get = function(this: any, key: any) {
+      if (key === tNode) {
+        return undefined;
+      }
+      return origGet2.call(this, key);
+    };
+    rec3.stop();
+    WeakMap.prototype.get = origGet2;
+
+    // recordActions dead node branch
+    const recDead = recordActions(targetWithAction);
+    const targetNode = (targetWithAction as any)[$treenode];
+    const spyAlive = vi.spyOn(targetNode, '$isAlive', 'get').mockReturnValue(false);
+    notifyActionRecorders(targetNode, { name: 'run', args: [], path: '' });
+    spyAlive.mockRestore();
+    expect(recDead.actions.length).toBe(0); // should not record because node is not alive
+    recDead.stop();
+
+    // replay with function and non-function action name
+    const recReplay = recordActions(targetWithAction);
+    // Record a real action
+    targetWithAction.run();
+    // Stop recording before replaying to prevent infinite loop on recorded actions
+    recReplay.stop();
+    // Manually push an action that doesn't exist
+    recReplay.actions.push({ name: 'nonExistentAction', args: [], path: '' });
+    expect(() => recReplay.replay(targetWithAction)).not.toThrow();
+
+    // 7. canWrite edge cases
+    // Dead node
+    const deadNode = { $isAlive: false } as any;
+    expect(canWrite(deadNode)).toBe(false);
+
+    // production env
+    const origEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    const liveNode = { $isAlive: true } as any;
+    expect(canWrite(liveNode)).toBe(true);
+    process.env.NODE_ENV = origEnv; // restore
   });
 });
 

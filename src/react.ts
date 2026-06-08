@@ -58,16 +58,11 @@ import { RouterContext, useRouter } from "./router";
 // ============================================================================
 
 type TrackNodeFn = (node: unknown) => void;
-const ObserverTrackingContext = React.createContext<TrackNodeFn | null>(null);
-
 /**
  * Hook to get the current observer tracking function.
  * Used by hooks like useStore to register accessed nodes for reactivity.
  */
 export function useObserverTracking(): TrackNodeFn | null {
-  const contextFn = React.useContext(ObserverTrackingContext);
-  if (contextFn) return contextFn;
-
   const activeFn = getActiveTrackingFn();
   if (activeFn) {
     return (node: unknown) => {
@@ -103,7 +98,7 @@ export function observer<P extends object>(
   if (options?.forwardRef) {
     ObserverComponent = memo(forwardRef<unknown, P>((props, ref) => {
       return useObserver(() => {
-        if (typeof Component === "function") {
+        if (typeof Component === "function" && !(Component.prototype && Component.prototype.isReactComponent)) {
           return (Component as any)(props, ref);
         }
         return React.createElement(Component, { ...props, ref } as any);
@@ -113,7 +108,7 @@ export function observer<P extends object>(
   } else {
     ObserverComponent = memo((props: P) => {
       return useObserver(() => {
-        if (typeof Component === "function") {
+        if (typeof Component === "function" && !(Component.prototype && Component.prototype.isReactComponent)) {
           return (Component as any)(props);
         }
         return React.createElement(Component, props);

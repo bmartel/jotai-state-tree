@@ -13,6 +13,7 @@ import {
   clearModelRegistry,
 } from '../registry';
 import { getRegistryStats, cleanupStaleEntries, clearAllRegistries } from '../tree';
+import * as treeModule from '../tree';
 
 describe('Model Registry & Dynamic References Extra', () => {
   it('register and unregister models', () => {
@@ -223,6 +224,118 @@ describe('Model Registry & Dynamic References Extra', () => {
     // Test safeDynamicReference with unresolved target
     const safeUnresolvedProxy = SafeRefType.create('missing');
     expect(safeUnresolvedProxy).toBeUndefined();
+  });
+
+  it('registry additional edge cases and branch coverage', async () => {
+    // 1. Resolution timeout with multiple pending resolutions
+    clearModelRegistry();
+    const p1 = resolveModelAsync('DelayedModelMultiple', 10);
+    const p2 = resolveModelAsync('DelayedModelMultiple', 10);
+    await expect(p1).rejects.toThrow();
+    await expect(p2).rejects.toThrow();
+
+    // 2. DynamicReference tryResolve when resolveIdentifier throws
+    const Target = types.model('TargetModelReg', {
+      id: types.identifier,
+      name: types.string,
+    });
+    registerModel('TargetModelReg', Target);
+
+    const RefType = types.dynamicReference<any>('TargetModelReg');
+    const inst = Target.create({ id: 't-1', name: 'target' });
+
+    const spy = vi.spyOn(treeModule, 'resolveIdentifier').mockImplementation(() => {
+      throw new Error('mock error');
+    });
+    const proxy = RefType.create('t-1');
+    expect(() => proxy.name).toThrow(); // throws inside tryResolve's get handler
+    spy.mockRestore();
+
+    // 3. DynamicReferenceType.is when target type is resolved and checking model instances
+    expect(RefType.is(inst)).toBe(true);
+    expect(RefType.is({ name: 'not-instance' })).toBe(false);
+
+    // 4. SafeDynamicReferenceType tryResolve when targetType is not resolved
+    clearModelRegistry();
+    const SafeRefUnresolved = types.safeDynamicReference<any>('TargetModelUnresolved');
+    expect(SafeRefUnresolved.create('missing')).toBeUndefined();
+
+    // 5. SafeDynamicReferenceType tryResolve when resolution throws an error (with and without onInvalidated options)
+    registerModel('TargetModelReg', Target);
+    const SafeRef = types.safeDynamicReference<any>('TargetModelReg');
+    const spySafe = vi.spyOn(treeModule, 'resolveIdentifier').mockImplementation(() => {
+      throw new Error('mock error');
+    });
+    expect(SafeRef.create('t-1')).toBeUndefined();
+
+    const onInvalidatedSpy = vi.fn().mockReturnValue('fallback-value');
+    const SafeRefInvalidated = types.safeDynamicReference<any>('TargetModelReg', {
+      onInvalidated: onInvalidatedSpy
+    });
+    expect(SafeRefInvalidated.create('t-1')).toBe('fallback-value');
+    expect(onInvalidatedSpy).toHaveBeenCalled();
+    spySafe.mockRestore();
+
+    // 6. SafeDynamicReferenceType.is when target model is not found, and validation on valid string identifier
+    clearModelRegistry();
+    const SafeRefNoModel = types.safeDynamicReference<any>('TargetModelNoExist');
+    expect(SafeRefNoModel.is({})).toBe(false);
+    expect(SafeRefNoModel.is('valid-id')).toBe(true);
+    expect(SafeRefNoModel.is(123)).toBe(true);
+    expect(SafeRefNoModel.validate('valid-id', []).valid).toBe(true);
+
+    // 7. lateModel memoized resolution call (call getType() twice)
+    const LateModelMemo = types.lateModel('MemoModel');
+    const ActualMemo = types.model('MemoModel', { val: types.number });
+    registerModel('MemoModel', ActualMemo);
+    const m1 = LateModelMemo.create({ val: 42 });
+    const m2 = LateModelMemo.create({ val: 43 });
+    expect(m1.val).toBe(42);
+    expect(m2.val).toBe(43);
+
+    // 8. DynamicReference with onInvalidated returning falsy (should throw fallback error)
+    const RefTypeFalsy = types.dynamicReference<any>('TargetModelReg', {
+      onInvalidated: () => null as any,
+    });
+    const proxyFalsy = RefTypeFalsy.create('missing');
+    expect(() => proxyFalsy.name).toThrow('[jotai-state-tree] Failed to resolve dynamicReference("TargetModelReg") with identifier "missing"');
+  });
+
+  it('pending resolutions timeout edge cases', async () => {
+    vi.useFakeTimers();
+    clearModelRegistry();
+
+    // 1. Test clearModelRegistry with pending resolutions (covers lines 196-197, 280-281)
+    const pClear = resolveModelAsync('ClearModelTest', 100);
+    clearModelRegistry();
+    await expect(pClear).rejects.toThrow('[jotai-state-tree] Model registry was cleared while waiting for "ClearModelTest"');
+
+    // 2. Test timeout when pending is falsy (covers line 203 false branch)
+    // Mock clearTimeout to do nothing
+    const spyClear = vi.spyOn(global, 'clearTimeout').mockImplementation(() => {});
+    
+    const p1 = resolveModelAsync('FalsyPendingTest', 100);
+    const Actual = types.model('FalsyPendingTest', {});
+    registerModel('FalsyPendingTest', Actual); // resolves and deletes FalsyPendingTest from pending
+    
+    // Now trigger timeout callback
+    vi.advanceTimersByTime(100);
+    await expect(p1).resolves.toBe(Actual);
+
+    // 3. Test timeout when index < 0 (covers line 205 false branch)
+    const p2 = resolveModelAsync('IndexNegativeTest', 100);
+    clearModelRegistry(); // Rejects p2, deletes IndexNegativeTest from pending
+    
+    // Add a new pending to recreate the name entry in Map
+    const p3 = resolveModelAsync('IndexNegativeTest', 200);
+    
+    // Trigger p2's timeout (which was not cleared because of mock)
+    vi.advanceTimersByTime(100);
+    
+    await expect(p2).rejects.toThrow();
+    
+    spyClear.mockRestore();
+    vi.useRealTimers();
   });
 });
 

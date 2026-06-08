@@ -98,7 +98,7 @@ interface NodeEntry {
  * Registry mapping node IDs to their entries using WeakRef
  * This allows nodes to be garbage collected when no longer referenced
  */
-const nodeRegistry = new Map<string, NodeEntry>();
+export const nodeRegistry = new Map<string, NodeEntry>();
 
 /**
  * FinalizationRegistry for automatic cleanup when nodes are garbage collected
@@ -112,7 +112,7 @@ const nodeFinalizationRegistry = new FinalizationRegistry((nodeId: string) => {
  * Registry for identifier lookups (type -> identifier -> WeakRef<node>)
  * Uses WeakRef to allow garbage collection of nodes
  */
-const identifierRegistry = new Map<
+export const identifierRegistry = new Map<
   string,
   Map<string | number, WeakRef<StateTreeNode>>
 >();

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { types, getSnapshot, unprotect } from '../index';
+import { createRouter } from '../router';
 
 describe('Utility Types Extra', () => {
   it('maybe and maybeNull type validations', () => {
@@ -242,6 +243,49 @@ describe('Utility Types Extra', () => {
     // 7. SafeReference invalid target resolve with no handler
     const SafeRefNoHandler = types.safeReference(Child);
     expect(SafeRefNoHandler.create('non-existent')).toBeUndefined();
+
+    // 8. SafeReference.is with undefined and instance
+    expect(SafeRefNoHandler.is(undefined)).toBe(true);
+    expect(SafeRefNoHandler.is(childInst)).toBe(true);
+    expect(SafeRefNoHandler.is('not-an-instance')).toBe(false);
+
+    // 9. Reference custom get handler returning falsy
+    const RefWithFalsyGet = types.reference(Child, {
+      get(identifier) {
+        return null as any;
+      },
+      set(value) {
+        return value.id;
+      }
+    });
+    expect(() => RefWithFalsyGet.create('c-999').name).toThrow();
+
+    // 10. SnapshotProcessor without preProcessor (only postProcessor)
+    const OnlyPostProcessor = types.snapshotProcessor(
+      types.model('PostOnly', { name: types.string }),
+      {
+        postProcessor(sn) {
+          return {
+            ...sn,
+            upperName: sn.name.toUpperCase(),
+          };
+        }
+      }
+    );
+    const postInst = OnlyPostProcessor.create({ name: 'alice' });
+    expect(postInst.name).toBe('alice');
+    expect(OnlyPostProcessor.validate({ name: 'bob' }, []).valid).toBe(true);
+  });
+
+  it('router in node environment (window undefined branches)', () => {
+    const r = createRouter({
+      routes: [{ path: '/', name: 'home' }],
+    });
+    expect(r.pathname).toBe('/');
+    expect(() => r.syncLocation('/about', '', '', 'PUSH')).not.toThrow();
+    expect(() => r.go(1)).not.toThrow();
+    expect(() => r.goBack()).not.toThrow();
+    expect(() => r.goForward()).not.toThrow();
   });
 });
 

@@ -24,19 +24,17 @@ import { canWrite } from './lifecycle';
 class MSTMap<V> extends Map<string, V> implements IMSTMap<V> {
   private node!: StateTreeNode;
   private valueType!: IAnyType;
-  private initialized = false;
 
-  constructor(node: StateTreeNode, valueType: IAnyType, entries?: [string, V][]) {
+  constructor(node: StateTreeNode, valueType: IAnyType, entries: [string, V][]) {
     super();
     this.node = node;
     this.valueType = valueType;
-    this.initialized = true;
     
     // Add entries after initialization
-    if (entries) {
-      for (const [key, value] of entries) {
-        super.set(key, value);
-      }
+    for (const [key, value] of entries) {
+      super.set(key, value);
+    }
+    if (entries.length > 0) {
       this.syncToNode();
     }
   }
@@ -98,13 +96,9 @@ class MSTMap<V> extends Map<string, V> implements IMSTMap<V> {
 
   // Override mutating methods to sync
   set(key: string, value: V): this {
-    if (this.initialized) {
-      this.checkWrite();
-    }
+    this.checkWrite();
     super.set(key, value);
-    if (this.initialized) {
-      this.syncToNode();
-    }
+    this.syncToNode();
     return this;
   }
 
@@ -123,24 +117,18 @@ class MSTMap<V> extends Map<string, V> implements IMSTMap<V> {
   }
 
   delete(key: string): boolean {
-    if (this.initialized) {
-      this.checkWrite();
-    }
+    this.checkWrite();
     const result = super.delete(key);
-    if (result && this.initialized) {
+    if (result) {
       this.syncToNode();
     }
     return result;
   }
 
   clear(): void {
-    if (this.initialized) {
-      this.checkWrite();
-    }
+    this.checkWrite();
     super.clear();
-    if (this.initialized) {
-      this.syncToNode();
-    }
+    this.syncToNode();
   }
 
   toJSON(): Record<string, V> {

@@ -21,8 +21,7 @@ import type {
 
 function createSimpleType<T>(
   name: string,
-  validator: (value: unknown) => boolean,
-  defaultValue?: T
+  validator: (value: unknown) => boolean
 ): ISimpleType<T> {
   return {
     name,
@@ -33,9 +32,6 @@ function createSimpleType<T>(
 
     create(snapshot?: T): T {
       if (snapshot === undefined) {
-        if (defaultValue !== undefined) {
-          return defaultValue;
-        }
         throw new Error(`[jotai-state-tree] A value of type '${name}' is required`);
       }
       if (!validator(snapshot)) {

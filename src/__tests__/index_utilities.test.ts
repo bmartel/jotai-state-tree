@@ -32,6 +32,10 @@ describe('Index Utilities', () => {
     const instance = Model.create({ id: 'item-1' });
     expect(castToReferenceSnapshot(instance)).toBe('item-1');
     expect(castToReferenceSnapshot('simple-id')).toBe('simple-id');
+
+    const ModelNoId = types.model('ItemNoId', { name: types.string });
+    const instanceNoId = ModelNoId.create({ name: 'test' });
+    expect(castToReferenceSnapshot(instanceNoId)).toBe(instanceNoId);
   });
 
   it('typecheck helper', () => {

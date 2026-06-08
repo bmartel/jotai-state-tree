@@ -131,7 +131,48 @@ describe('MST Map Operations Extra', () => {
     expect(group.users.get('nonexistent')).toBeUndefined();
 
     // Access dead map node
+    const usersMap = group.users;
     destroy(group);
-    expect(() => group.users).toThrow('the node is dead');
+    expect(() => usersMap.set('k', {} as any)).toThrow('[jotai-state-tree] Cannot modify map - the node is dead.');
+    expect(() => usersMap.get('k')).toThrow('[jotai-state-tree] Cannot access map - the node is dead.');
+
+    // Put model instance without identifier
+    const NoIdModel = types.model({ name: types.string });
+    const GroupNoId = types.model({ map: types.map(NoIdModel) });
+    const g = GroupNoId.create({ map: {} });
+    unprotect(g);
+    const inst = NoIdModel.create({ name: 'test' });
+    expect(() => g.map.put(inst)).toThrow('[jotai-state-tree] Cannot put a value without an identifier into a map');
+
+    // Map type creation without snapshot
+    const MapType = types.map(types.string);
+    const emptyMap = MapType.create();
+    expect(emptyMap.toJSON()).toEqual({});
+
+    // Merge using Map instance
+    const group2 = Group.create({ users: {} });
+    unprotect(group2);
+    const mapInput = new Map([
+      ['u-1', { id: 'u-1', name: 'Alice' } as any]
+    ]);
+    group2.users.merge(mapInput);
+    expect(group2.users.get('u-1')?.name).toBe('Alice');
+
+    // MapType validate with Map instance and plain object, and nested path validation
+    const MapTypeStr = types.map(types.string);
+    expect(MapTypeStr.validate(new Map([['k', 'v']]), []).valid).toBe(true);
+    expect(MapTypeStr.validate(new Map([['k', 123 as any]]), []).valid).toBe(false);
+
+    const NestedMapModel = types.model({
+      map: types.map(types.string),
+    });
+    const result = NestedMapModel.validate({ map: { k: 123 as any } }, []);
+    expect(result.valid).toBe(false);
+    expect(result.errors[0].context[result.errors[0].context.length - 1].path).toBe('/map/k');
+
+    // Deleting non-existent key
+    const group3 = Group.create({ users: {} });
+    unprotect(group3);
+    expect(group3.users.delete('nonexistent')).toBe(false);
   });
 });

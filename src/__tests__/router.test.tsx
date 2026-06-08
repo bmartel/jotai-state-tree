@@ -4,9 +4,9 @@
 import React from 'react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
-import { createRouter, normalizePathname, matchRoutes } from '../router';
+import { createRouter, normalizePathname, matchRoutes, parseUrl } from '../router';
 import { RouterContext, RouteView, useRouter } from '../react';
-import { clearAllRegistries, resetGlobalStore, destroy } from '../index';
+import { clearAllRegistries, resetGlobalStore, destroy, unprotect } from '../index';
 
 describe('State Router', () => {
   beforeEach(() => {
@@ -444,5 +444,248 @@ describe('State Router', () => {
     expect(removeEventListenerSpy).toHaveBeenCalledWith('popstate', expect.any(Function));
   });
 
-});
+  it('wildcard matching and segment length limit in matchPath', () => {
+    // 1. matchPath with * or /*
+    const r = createRouter({
+      routes: [
+        { path: '/*', name: 'wildcard' },
+      ],
+      initialUrl: '/some/nested/path',
+    });
+    expect(r.currentRouteName).toBe('wildcard');
+    expect(r.params).toEqual({ '*': '/some/nested/path' });
 
+    // 2. matchPath segment length limit
+    const r2 = createRouter({
+      routes: [
+        { path: '/a/b/*', name: 'wildcard-segment' },
+      ],
+      initialUrl: '/a',
+    });
+    expect(r2.currentRouteName).toBeNull();
+  });
+
+  it('afterNavigate inside replace action', async () => {
+    const afterSpy = vi.fn();
+    const rReplace = createRouter({
+      routes,
+      initialUrl: '/',
+      afterNavigate: afterSpy,
+    });
+    await act(async () => {
+      await rReplace.replace('/about');
+    });
+    expect(afterSpy).toHaveBeenCalled();
+  });
+
+  it('popstate listener sync beforeNavigate and empty beforeNavigate options', async () => {
+    let popStateCallback: any = null;
+    const addListenerSpy = vi.spyOn(window, 'addEventListener').mockImplementation((event, callback) => {
+      if (event === 'popstate') {
+        popStateCallback = callback;
+      }
+    });
+
+    // 1. popstate with no beforeNavigate hook
+    const r1 = createRouter({
+      routes,
+      initialUrl: '/',
+    });
+    vi.stubGlobal('location', { pathname: '/about', search: '', hash: '', href: 'http://localhost/about' });
+    popStateCallback(new PopStateEvent('popstate', { state: 'some-state' }));
+    expect(r1.pathname).toBe('/about');
+
+    // 2. popstate with sync beforeNavigate returning true
+    const r2 = createRouter({
+      routes,
+      initialUrl: '/',
+      beforeNavigate: () => true,
+    });
+    vi.stubGlobal('location', { pathname: '/about', search: '', hash: '', href: 'http://localhost/about' });
+    popStateCallback(new PopStateEvent('popstate', { state: null }));
+    expect(r2.pathname).toBe('/about');
+
+    // 3. popstate with sync beforeNavigate returning false (should revert state)
+    const r3 = createRouter({
+      routes,
+      initialUrl: '/about',
+      beforeNavigate: () => false,
+    });
+    vi.stubGlobal('location', { pathname: '/files/secret', search: '', hash: '', href: 'http://localhost/files/secret' });
+    window.history.replaceState = vi.fn();
+    popStateCallback(new PopStateEvent('popstate', { state: null }));
+    expect(r3.pathname).toBe('/about');
+    expect(window.history.replaceState).toHaveBeenCalledWith(null, "", "/about");
+
+    // 4. popstate with sync beforeNavigate returning a redirect path
+    const r4 = createRouter({
+      routes,
+      initialUrl: '/',
+      beforeNavigate: (from, to) => {
+        if (to.pathname === '/about') {
+          return '/users/redirected';
+        }
+        return true;
+      },
+    });
+    vi.stubGlobal('location', { pathname: '/about', search: '', hash: '', href: 'http://localhost/about' });
+    await act(async () => {
+      popStateCallback(new PopStateEvent('popstate', { state: null }));
+    });
+    expect(r4.pathname).toBe('/users/redirected');
+
+    // 5. popstate with async beforeNavigate resolving to false
+    const r5 = createRouter({
+      routes,
+      initialUrl: '/about',
+      beforeNavigate: () => Promise.resolve(false),
+    });
+    vi.stubGlobal('location', { pathname: '/files/secret', search: '', hash: '', href: 'http://localhost/files/secret' });
+    window.history.replaceState = vi.fn();
+    await act(async () => {
+      popStateCallback(new PopStateEvent('popstate', { state: null }));
+    });
+    expect(r5.pathname).toBe('/about');
+    expect(window.history.replaceState).toHaveBeenCalledWith(null, "", "/about");
+
+    addListenerSpy.mockRestore();
+  });
+
+  it('useRouter successfully called inside RouterContext.Provider', () => {
+    const router = createRouter({
+      routes,
+      initialUrl: '/',
+    });
+    const TestComp = () => {
+      const activeRouter = useRouter();
+      expect(activeRouter).toBe(router);
+      return null;
+    };
+    render(
+      <RouterContext.Provider value={router}>
+        <TestComp />
+      </RouterContext.Provider>
+    );
+  });
+
+  it('useRouter successfully called inside RouterContext.Provider with plain object router', () => {
+    const plainRouter = { currentRoute: { path: '/' } };
+    const TestComp = () => {
+      const activeRouter = useRouter();
+      expect(activeRouter).toBe(plainRouter);
+      return null;
+    };
+    render(
+      <RouterContext.Provider value={plainRouter}>
+        <TestComp />
+      </RouterContext.Provider>
+    );
+  });
+
+  it('router extra edge cases and branch coverage', async () => {
+    // 1. parseUrl with // and query string decoding value branches
+    const parsed1 = parseUrl('//localhost/about?&name&a=1');
+    expect(parsed1.pathname).toBe('/about');
+    expect(parsed1.query.name).toBe('');
+    expect(parsed1.query.a).toBe('1');
+
+    // 2. currentRoute view when route is not found (find returns undefined)
+    const r = createRouter({ routes, initialUrl: '/' });
+    unprotect(r);
+    r.currentRouteName = 'non-existent';
+    expect(r.currentRoute).toBeNull();
+
+    // 3. push/replace to unmatched path
+    await act(async () => {
+      await r.push('/unmatched-path');
+    });
+    expect(r.currentRouteName).toBeNull();
+    await act(async () => {
+      await r.replace('/another-unmatched');
+    });
+    expect(r.currentRouteName).toBeNull();
+
+    // 4. popstate with async beforeNavigate resolving to redirect string and afterNavigate hook
+    const afterSpy = vi.fn();
+    let popStateCallback: any = null;
+    const addListenerSpy = vi.spyOn(window, 'addEventListener').mockImplementation((event, callback) => {
+      if (event === 'popstate') {
+        popStateCallback = callback;
+      }
+    });
+    // Create new router to capture listener
+    const rPopTrigger = createRouter({
+      routes,
+      initialUrl: '/',
+      beforeNavigate: (from, to) => to.pathname === '/about' ? Promise.resolve(true) : Promise.resolve('/about'),
+      afterNavigate: afterSpy,
+    });
+    vi.stubGlobal('location', { pathname: '/users/123', search: '', hash: '', href: 'http://localhost/users/123' });
+    await act(async () => {
+      popStateCallback(new PopStateEvent('popstate', { state: null }));
+    });
+    expect(rPopTrigger.pathname).toBe('/about');
+    expect(afterSpy).toHaveBeenCalled();
+    addListenerSpy.mockRestore();
+  });
+
+  it('router additional coverage edge cases', async () => {
+    // 1. popstate with async beforeNavigate resolving to true and afterNavigate hook
+    const afterSpy = vi.fn();
+    let popStateCallback: any = null;
+    const addListenerSpy = vi.spyOn(window, 'addEventListener').mockImplementation((event, callback) => {
+      if (event === 'popstate') {
+        popStateCallback = callback;
+      }
+    });
+    const rPopTrue = createRouter({
+      routes,
+      initialUrl: '/',
+      beforeNavigate: (from, to) => Promise.resolve(true),
+      afterNavigate: afterSpy,
+    });
+    vi.stubGlobal('location', { pathname: '/about', search: '', hash: '', href: 'http://localhost/about' });
+    await act(async () => {
+      popStateCallback(new PopStateEvent('popstate', { state: null }));
+    });
+    expect(rPopTrue.pathname).toBe('/about');
+    expect(afterSpy).toHaveBeenCalled();
+    addListenerSpy.mockRestore();
+
+    // 2. popstate to unmatched route (matched is falsy)
+    let popStateCallback2: any = null;
+    const addListenerSpy2 = vi.spyOn(window, 'addEventListener').mockImplementation((event, callback) => {
+      if (event === 'popstate') {
+        popStateCallback2 = callback;
+      }
+    });
+    const rPopUnmatched = createRouter({
+      routes,
+      initialUrl: '/',
+    });
+    vi.stubGlobal('location', { pathname: '/unknown-route-pop', search: '', hash: '', href: 'http://localhost/unknown-route-pop' });
+    await act(async () => {
+      popStateCallback2(new PopStateEvent('popstate', { state: null }));
+    });
+    expect(rPopUnmatched.currentRouteName).toBeNull();
+    addListenerSpy2.mockRestore();
+
+    // 3. destroy router where _popStateListener is null
+    const rDestroy = createRouter({ routes, initialUrl: '/' });
+    rDestroy.setPopStateListener(null);
+    expect(() => destroy(rDestroy)).not.toThrow();
+
+    // 4. useRouter called inside Provider
+    const mockRouterInstance = createRouter({ routes, initialUrl: '/' });
+    const TestCompGood = () => {
+      const router = useRouter();
+      return <div data-testid="router-ok">{router ? 'ok' : 'no'}</div>;
+    };
+    render(
+      <RouterContext.Provider value={mockRouterInstance}>
+        <TestCompGood />
+      </RouterContext.Provider>
+    );
+    expect(screen.getByTestId('router-ok').textContent).toBe('ok');
+  });
+});

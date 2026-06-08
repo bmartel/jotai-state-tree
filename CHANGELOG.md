@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/bmartel/jotai-state-tree/compare/v1.4.4...v1.5.0) (2026-06-08)
+
+
+### Features
+
+* **router:** Adding a data driven router ([3e57a94](https://github.com/bmartel/jotai-state-tree/commit/3e57a9491a6f6047f7de4e8aaf497dcc14999f55))
+
 ## [1.4.4](https://github.com/bmartel/jotai-state-tree/compare/v1.4.3...v1.4.4) (2026-06-07)
 
 ## [1.4.3](https://github.com/bmartel/jotai-state-tree/compare/v1.4.2...v1.4.3) (2026-06-07)

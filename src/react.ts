@@ -51,6 +51,8 @@ import {
   type IUndoManagerOptions,
 } from "./undo";
 
+import { RouterContext, useRouter } from "./router";
+
 // ============================================================================
 // Observer Tracking Context
 // ============================================================================
@@ -730,7 +732,39 @@ export function useTimeTravelManager(
 }
 
 // ============================================================================
+// State Router Bindings
+// ============================================================================
+
+export { RouterContext, useRouter };
+
+interface RouteViewProps {
+  router?: any;
+  pages: Record<string, React.ComponentType<any>>;
+  fallback?: React.ReactNode;
+}
+
+export const RouteView = observer(function RouteView({ router, pages, fallback }: RouteViewProps) {
+  const activeRouter = router || React.useContext(RouterContext);
+  if (!activeRouter) {
+    throw new Error("[jotai-state-tree] RouteView must be provided a router prop or used within a RouterContext.Provider");
+  }
+  
+  const routeName = activeRouter.currentRouteName;
+  if (!routeName || !pages[routeName]) {
+    return fallback !== undefined ? React.createElement(React.Fragment, null, fallback) : null;
+  }
+  
+  const Component = pages[routeName];
+  const props = {
+    ...activeRouter.params,
+    query: activeRouter.query,
+  };
+  
+  return React.createElement(Component, props);
+});
+
+// ============================================================================
 // Type Exports
 // ============================================================================
 
-export type { ObserverOptions };
+export type { ObserverOptions, RouteViewProps };

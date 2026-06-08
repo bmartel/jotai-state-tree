@@ -1430,10 +1430,9 @@ export function isValidReference(
 ): boolean {
   if (!hasStateTreeNode(target)) return false;
 
-  const node = getStateTreeNode(target);
-  const typeName = node.$type.name;
-
   try {
+    const node = getStateTreeNode(target);
+    const typeName = node.$type.name;
     const resolved = resolveIdentifier(typeName, identifier);
     return resolved !== undefined;
   } catch {

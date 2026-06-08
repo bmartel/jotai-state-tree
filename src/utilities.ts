@@ -610,7 +610,10 @@ export function snapshotProcessor<
     },
 
     validate(value: unknown, context: IValidationContext[]): IValidationResult {
-      return type.validate(value, context);
+      const processed = processors.preProcessor
+        ? processors.preProcessor(value as any)
+        : value;
+      return type.validate(processed, context);
     },
   };
 }

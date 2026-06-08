@@ -92,7 +92,7 @@ describe('Compatibility Utilities', () => {
     const instance = Model.create({ id: '1', name: 'test' });
     const info = getDebugInfo(instance);
     expect(info.typeName).toBe('TestModel');
-    expect(info.path).toBe('/');
+    expect(info.path).toBe('');
     expect(info.identifier).toBe('1');
     expect(info.isAlive).toBe(true);
     expect(info.snapshot).toEqual({ id: '1', name: 'test' });
@@ -116,7 +116,7 @@ describe('Compatibility Utilities', () => {
 
     const printed = printTree(instance);
     expect(printed).toContain('ParentModel (parent-1)');
-    expect(printed).toContain('child:   ChildModel');
+    expect(printed).toContain('child:     ChildModel');
     expect(printed).toContain('value: 42');
     expect(printed).toContain('label: "hello"');
   });

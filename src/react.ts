@@ -106,7 +106,7 @@ export function observer<P extends object>(
         if (typeof Component === "function") {
           return (Component as any)(props, ref);
         }
-        return React.createElement(Component, props);
+        return React.createElement(Component, { ...props, ref } as any);
       });
     }));
     ObserverComponent.displayName = `ForwardRef(${displayName})`;

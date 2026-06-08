@@ -341,13 +341,29 @@ class LateModelType<T extends IAnyType>
   is(
     value: unknown,
   ): value is T extends IType<unknown, unknown, infer I> ? I : unknown {
-    return this.getType().is(value);
+    const type = tryResolveModel(this._modelName);
+    if (!type) return false;
+    return type.is(value);
   }
 
   validate(value: unknown, context: IValidationContext[]): IValidationResult {
-    return this.getType().validate(value, context);
+    const type = tryResolveModel(this._modelName);
+    if (!type) {
+      return {
+        valid: false,
+        errors: [
+          {
+            context,
+            value,
+            message: `Model "${this._modelName}" is not registered in the registry.`,
+          },
+        ],
+      };
+    }
+    return type.validate(value, context);
   }
 }
+
 
 /**
  * Create a late-resolving type that looks up the model from the registry.
@@ -516,7 +532,7 @@ class DynamicReferenceType<T extends IAnyType>
       if (!targetType) {
         return undefined;
       }
-      return resolveIdentifier(this._modelName, identifier) as T extends IType<
+      return resolveIdentifier(this._modelName, identifier)?.getInstance() as T extends IType<
         unknown,
         unknown,
         infer I
@@ -664,7 +680,14 @@ class SafeDynamicReferenceType<T extends IAnyType>
       if (!targetType) {
         return undefined;
       }
-      return resolveIdentifier(this._modelName, snapshot) as T extends IType<
+      const resolved = resolveIdentifier(this._modelName, snapshot)?.getInstance();
+      if (!resolved) {
+        if (this._options.onInvalidated) {
+          return this._options.onInvalidated(snapshot, null);
+        }
+        return undefined;
+      }
+      return resolved as T extends IType<
         unknown,
         unknown,
         infer I

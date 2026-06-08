@@ -101,7 +101,7 @@ import { model, compose, mixin } from "./model";
 
 import { array } from "./array";
 import { map } from "./map";
-import { getIdentifier } from "./tree";
+import { getIdentifier, hasStateTreeNode } from "./tree";
 
 // ============================================================================
 // Utility Types
@@ -447,7 +447,10 @@ export function castToSnapshot<T>(value: T): T {
  * Cast a value to a reference snapshot (identifier).
  */
 export function castToReferenceSnapshot<T>(value: T): string | number {
-  return getIdentifier(value) ?? (value as unknown as string | number);
+  if (value && hasStateTreeNode(value)) {
+    return getIdentifier(value) ?? (value as unknown as string | number);
+  }
+  return value as unknown as string | number;
 }
 
 // ============================================================================

@@ -48,7 +48,7 @@ const MAX_CACHE_SIZE = 100;
  * Simple LRU cache with bounded size
  * When capacity is reached, oldest entries are evicted
  */
-class LRUCache<K, V> {
+export class LRUCache<K, V> {
   private cache = new Map<K, V>();
   private maxSize: number;
 

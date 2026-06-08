@@ -4,9 +4,9 @@
 import React from 'react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
-import { createRouter } from '../router';
-import { RouterContext, RouteView } from '../react';
-import { clearAllRegistries, resetGlobalStore } from '../index';
+import { createRouter, normalizePathname, matchRoutes } from '../router';
+import { RouterContext, RouteView, useRouter } from '../react';
+import { clearAllRegistries, resetGlobalStore, destroy } from '../index';
 
 describe('State Router', () => {
   beforeEach(() => {
@@ -281,4 +281,168 @@ describe('State Router', () => {
     expect(screen.queryByTestId('home')).toBeNull();
     expect(screen.getByTestId('about')).toBeDefined();
   });
+
+  it('should initialize using window.location if initialUrl is omitted', () => {
+    vi.stubGlobal('location', {
+      pathname: '/about',
+      search: '?id=1',
+      hash: '#hash',
+      href: 'http://localhost/about?id=1#hash',
+    });
+
+    const router = createRouter({
+      routes,
+    });
+
+    expect(router.pathname).toBe('/about');
+    expect(router.search).toBe('?id=1');
+    expect(router.hash).toBe('#hash');
+  });
+
+  it('should throw if useRouter is called outside Provider', () => {
+    const TestComp = () => {
+      useRouter();
+      return null;
+    };
+    expect(() => render(<TestComp />)).toThrow('[jotai-state-tree] useRouter must be used within a RouterContext.Provider');
+  });
+
+  it('normalizePathname utility edge cases', () => {
+    expect(normalizePathname('about/')).toBe('/about');
+    expect(normalizePathname('about')).toBe('/about');
+    expect(normalizePathname('/')).toBe('/');
+  });
+
+  it('matchPath and matchRoutes edge cases', () => {
+    // 1. matchRoutes returns null if no route matches
+    const unmatched = matchRoutes(routes, '/invalid-pathname-here');
+    expect(unmatched).toBeNull();
+  });
+
+  it('currentRoute view and isActive view', () => {
+    const router = createRouter({
+      routes,
+      initialUrl: '/invalid',
+    });
+
+    // 1. currentRoute is null when currentRouteName is null
+    expect(router.currentRoute).toBeNull();
+
+    // 2. isActive check
+    const router2 = createRouter({
+      routes,
+      initialUrl: '/users/123',
+    });
+    expect(router2.isActive('user-profile')).toBe(true);
+    expect(router2.isActive('user-profile', { id: '123' })).toBe(true);
+    expect(router2.isActive('user-profile', { id: '456' })).toBe(false);
+    expect(router2.isActive('home')).toBe(false);
+  });
+
+  it('redirect and block guards in replace flow', async () => {
+    const beforeNavigate = vi.fn().mockImplementation((from, to) => {
+      if (to.pathname === '/about') {
+        return '/users/blocked';
+      }
+      if (to.pathname === '/files/secret') {
+        return false;
+      }
+      return true;
+    });
+
+    const router = createRouter({
+      routes,
+      initialUrl: '/',
+      beforeNavigate,
+    });
+
+    // Replace - block guard
+    await act(async () => {
+      await router.replace('/files/secret');
+    });
+    expect(router.pathname).toBe('/');
+
+    // Replace - redirect guard
+    await act(async () => {
+      await router.replace('/about');
+    });
+    expect(router.pathname).toBe('/users/blocked');
+  });
+
+  it('history actions (go, goBack, goForward)', () => {
+    const router = createRouter({
+      routes,
+      initialUrl: '/',
+    });
+    
+    window.history.go = vi.fn();
+    window.history.back = vi.fn();
+    window.history.forward = vi.fn();
+
+    router.go(-2);
+    expect(window.history.go).toHaveBeenCalledWith(-2);
+
+    router.goBack();
+    expect(window.history.back).toHaveBeenCalled();
+
+    router.goForward();
+    expect(window.history.forward).toHaveBeenCalled();
+  });
+
+  it('popstate promise-based redirect and error handling', async () => {
+    let popStateCallback: any = null;
+    vi.spyOn(window, 'addEventListener').mockImplementation((event, callback) => {
+      if (event === 'popstate') {
+        popStateCallback = callback;
+      }
+    });
+
+    const beforeNavigate = vi.fn().mockImplementation((from, to) => {
+      if (to.pathname === '/about') {
+        return Promise.resolve('/users/redirected');
+      }
+      if (to.pathname === '/files/error') {
+        return Promise.reject(new Error('Auth failed'));
+      }
+      return Promise.resolve(true);
+    });
+
+    const router = createRouter({
+      routes,
+      initialUrl: '/',
+      beforeNavigate,
+    });
+
+    expect(popStateCallback).toBeTypeOf('function');
+
+    // 1. PopState promise-based redirect
+    vi.stubGlobal('location', { pathname: '/about', search: '', hash: '' });
+    await act(async () => {
+      popStateCallback(new PopStateEvent('popstate', { state: null }));
+    });
+    expect(router.pathname).toBe('/users/redirected');
+
+    // 2. PopState promise rejection (should revert URL)
+    vi.stubGlobal('location', { pathname: '/files/error', search: '', hash: '' });
+    await act(async () => {
+      popStateCallback(new PopStateEvent('popstate', { state: null }));
+    });
+    // Reverts to the previous pathname (/users/redirected)
+    expect(router.pathname).toBe('/users/redirected');
+  });
+
+  it('popstate listener cleanup on destroy', () => {
+    const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
+    
+    const router = createRouter({
+      routes,
+      initialUrl: '/',
+    });
+
+    destroy(router);
+
+    expect(removeEventListenerSpy).toHaveBeenCalledWith('popstate', expect.any(Function));
+  });
+
 });
+

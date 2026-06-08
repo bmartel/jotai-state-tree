@@ -56,19 +56,29 @@ class MSTMap<V> extends Map<string, V> implements IMSTMap<V> {
     this.checkWrite();
     // Get the identifier from the value if it's a model with identifier
     let key: string;
-    if (value && typeof value === 'object' && $treenode in value) {
-      const valueNode = getStateTreeNode(value);
-      if (valueNode.identifierValue !== undefined) {
-        key = String(valueNode.identifierValue);
+    if (value && typeof value === 'object') {
+      if ($treenode in value) {
+        const valueNode = getStateTreeNode(value);
+        if (valueNode.identifierValue !== undefined) {
+          key = String(valueNode.identifierValue);
+        } else {
+          throw new Error('[jotai-state-tree] Cannot put a value without an identifier into a map');
+        }
       } else {
-        throw new Error('[jotai-state-tree] Cannot put a value without an identifier into a map');
+        // It's a snapshot
+        const idAttr = (this.valueType as any).identifierAttribute;
+        if (idAttr && idAttr in value) {
+          key = String((value as any)[idAttr]);
+        } else {
+          throw new Error('[jotai-state-tree] Cannot put a snapshot without an identifier into a map');
+        }
       }
     } else {
       throw new Error('[jotai-state-tree] Cannot put a non-model value using put()');
     }
 
     this.set(key, value);
-    return value;
+    return this.get(key) as V;
   }
 
   merge(values: Record<string, V> | Map<string, V>): this {

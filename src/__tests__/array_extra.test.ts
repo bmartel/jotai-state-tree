@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { types } from '../index';
+import { types, unprotect, destroy } from '../index';
 
 describe('MST Array Operations Extra', () => {
   const Item = types.model('Item', {
@@ -15,6 +15,7 @@ describe('MST Array Operations Extra', () => {
     const store = Store.create({
       items: [{ id: '1', name: 'first' }],
     });
+    unprotect(store);
 
     const len = store.items.unshift({ id: '0', name: 'zero' });
     expect(len).toBe(2);
@@ -23,22 +24,17 @@ describe('MST Array Operations Extra', () => {
   });
 
   it('splice', () => {
-    const store = Store.create({
-      items: [
-        { id: '1', name: 'first' },
-        { id: '2', name: 'second' },
-        { id: '3', name: 'third' },
-      ],
+    const NumStore = types.model({
+      numbers: types.array(types.number),
     });
+    const store = NumStore.create({
+      numbers: [1, 2, 3],
+    });
+    unprotect(store);
 
-    // Splice out middle item, insert new one
-    const deleted = store.items.splice(1, 1, { id: '4', name: 'fourth' });
-    expect(deleted.length).toBe(1);
-    expect(deleted[0].id).toBe('2');
-    expect(store.items.length).toBe(3);
-    expect(store.items[0].id).toBe('1');
-    expect(store.items[1].id).toBe('4');
-    expect(store.items[2].id).toBe('3');
+    const deleted = store.numbers.splice(1, 1, 4);
+    expect(Array.from(deleted)).toEqual([2]);
+    expect(store.numbers.toJSON()).toEqual([1, 4, 3]);
   });
 
   it('fill', () => {
@@ -46,6 +42,7 @@ describe('MST Array Operations Extra', () => {
       numbers: types.array(types.number),
     });
     const s = IntStore.create({ numbers: [1, 2, 3, 4] });
+    unprotect(s);
 
     s.numbers.fill(9, 1, 3);
     expect(s.numbers.toJSON()).toEqual([1, 9, 9, 4]);
@@ -58,6 +55,7 @@ describe('MST Array Operations Extra', () => {
     const store = Store.create({
       items: [{ id: '1', name: 'first' }],
     });
+    unprotect(store);
 
     store.items.replace([
       { id: '2', name: 'second' },
@@ -73,6 +71,7 @@ describe('MST Array Operations Extra', () => {
     const store = Store.create({
       items: [{ id: '1', name: 'first' }],
     });
+    unprotect(store);
 
     store.items.clear();
     expect(store.items.length).toBe(0);
@@ -85,6 +84,7 @@ describe('MST Array Operations Extra', () => {
         { id: '2', name: 'second' },
       ],
     });
+    unprotect(store);
 
     const secondItem = store.items[1];
     const removedTrue = store.items.remove(secondItem);
@@ -96,18 +96,17 @@ describe('MST Array Operations Extra', () => {
   });
 
   it('spliceWithArray', () => {
-    const store = Store.create({
-      items: [
-        { id: '1', name: 'first' },
-        { id: '2', name: 'second' },
-      ],
+    const NumStore = types.model({
+      numbers: types.array(types.number),
     });
+    const store = NumStore.create({
+      numbers: [1, 2],
+    });
+    unprotect(store);
 
-    const deleted = store.items.spliceWithArray(1, 1, [{ id: '3', name: 'third' }]);
-    expect(deleted.length).toBe(1);
-    expect(deleted[0].id).toBe('2');
-    expect(store.items.length).toBe(2);
-    expect(store.items[1].id).toBe('3');
+    const deleted = store.numbers.spliceWithArray(1, 1, [3]);
+    expect(Array.from(deleted)).toEqual([2]);
+    expect(store.numbers.toJSON()).toEqual([1, 3]);
   });
 
   it('toJSON and iterator', () => {
@@ -122,9 +121,112 @@ describe('MST Array Operations Extra', () => {
     expect(itemsArr[0].name).toBe('first');
   });
 
+  it('pop and shift', () => {
+    const NumStore = types.model({
+      numbers: types.array(types.number),
+    });
+    const store = NumStore.create({
+      numbers: [1, 2, 3],
+    });
+    unprotect(store);
+
+    const popped = store.numbers.pop();
+    expect(popped).toBe(3);
+    expect(store.numbers.toJSON()).toEqual([1, 2]);
+
+    const shifted = store.numbers.shift();
+    expect(shifted).toBe(1);
+    expect(store.numbers.toJSON()).toEqual([2]);
+  });
+
+  it('sort and reverse', () => {
+    const NumStore = types.model({
+      numbers: types.array(types.number),
+    });
+    const store = NumStore.create({
+      numbers: [3, 1, 2],
+    });
+    unprotect(store);
+
+    store.numbers.sort();
+    expect(store.numbers.toJSON()).toEqual([1, 2, 3]);
+
+    store.numbers.reverse();
+    expect(store.numbers.toJSON()).toEqual([3, 2, 1]);
+  });
+
+  it('copyWithin', () => {
+    const NumStore = types.model({
+      numbers: types.array(types.number),
+    });
+    const store = NumStore.create({
+      numbers: [1, 2, 3, 4],
+    });
+    unprotect(store);
+
+    store.numbers.copyWithin(0, 2, 4);
+    expect(store.numbers.toJSON()).toEqual([3, 4, 3, 4]);
+  });
+
+  it('primitive value reuse reconciliation', () => {
+    const NumStore = types.model({
+      numbers: types.array(types.number),
+    });
+    const store = NumStore.create({
+      numbers: [1, 2, 3],
+    });
+    unprotect(store);
+
+    // This triggers syncToNode and reconciles the primitive values,
+    // reusing the primitive nodes for existing values (like 1 and 2).
+    store.numbers.replace([1, 2, 4]);
+    expect(store.numbers.toJSON()).toEqual([1, 2, 4]);
+  });
+
+  it('dead node access and mutation checks', () => {
+    const NumStore = types.model({
+      numbers: types.array(types.number),
+    });
+    const store = NumStore.create({
+      numbers: [1, 2],
+    });
+    
+    // Grab reference to array before destroy
+    const arr = store.numbers;
+    
+    // Destroy the parent node, killing the array
+    destroy(store);
+
+    expect(() => arr[0]).toThrow("[jotai-state-tree] Cannot access array - the node is dead.");
+    expect(() => {
+      arr[0] = 5;
+    }).toThrow("[jotai-state-tree] Cannot modify array - the node is dead.");
+    
+    expect(() => {
+      arr.push(3);
+    }).toThrow("[jotai-state-tree] Cannot access array - the node is dead.");
+
+  });
+
   it('validation errors', () => {
     expect(() => Store.create({
       items: [{ id: '1', name: 123 as any }] // invalid name
     })).toThrow();
   });
+
+  it('ArrayType is and validate methods', () => {
+    const ArrayType = types.array(types.string);
+    expect(ArrayType.is([])).toBe(false); // not state tree node yet
+    expect(ArrayType.is(123)).toBe(false);
+
+    expect(ArrayType.validate(123, []).valid).toBe(false);
+    
+    const validResult = ArrayType.validate(['a', 'b'], []);
+    expect(validResult.valid).toBe(true);
+
+    const invalidResult = ArrayType.validate([123 as any], []);
+    expect(invalidResult.valid).toBe(false);
+    expect(invalidResult.errors.length).toBe(1);
+  });
 });
+

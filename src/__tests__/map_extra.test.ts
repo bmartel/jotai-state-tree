@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { types } from '../index';
+import { types, unprotect, destroy } from '../index';
 
 describe('MST Map Operations Extra', () => {
   const User = types.model('User', {
@@ -13,6 +13,7 @@ describe('MST Map Operations Extra', () => {
 
   it('put', () => {
     const group = Group.create({ users: {} });
+    unprotect(group);
     const userSnapshot = { id: 'user-1', name: 'Alice' };
     const returnedUser = group.users.put(userSnapshot);
 
@@ -27,6 +28,7 @@ describe('MST Map Operations Extra', () => {
         'user-1': { id: 'user-1', name: 'Alice' },
       },
     });
+    unprotect(group);
 
     group.users.merge({
       'user-2': { id: 'user-2', name: 'Bob' },
@@ -44,6 +46,7 @@ describe('MST Map Operations Extra', () => {
         'user-1': { id: 'user-1', name: 'Alice' },
       },
     });
+    unprotect(group);
 
     group.users.replace({
       'user-3': { id: 'user-3', name: 'Charlie' },
@@ -61,6 +64,7 @@ describe('MST Map Operations Extra', () => {
         'user-2': { id: 'user-2', name: 'Bob' },
       },
     });
+    unprotect(group);
 
     const deleted = group.users.delete('user-1');
     expect(deleted).toBe(true);
@@ -102,5 +106,32 @@ describe('MST Map Operations Extra', () => {
         'user-1': { id: 'user-1', name: 123 as any } // invalid name
       }
     })).toThrow();
+  });
+
+  it('MapType is and validate methods', () => {
+    const MapType = types.map(types.string);
+    expect(MapType.is(new Map())).toBe(false); // not state tree node yet
+    expect(MapType.is(123)).toBe(false);
+
+    expect(MapType.validate(123, []).valid).toBe(false);
+    expect(MapType.validate({ a: 123 as any }, []).valid).toBe(false);
+  });
+
+  it('map extra edge cases', () => {
+    const group = Group.create({ users: {} });
+    unprotect(group);
+
+    // Snapshot without identifier
+    expect(() => group.users.put({ name: 'Alice' } as any)).toThrow('Cannot put a snapshot without an identifier');
+
+    // Non-model value
+    expect(() => group.users.put(123 as any)).toThrow('Cannot put a non-model value using put()');
+
+    // get non-existent key
+    expect(group.users.get('nonexistent')).toBeUndefined();
+
+    // Access dead map node
+    destroy(group);
+    expect(() => group.users).toThrow('the node is dead');
   });
 });

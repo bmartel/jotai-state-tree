@@ -208,6 +208,8 @@ export const types = {
   safeDynamicReference,
 };
 
+export { types as t };
+
 // Also export types directly for destructuring
 export {
   // Primitives
@@ -398,6 +400,7 @@ export {
   isType,
   isPrimitiveType,
   getTypeName,
+  isRefinementType,
 
   // Snapshot utilities
   isValidSnapshot,
@@ -406,6 +409,7 @@ export {
   // Instance utilities
   isInstanceOf,
   getOrCreate,
+  tryReference,
 
   // Debugging
   getDebugInfo,

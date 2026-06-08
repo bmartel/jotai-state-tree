@@ -4,7 +4,7 @@
  */
 
 import type { IAnyType, IType, IAnyModelType, Instance, SnapshotIn } from './types';
-import { getStateTreeNode, hasStateTreeNode, getSnapshot, resolveIdentifier } from './tree';
+import { getStateTreeNode, hasStateTreeNode, getSnapshot, resolveIdentifier, isAlive } from './tree';
 
 // ============================================================================
 // Type Utilities
@@ -292,3 +292,47 @@ export function createWithDefaults<T extends IAnyType>(
 ): Instance<T> {
   return type.create(snapshot as SnapshotIn<T>, env) as Instance<T>;
 }
+
+// ============================================================================
+// Additional Compatibility Helpers
+// ============================================================================
+
+/**
+ * Check if a type is a refinement type
+ */
+export function isRefinementType(type: unknown): boolean {
+  return (
+    type !== null &&
+    typeof type === 'object' &&
+    '_kind' in type &&
+    (type as { _kind: string })._kind === 'refinement'
+  );
+}
+
+/**
+ * Check if a reference is valid, returning the target if valid and undefined otherwise
+ */
+export function tryReference<T>(
+  getter: () => T | null | undefined,
+  checkIfAlive = true
+): T | undefined {
+  try {
+    const node = getter();
+    if (node === undefined || node === null) {
+      return undefined;
+    }
+    if (hasStateTreeNode(node)) {
+      if (!checkIfAlive) {
+        return node as T;
+      }
+      return isAlive(node) ? (node as T) : undefined;
+    }
+    return undefined;
+  } catch (e) {
+    if (e instanceof Error && e.message.includes('Failed to resolve reference')) {
+      return undefined;
+    }
+    throw e;
+  }
+}
+

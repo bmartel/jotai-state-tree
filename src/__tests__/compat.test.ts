@@ -17,6 +17,8 @@ import {
   cloneFrozen,
   safeCreate,
   createWithDefaults,
+  isRefinementType,
+  tryReference,
 } from '../compat';
 
 describe('Compatibility Utilities', () => {
@@ -207,5 +209,45 @@ describe('Compatibility Utilities', () => {
 
     const instance3 = createWithDefaults(Model);
     expect(instance3.name).toBe('default');
+  });
+
+  it('isRefinementType', () => {
+    const refined = types.refinement(types.number, (n) => n > 0);
+    expect(isRefinementType(refined)).toBe(true);
+    expect(isRefinementType(types.string)).toBe(false);
+    expect(isRefinementType(null)).toBe(false);
+  });
+
+  it('tryReference', () => {
+    const Target = types.model('Target', {
+      id: types.identifier,
+      name: types.string,
+    });
+    const Root = types.model('Root', {
+      target: types.maybe(Target),
+      ref: types.maybe(types.reference(Target)),
+    });
+
+    const root = Root.create({
+      target: { id: 't1', name: 'target' },
+      ref: 't1',
+    });
+
+    // Valid reference should resolve and return target
+    const result1 = tryReference(() => root.ref);
+    expect(result1).toBeDefined();
+    expect(result1?.name).toBe('target');
+
+    // Reference pointing to non-existent ID should return undefined
+    const rootDead = Root.create({
+      target: undefined,
+      ref: 't2',
+    });
+    const result2 = tryReference(() => rootDead.ref);
+    expect(result2).toBeUndefined();
+
+    // Passing null/undefined getter returns undefined
+    expect(tryReference(() => null)).toBeUndefined();
+    expect(tryReference(() => undefined)).toBeUndefined();
   });
 });

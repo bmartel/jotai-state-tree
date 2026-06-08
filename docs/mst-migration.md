@@ -60,8 +60,19 @@ While the API compatibility is extremely high, keep the following operational di
 Original MST uses MobX observables under the hood, whereas `jotai-state-tree` uses Jotai atoms.
 - **MobX**: Mutating any field instantly triggers observers synchronously during execution.
 - **Jotai**: Updates are batched and scheduled. In React event handlers, multiple mutations are automatically batched, resulting in a single React rendering pass.
+- **Zero MobX Coupling**: `jotai-state-tree` is completely decoupled from MobX. APIs or third-party packages that query properties for MobX observable symbols or rely on MobX-specific reactive APIs (like `mobx.autorun`, `mobx.reaction`, or `mobx.configure`) will not work. Reactivity must be handled via Jotai atoms, standard `observer()` React bindings, or tree hooks.
 
-### 2. Type Inference Differences
+### 2. Public API vs. Internal Node Compatibility Boundaries
+To avoid inheriting the performance and memory leaks that plague MobX-State-Tree, `jotai-state-tree` enforces a strict boundary between public API conformance and internal node implementation:
+- **Public API Conformance**: We support public-facing APIs (e.g., `types.model`, views, actions, snapshots, patches, reference resolution, environments, and lifecycle hooks) with near-identical typings and behaviors.
+- **No Internal Node Shims**: We deliberately choose **not** to implement or replicate MST's internal class hierarchy (such as `ObjectNode`, internal node instantiation methods like `.instantiate()`, or private hook controllers like `registerHook` and `aboutToDie`). 
+- **The Tradeoff**: While this prevents test suites that assert on private library internals from passing, it keeps `jotai-state-tree` lightweight and completely avoids the circular reference chains and internal observer registries that cause memory retention issues in original MST.
+
+### 3. Reactivity & Natural Garbage Collection
+- **MST Memory Leak Root Cause**: MST creates custom observable nodes for every single nested value and binds them with strong, bidirectional references and custom reaction wrappers. If child nodes are detached or views are evaluated during rendering, subscriptions often linger, leading to catastrophic memory leaks unless manually managed.
+- **Jotai State Tree Solution**: We store state in standard Jotai atoms. Scalar values (strings, numbers, booleans) remain plain JavaScript primitives without wrapper objects or listeners. Tree bindings use `WeakMap`s for metadata. When a node is detached or a component unmounts, standard JavaScript garbage collection cleans them up naturally without requiring manual lifecycle invocation or destructor calls.
+
+### 4. Type Inference Differences
 With `jotai-state-tree`, `SnapshotIn<typeof Model>` is strict. If a model property is required (i.e. not wrapped in `types.optional` or `types.maybe`), it **must** be provided in the snapshot at compile time:
 
 ```typescript
@@ -78,7 +89,7 @@ User.create({ name: "Alice" }); // Compiles!
 User.create({}); // TypeScript Compiler Error!
 ```
 
-### 3. Sibling View / Action References
+### 5. Sibling View / Action References
 In original MST, sibling actions or views within the same block cannot easily reference each other via `self` without typescript hacks. `jotai-state-tree` supports chaining consecutive blocks (e.g. `.views().views()`) where each subsequent block has full, typed access to all previous properties, views, and actions on `self`.
 Alternatively, you can use standard lexical closures inside a single block:
 
@@ -96,3 +107,4 @@ const Model = types.model({ count: 0 }).actions((self) => {
   return { step1, step2 };
 });
 ```
+

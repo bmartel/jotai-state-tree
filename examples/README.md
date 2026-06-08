@@ -1,6 +1,6 @@
 # jotai-state-tree Examples & Templates
 
-This directory contains 6 distinct, ready-to-run Vite + React + TypeScript starter templates designed to showcase the features of `jotai-state-tree`. 
+This directory contains 7 distinct, ready-to-run Vite + React + TypeScript starter templates designed to showcase the features of `jotai-state-tree`. 
 
 Each template demonstrates specific parts of the library, ranging from basic models to advanced features like references, time travel, undo histories, dynamic forms, and SSR hydration. They are structured as self-contained projects that can be copied and used as the foundation for your own applications.
 

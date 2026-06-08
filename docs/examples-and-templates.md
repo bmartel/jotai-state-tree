@@ -1,6 +1,6 @@
 # Examples & Templates
 
-`jotai-state-tree` comes with a set of 6 pre-configured, type-safe, and minimalist Vite starter templates to jump-start your application development. These examples showcase everything from basic undo history to complex tree hierarchies, asynchronous checkout actions, and client-side hydration.
+`jotai-state-tree` comes with a set of 7 pre-configured, type-safe, and minimalist Vite starter templates to jump-start your application development. These examples showcase everything from basic undo history to complex tree hierarchies, asynchronous checkout actions, client-side hydration, and URL routing.
 
 ---
 
@@ -91,3 +91,9 @@ Here is a breakdown of the available starter templates and what they demonstrate
 - **Key APIs**: `useHydrateStore`, `setGlobalStore`, `createStoreContext`.
 - **Focus**: Server-Side Rendering (SSR) hydration and state isolation.
 - **Features**: A notes manager that syncs to localStorage. Illustrates how to call `setGlobalStore` to bind to an isolated Jotai store instance (vital for avoiding state leaks in multi-user Node.js SSR servers) and `useHydrateStore` to pre-seed the client's memory on startup with server-rendered data.
+
+### 7. Multipage Bookstore Router (`./examples/multipage-router`) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/bmartel/jotai-state-tree/tree/main/examples/multipage-router?file=src/App.tsx)
+- **Key APIs**: `createRouter`, `RouteView`, `useRouter`, `beforeNavigate`, `afterNavigate`.
+- **Focus**: URL routing, route parameters, wildcards, query parameters, navigation guards, and transition logging.
+- **Features**: A multi-page mock bookstore directory. Showcases dynamic parameter routing for book details, query parameters for search/category filters, a wildcard files route, and a secure administration dashboard protected by navigation guards that redirect unauthenticated visits.
+

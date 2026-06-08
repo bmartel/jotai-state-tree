@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/bmartel/jotai-state-tree/compare/v1.5.0...v1.6.0) (2026-06-08)
+
+
+### Features
+
+* improve MST public API compatibility and document tradeoffs ([b527fd3](https://github.com/bmartel/jotai-state-tree/commit/b527fd39f5097d146473ab2ded057524078c2e9d))
+
 # [1.5.0](https://github.com/bmartel/jotai-state-tree/compare/v1.4.4...v1.5.0) (2026-06-08)
 
 

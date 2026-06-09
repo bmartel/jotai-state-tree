@@ -128,7 +128,8 @@ export const App = observer(() => {
 
       // Apply changes to mock database
       serverDatabase = JSON.parse(JSON.stringify(snapshot));
-      addLog('success', `PUT /api/todos succeeded: Synchronized ${patches.length} patches.`);
+      const patchDetails = patches.map(p => `${p.op.toUpperCase()} ${p.path}`).join(', ');
+      addLog('success', `PUT /api/todos succeeded: Synchronized ${patches.length} patches (${patchDetails}).`);
       return serverDatabase;
     },
     shouldRollback: (error: any) => {

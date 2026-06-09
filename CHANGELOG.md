@@ -1,3 +1,10 @@
+# [1.8.0](https://github.com/bmartel/jotai-state-tree/compare/v1.7.5...v1.8.0) (2026-06-09)
+
+
+### Features
+
+* add React Native compatibility and in-memory history stack to state router ([87022e5](https://github.com/bmartel/jotai-state-tree/commit/87022e5796dd077efe54abbb9d8071477501e77e))
+
 ## [1.7.5](https://github.com/bmartel/jotai-state-tree/compare/v1.7.4...v1.7.5) (2026-06-09)
 
 ## [1.7.4](https://github.com/bmartel/jotai-state-tree/compare/v1.7.3...v1.7.4) (2026-06-08)

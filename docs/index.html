@@ -22,18 +22,24 @@
   
   <style>
     :root {
-      --bg-dark: #0b0f19;
-      --bg-card: #111827;
-      --bg-sidebar: #0f1423;
-      --border-color: rgba(255, 255, 255, 0.08);
-      --text-main: #f3f4f6;
-      --text-muted: #9ca3af;
-      --primary: #7c3aed;
-      --primary-glow: rgba(124, 58, 237, 0.15);
-      --accent-cyan: #06b6d4;
-      --accent-blue: #3b82f6;
-      --accent-green: #10b981;
+      /* Organic Earthy Dark Mode Palette */
+      --bg-dark: #090b07;          /* Obsidian Soil */
+      --bg-card: #10140e;          /* Bark/Lichen Card */
+      --bg-sidebar: #0d100a;       /* Deep Moss Bark */
+      --border-color: rgba(74, 222, 128, 0.08); /* Translucent leaf green border */
+      --border-light: rgba(255, 255, 255, 0.04);
+      --text-main: #eff1ec;        /* Lichen Cream White */
+      --text-muted: #858d81;       /* Sage/Lichen Grey */
+      
+      --primary: #3baf6a;          /* Spring Leaf Green */
+      --primary-hover: #2d8d52;    /* Deep Forest Green */
+      --primary-glow: rgba(59, 175, 106, 0.12);
+      
+      --accent-amber: #e28f24;     /* Oak Heartwood Amber */
+      --accent-amber-glow: rgba(226, 143, 36, 0.1);
+      
       --sidebar-width: 280px;
+      --toc-width: 240px;
     }
 
     * {
@@ -54,22 +60,22 @@
 
     /* Scrollbar Styling */
     ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
+      width: 6px;
+      height: 6px;
     }
     ::-webkit-scrollbar-track {
       background: var(--bg-dark);
     }
     ::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(74, 222, 128, 0.15);
       border-radius: 4px;
     }
     ::-webkit-scrollbar-thumb:hover {
-      background: rgba(255, 255, 255, 0.2);
+      background: rgba(74, 222, 128, 0.3);
     }
 
     /* Sidebar Styling */
-    aside {
+    aside#sidebar {
       width: var(--sidebar-width);
       background-color: var(--bg-sidebar);
       border-right: 1px solid var(--border-color);
@@ -92,25 +98,28 @@
     }
 
     .brand-title {
-      font-size: 20px;
+      font-size: 19px;
       font-weight: 800;
-      background: linear-gradient(135deg, #a78bfa, #06b6d4);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      color: var(--text-main);
       text-decoration: none;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
+      transition: color 0.2s ease;
+    }
+
+    .brand-title:hover {
+      color: var(--primary);
     }
 
     .brand-badge {
       font-size: 11px;
       font-weight: 600;
-      background-color: rgba(124, 58, 237, 0.2);
-      color: #c084fc;
+      background-color: var(--primary-glow);
+      color: var(--primary);
       padding: 2px 8px;
       border-radius: 99px;
-      border: 1px solid rgba(124, 58, 237, 0.3);
+      border: 1px solid rgba(59, 175, 106, 0.2);
       width: fit-content;
     }
 
@@ -120,14 +129,14 @@
       padding: 24px 16px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 4px;
     }
 
     .nav-item {
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 10px 14px;
+      padding: 8px 12px;
       color: var(--text-muted);
       text-decoration: none;
       border-radius: 8px;
@@ -139,20 +148,21 @@
 
     .nav-item:hover {
       color: var(--text-main);
-      background-color: rgba(255, 255, 255, 0.03);
+      background-color: rgba(74, 222, 128, 0.04);
     }
 
     .nav-item.active {
-      color: var(--text-main);
-      background: linear-gradient(90deg, var(--primary-glow) 0%, rgba(124, 58, 237, 0.02) 100%);
+      color: var(--primary);
+      background: linear-gradient(90deg, var(--primary-glow) 0%, rgba(59, 175, 106, 0.01) 100%);
       border-left: 3px solid var(--primary);
-      padding-left: 11px;
+      padding-left: 9px;
+      font-weight: 600;
     }
 
     .nav-divider {
       height: 1px;
       background-color: var(--border-color);
-      margin: 12px 14px;
+      margin: 12px 12px;
     }
 
     .nav-section-title {
@@ -160,8 +170,8 @@
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: rgba(255, 255, 255, 0.3);
-      padding: 8px 14px;
+      color: rgba(255, 255, 255, 0.25);
+      padding: 8px 12px;
     }
 
     .sidebar-footer {
@@ -219,11 +229,13 @@
 
     /* Content Area Styling */
     .content-container {
-      max-width: 960px;
+      max-width: 1160px;
       width: 100%;
       margin: 0 auto;
       padding: 48px 40px;
       flex: 1;
+      display: flex;
+      flex-direction: column;
     }
 
     /* Dashboard View */
@@ -231,6 +243,9 @@
       display: flex;
       flex-direction: column;
       gap: 48px;
+      max-width: 900px;
+      margin: 0 auto;
+      width: 100%;
     }
 
     .hero {
@@ -247,7 +262,7 @@
       font-weight: 800;
       letter-spacing: -0.025em;
       line-height: 1.1;
-      background: linear-gradient(135deg, #c084fc, #6366f1, #06b6d4);
+      background: linear-gradient(135deg, var(--primary) 30%, var(--accent-amber) 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
@@ -280,24 +295,24 @@
 
     .btn-primary {
       background-color: var(--primary);
-      color: white;
-      box-shadow: 0 4px 14px rgba(124, 58, 237, 0.4);
+      color: #ffffff;
+      box-shadow: 0 4px 14px rgba(59, 175, 106, 0.3);
     }
 
     .btn-primary:hover {
-      background-color: #6d28d9;
+      background-color: var(--primary-hover);
       transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(124, 58, 237, 0.5);
+      box-shadow: 0 6px 20px rgba(59, 175, 106, 0.4);
     }
 
     .btn-secondary {
-      background-color: rgba(255, 255, 255, 0.05);
+      background-color: rgba(255, 255, 255, 0.03);
       color: var(--text-main);
       border: 1px solid var(--border-color);
     }
 
     .btn-secondary:hover {
-      background-color: rgba(255, 255, 255, 0.08);
+      background-color: rgba(255, 255, 255, 0.06);
       transform: translateY(-2px);
     }
 
@@ -318,7 +333,7 @@
     }
 
     .install-text {
-      color: var(--accent-cyan);
+      color: var(--primary);
       user-select: all;
     }
 
@@ -356,17 +371,17 @@
     }
 
     .feature-card:hover {
-      border-color: rgba(124, 58, 237, 0.3);
+      border-color: rgba(59, 175, 106, 0.25);
       transform: translateY(-4px);
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
     }
 
     .feature-icon {
       width: 44px;
       height: 44px;
       border-radius: 8px;
-      background-color: rgba(124, 58, 237, 0.1);
-      color: #a78bfa;
+      background-color: var(--primary-glow);
+      color: var(--primary);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -384,9 +399,79 @@
       line-height: 1.5;
     }
 
-    /* Documentation Markdown Rendering Styling */
+    /* Documentation 3-Column Layout */
     .doc-viewer {
       display: none;
+    }
+
+    .doc-layout {
+      display: flex;
+      gap: 48px;
+      align-items: flex-start;
+      position: relative;
+    }
+
+    .doc-content-pane {
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* Right Sidebar (Table of Contents) */
+    .toc-container {
+      width: var(--toc-width);
+      position: sticky;
+      top: 48px;
+      max-height: calc(100vh - 96px);
+      overflow-y: auto;
+      padding-left: 20px;
+      border-left: 1px solid var(--border-color);
+      display: none; /* Desktop only */
+    }
+
+    .toc-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .toc-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .toc-item {
+      font-size: 13px;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: all 0.2s;
+      line-height: 1.4;
+      border-left: 2px solid transparent;
+      padding-left: 10px;
+      margin-left: -12px;
+    }
+
+    .toc-item:hover {
+      color: var(--text-main);
+    }
+
+    .toc-item.active {
+      color: var(--primary);
+      border-left-color: var(--primary);
+      font-weight: 600;
+    }
+
+    .toc-item-h3 {
+      padding-left: 20px;
+      font-size: 12px;
+      opacity: 0.85;
+    }
+
+    .toc-item-h3.active {
+      margin-left: -22px;
     }
 
     .doc-navigation {
@@ -420,7 +505,7 @@
     }
 
     .nav-btn:hover .nav-btn-title {
-      color: #a78bfa;
+      color: var(--primary-hover);
     }
 
     .nav-btn-next {
@@ -431,7 +516,7 @@
     /* Markdown styling class */
     .markdown-body {
       font-size: 16px;
-      color: #e5e7eb;
+      color: #e2e8f0;
     }
 
     .markdown-body h1 {
@@ -441,6 +526,7 @@
       border-bottom: 1px solid var(--border-color);
       padding-bottom: 12px;
       letter-spacing: -0.02em;
+      color: var(--text-main);
     }
 
     .markdown-body h2 {
@@ -450,6 +536,7 @@
       margin-bottom: 16px;
       border-bottom: 1px solid var(--border-color);
       padding-bottom: 8px;
+      color: var(--text-main);
     }
 
     .markdown-body h3 {
@@ -457,6 +544,7 @@
       font-weight: 600;
       margin-top: 24px;
       margin-bottom: 12px;
+      color: var(--text-main);
     }
 
     .markdown-body p {
@@ -464,13 +552,17 @@
     }
 
     .markdown-body a {
-      color: var(--accent-cyan);
+      color: var(--primary);
       text-decoration: none;
       font-weight: 500;
+      border-bottom: 1px dashed rgba(59, 175, 106, 0.3);
+      transition: all 0.2s;
     }
 
     .markdown-body a:hover {
-      text-decoration: underline;
+      color: var(--primary-hover);
+      border-bottom-style: solid;
+      text-decoration: none;
     }
 
     .markdown-body ul, .markdown-body ol {
@@ -484,11 +576,11 @@
 
     .markdown-body code {
       font-family: 'Fira Code', Consolas, Monaco, monospace;
-      background-color: rgba(255, 255, 255, 0.06);
+      background-color: rgba(255, 255, 255, 0.05);
       padding: 3px 6px;
       border-radius: 4px;
       font-size: 85%;
-      color: #f472b6;
+      color: var(--accent-amber);
     }
 
     .markdown-body pre {
@@ -497,7 +589,8 @@
       border-radius: 10px;
       overflow: hidden;
       border: 1px solid var(--border-color);
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+      position: relative;
     }
 
     .markdown-body pre code {
@@ -505,23 +598,128 @@
       display: block;
       padding: 20px;
       overflow-x: auto;
-      background-color: #111827 !important;
-      color: #e5e7eb;
+      background-color: #0c0e0a !important;
+      color: #e2e8f0;
       font-size: 14px;
     }
 
     .markdown-body blockquote {
       border-left: 4px solid var(--primary);
-      background-color: rgba(124, 58, 237, 0.05);
+      background-color: var(--primary-glow);
       padding: 16px 20px;
       margin-bottom: 24px;
       border-radius: 0 8px 8px 0;
-      color: #d1d5db;
+      color: var(--text-main);
     }
 
     .markdown-body blockquote p {
       margin-bottom: 0;
     }
+
+    /* GitHub-style alerts/callouts */
+    .callout {
+      margin: 24px 0;
+      padding: 16px 20px;
+      border-radius: 8px;
+      border-left: 4px solid;
+      background-color: var(--callout-bg);
+      border-color: var(--callout-border);
+    }
+    
+    .callout-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-weight: 700;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--callout-title-color);
+    }
+    
+    .callout-icon {
+      font-size: 16px;
+    }
+    
+    .callout-content {
+      color: var(--text-main);
+      font-size: 15px;
+    }
+    
+    .callout-content p:last-child {
+      margin-bottom: 0;
+    }
+    
+    .callout-note {
+      --callout-bg: rgba(59, 175, 106, 0.05);
+      --callout-border: var(--primary);
+      --callout-title-color: var(--primary);
+    }
+    
+    .callout-tip {
+      --callout-bg: rgba(255, 214, 10, 0.04);
+      --callout-border: #ffd60a;
+      --callout-title-color: #ffd60a;
+    }
+    
+    .callout-important {
+      --callout-bg: rgba(226, 143, 36, 0.05);
+      --callout-border: var(--accent-amber);
+      --callout-title-color: var(--accent-amber);
+    }
+    
+    .callout-warning {
+      --callout-bg: rgba(239, 68, 68, 0.05);
+      --callout-border: #ef4444;
+      --callout-title-color: #ef4444;
+    }
+    
+    .callout-caution {
+      --callout-bg: rgba(220, 38, 38, 0.06);
+      --callout-border: #dc2626;
+      --callout-title-color: #dc2626;
+    }
+
+    /* Code Copy Button */
+    .code-copy-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      padding: 6px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: var(--text-muted);
+      cursor: pointer;
+      opacity: 0;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .markdown-body pre:hover .code-copy-btn {
+      opacity: 1;
+    }
+
+    .code-copy-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+    }
+
+    /* Custom Prism styling overrides */
+    .token.keyword { color: var(--accent-amber); font-weight: 600; }
+    .token.function { color: #5ce1e6; }
+    .token.string { color: #f2e394; }
+    .token.comment { color: #626e5e; font-style: italic; }
+    .token.number { color: #f6ad55; }
+    .token.operator { color: #81e6d9; }
+    .token.class-name { color: #4fd1c5; }
+    .token.builtin { color: #fc8181; }
+    .token.punctuation { color: #a0aec0; }
+    .token.property { color: #5ce1e6; }
+    .token.boolean { color: #f6ad55; }
 
     .markdown-body hr {
       border: 0;
@@ -543,7 +741,7 @@
     }
 
     .markdown-body th {
-      background-color: rgba(255, 255, 255, 0.02);
+      background-color: rgba(74, 222, 128, 0.02);
       font-weight: 600;
     }
 
@@ -564,7 +762,7 @@
     .spinner {
       width: 40px;
       height: 40px;
-      border: 3px solid rgba(124, 58, 237, 0.1);
+      border: 3px solid rgba(59, 175, 106, 0.1);
       border-radius: 50%;
       border-top-color: var(--primary);
       animation: spin 1s linear infinite;
@@ -597,7 +795,7 @@
       text-align: center;
       color: var(--text-muted);
       font-size: 13px;
-      margin-top: auto;
+      margin-top: 48px;
     }
 
     /* Overlay for mobile */
@@ -605,18 +803,18 @@
       display: none;
       position: fixed;
       inset: 0;
-      background-color: rgba(0, 0, 0, 0.5);
+      background-color: rgba(0, 0, 0, 0.7);
       backdrop-filter: blur(4px);
       z-index: 95;
     }
 
     /* Responsive adjustments */
     @media (max-width: 768px) {
-      aside {
+      aside#sidebar {
         transform: translateX(-100%);
       }
 
-      aside.open {
+      aside#sidebar.open {
         transform: translateX(0);
       }
 
@@ -644,6 +842,12 @@
         font-size: 17px;
       }
     }
+
+    @media (min-width: 1100px) {
+      .toc-container {
+        display: block;
+      }
+    }
   </style>
 </head>
 <body>
@@ -655,8 +859,11 @@
   <aside id="sidebar">
     <div class="sidebar-header">
       <a href="#" class="brand-title">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #a78bfa;">
-          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22V12M12 12l-5-4M12 12l5-4M12 8V3M7 8l-3 1M17 8l3 1" />
+          <circle cx="12" cy="3" r="1.5" fill="var(--accent-amber)" stroke="var(--accent-amber)" />
+          <circle cx="4" cy="9" r="1.5" fill="var(--primary)" stroke="var(--primary)" />
+          <circle cx="20" cy="9" r="1.5" fill="var(--primary)" stroke="var(--primary)" />
         </svg>
         jotai-state-tree
       </a>
@@ -803,20 +1010,33 @@
 
       <!-- Markdown Doc View -->
       <div class="doc-viewer" id="docView">
-        <div class="markdown-body" id="docContent">
-          <!-- Rendered Markdown will go here -->
-        </div>
+        <div class="doc-layout">
+          <!-- Main Markdown text column -->
+          <div class="doc-content-pane">
+            <div class="markdown-body" id="docContent">
+              <!-- Rendered Markdown will go here -->
+            </div>
 
-        <!-- Previous / Next Navigation -->
-        <div class="doc-navigation">
-          <a href="#" class="nav-btn nav-btn-prev" id="prevBtn">
-            <span class="nav-btn-label">Previous</span>
-            <span class="nav-btn-title" id="prevTitle">Home</span>
-          </a>
-          <a href="#" class="nav-btn nav-btn-next" id="nextBtn">
-            <span class="nav-btn-label">Next</span>
-            <span class="nav-btn-title" id="nextTitle">Getting Started</span>
-          </a>
+            <!-- Previous / Next Navigation -->
+            <div class="doc-navigation">
+              <a href="#" class="nav-btn nav-btn-prev" id="prevBtn">
+                <span class="nav-btn-label">Previous</span>
+                <span class="nav-btn-title" id="prevTitle">Home</span>
+              </a>
+              <a href="#" class="nav-btn nav-btn-next" id="nextBtn">
+                <span class="nav-btn-label">Next</span>
+                <span class="nav-btn-title" id="nextTitle">Getting Started</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Table of Contents Sidebar -->
+          <aside class="toc-container" id="tocContainer">
+            <div class="toc-title">On this page</div>
+            <nav class="toc-list" id="tocList">
+              <!-- Dynamic Table of Contents -->
+            </nav>
+          </aside>
         </div>
       </div>
 
@@ -859,6 +1079,8 @@
     const prevTitle = document.getElementById('prevTitle');
     const nextTitle = document.getElementById('nextTitle');
     const copyInstallBtn = document.getElementById('copyInstallBtn');
+    
+    let activeObserver = null;
 
     // Mobile navigation toggle
     function toggleSidebar() {
@@ -870,108 +1092,287 @@
     sidebarOverlay.addEventListener('click', toggleSidebar);
 
     // Copy install command
-    copyInstallBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText('npm install jotai-state-tree jotai').then(() => {
-        const icon = copyInstallBtn.innerHTML;
-        copyInstallBtn.innerHTML = `
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="20 6 9 17 4 12"/>
-          </svg>
-        `;
-        setTimeout(() => {
-          copyInstallBtn.innerHTML = icon;
-        }, 2000);
+    if (copyInstallBtn) {
+      copyInstallBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText('npm install jotai-state-tree jotai').then(() => {
+          const icon = copyInstallBtn.innerHTML;
+          copyInstallBtn.innerHTML = `
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          `;
+          setTimeout(() => {
+            copyInstallBtn.innerHTML = icon;
+          }, 2000);
+        });
       });
-    });
-
-    // Hash Router
-    function getRoute() {
-      const hash = window.location.hash.slice(1);
-      return hash || 'home';
     }
 
-    async function loadRoute() {
-      const route = getRoute();
+    // Hash & Anchor Router Parser
+    function parseRoute() {
+      const hash = window.location.hash.slice(1);
+      if (!hash) return { page: 'home', anchor: '' };
       
-      // Close sidebar on mobile
+      const parts = hash.split('#');
+      return {
+        page: parts[0] || 'home',
+        anchor: parts[1] || ''
+      };
+    }
+
+    // Process GitHub-style alerts: [!NOTE], [!TIP], etc.
+    function formatAlerts(html) {
+      return html.replace(/<blockquote>([\s\S]*?)<\/blockquote>/gi, (match, content) => {
+        const matchType = content.match(/^\s*(?:<p>\s*)?\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i);
+        if (!matchType) return match;
+        
+        const type = matchType[1];
+        const lowerType = type.toLowerCase();
+        let icon = 'ℹ️';
+        if (lowerType === 'tip') icon = '💡';
+        else if (lowerType === 'important') icon = '🔑';
+        else if (lowerType === 'warning') icon = '⚠️';
+        else if (lowerType === 'caution') icon = '🚨';
+        
+        let cleanContent = content.replace(/^\s*(?:<p>\s*)?\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\s*<br\s*\/?>)?/i, '<p>');
+        
+        return `
+          <div class="callout callout-${lowerType}">
+            <div class="callout-header">
+              <span class="callout-icon">${icon}</span>
+              <span class="callout-title">${type}</span>
+            </div>
+            <div class="callout-content">
+              ${cleanContent}
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    // Add Copy Buttons to pre code blocks
+    function addCopyButtons() {
+      docContent.querySelectorAll('pre').forEach(pre => {
+        if (pre.querySelector('.code-copy-btn')) return;
+        
+        const button = document.createElement('button');
+        button.className = 'code-copy-btn';
+        button.setAttribute('aria-label', 'Copy code');
+        button.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        `;
+        
+        button.addEventListener('click', () => {
+          const codeText = pre.querySelector('code').innerText;
+          navigator.clipboard.writeText(codeText).then(() => {
+            button.innerHTML = `
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            `;
+            setTimeout(() => {
+              button.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+              `;
+            }, 2000);
+          });
+        });
+        
+        pre.appendChild(button);
+      });
+    }
+
+    // Build Table of Contents and ScrollSpy
+    function buildTOC() {
+      const tocList = document.getElementById('tocList');
+      const tocContainer = document.getElementById('tocContainer');
+      const { page } = parseRoute();
+      
+      tocList.innerHTML = '';
+      
+      const headings = docContent.querySelectorAll('h2, h3');
+      if (headings.length === 0) {
+        tocContainer.style.display = 'none';
+        return;
+      }
+      
+      tocContainer.style.display = 'block';
+      
+      if (activeObserver) {
+        activeObserver.disconnect();
+      }
+      
+      const headingElements = [];
+      
+      headings.forEach((heading, idx) => {
+        if (!heading.id) {
+          heading.id = heading.textContent.toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/(^-|-$)/g, '') || `section-${idx}`;
+        }
+        
+        const id = heading.id;
+        headingElements.push(heading);
+        
+        const link = document.createElement('a');
+        link.href = `#${page}#${id}`;
+        link.className = `toc-item toc-item-${heading.tagName.toLowerCase()}`;
+        link.textContent = heading.textContent;
+        link.setAttribute('data-target-id', id);
+        
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          const targetEl = document.getElementById(id);
+          if (targetEl) {
+            targetEl.scrollIntoView({ behavior: 'smooth' });
+            history.pushState(null, null, `#${page}#${id}`);
+            updateActiveTocItem(id);
+          }
+        });
+        
+        tocList.appendChild(link);
+      });
+      
+      // ScrollSpy setup
+      let currentActiveId = '';
+      activeObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            updateActiveTocItem(entry.target.id);
+          }
+        });
+      }, {
+        rootMargin: '-80px 0px -60% 0px',
+        threshold: 0
+      });
+      
+      headingElements.forEach(h => activeObserver.observe(h));
+    }
+
+    function updateActiveTocItem(activeId) {
+      document.querySelectorAll('.toc-item').forEach(item => {
+        if (item.getAttribute('data-target-id') === activeId) {
+          item.classList.add('active');
+        } else {
+          item.classList.remove('active');
+        }
+      });
+    }
+
+    // Load documentation route
+    async function loadRoute() {
+      const { page, anchor } = parseRoute();
+      
+      // Close mobile navigation menu
       sidebar.classList.remove('open');
       sidebarOverlay.classList.remove('open');
 
-      // Scroll to top
-      window.scrollTo(0, 0);
-
-      // Update active nav items
+      // Update active state of nav links
       document.querySelectorAll('.nav-item').forEach(item => {
-        if (item.getAttribute('data-route') === route) {
+        if (item.getAttribute('data-route') === page) {
           item.classList.add('active');
         } else {
           item.classList.remove('active');
         }
       });
 
-      if (route === 'home') {
+      if (page === 'home') {
         dashboardView.style.display = 'flex';
         docView.style.display = 'none';
         document.title = 'jotai-state-tree | MobX-State-Tree compatible API powered by Jotai';
+        window.scrollTo(0, 0);
         return;
       }
 
-      const docItem = DOCS.find(d => d.id === route);
+      const docItem = DOCS.find(d => d.id === page);
       if (!docItem) {
-        renderError("Page Not Found", `The page <code>#${route}</code> does not exist.`);
+        renderError("Page Not Found", `The page <code>#${page}</code> does not exist.`);
         return;
       }
 
-      renderLoading();
-      document.title = `${docItem.title} | jotai-state-tree`;
+      const isSamePage = docView.style.display === 'block' && docContent.getAttribute('data-current-page') === page;
 
-      try {
-        const response = await fetch(docItem.file);
-        if (!response.ok) {
-          throw new Error(`Failed to load ${docItem.file} (Status: ${response.status})`);
+      if (!isSamePage) {
+        renderLoading();
+        document.title = `${docItem.title} | jotai-state-tree`;
+
+        try {
+          const response = await fetch(docItem.file);
+          if (!response.ok) {
+            throw new Error(`Failed to load ${docItem.file} (Status: ${response.status})`);
+          }
+          let markdown = await response.text();
+
+          // Compile Markdown using Marked
+          let html = marked.parse(markdown);
+          
+          // Re-format GitHub-style alert blockquotes
+          html = formatAlerts(html);
+          
+          docContent.innerHTML = html;
+          docContent.setAttribute('data-current-page', page);
+
+          // Highlight syntax with Prism
+          Prism.highlightAllUnder(docContent);
+
+          // Add copy buttons and build TOC
+          addCopyButtons();
+          buildTOC();
+
+          // Setup navigation links footer
+          updateNavButtons(page);
+
+          dashboardView.style.display = 'none';
+          docView.style.display = 'block';
+
+        } catch (err) {
+          console.error(err);
+          renderError("Failed to Load Document", `There was an issue fetching the document <code>${docItem.file}</code>. Make sure it is available on the server.`);
+          return;
         }
-        let markdown = await response.text();
+      }
 
-        // Render Markdown
-        const html = marked.parse(markdown);
-        docContent.innerHTML = html;
+      // Scroll to deep-linked heading anchor
+      if (anchor) {
+        setTimeout(() => {
+          const element = document.getElementById(anchor);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth' });
+            updateActiveTocItem(anchor);
+          }
+        }, isSamePage ? 0 : 250);
+      } else if (!isSamePage) {
+        window.scrollTo(0, 0);
+      }
+    }
 
-        // Apply syntax highlighting
-        Prism.highlightAllUnder(docContent);
+    function updateNavButtons(page) {
+      const index = DOCS.findIndex(d => d.id === page);
+      
+      if (index === 0) {
+        prevBtn.href = '#';
+        prevTitle.textContent = 'Home';
+        prevBtn.style.visibility = 'visible';
+      } else if (index > 0) {
+        const prevDoc = DOCS[index - 1];
+        prevBtn.href = `#${prevDoc.id}`;
+        prevTitle.textContent = prevDoc.title;
+        prevBtn.style.visibility = 'visible';
+      } else {
+        prevBtn.style.visibility = 'hidden';
+      }
 
-        // Update Prev/Next Buttons
-        const index = DOCS.findIndex(d => d.id === route);
-        
-        // Prev button setup
-        if (index === 0) {
-          prevBtn.href = '#';
-          prevTitle.textContent = 'Home';
-          prevBtn.style.visibility = 'visible';
-        } else if (index > 0) {
-          const prevDoc = DOCS[index - 1];
-          prevBtn.href = `#${prevDoc.id}`;
-          prevTitle.textContent = prevDoc.title;
-          prevBtn.style.visibility = 'visible';
-        } else {
-          prevBtn.style.visibility = 'hidden';
-        }
-
-        // Next button setup
-        if (index < DOCS.length - 1) {
-          const nextDoc = DOCS[index + 1];
-          nextBtn.href = `#${nextDoc.id}`;
-          nextTitle.textContent = nextDoc.title;
-          nextBtn.style.visibility = 'visible';
-        } else {
-          nextBtn.style.visibility = 'hidden';
-        }
-
-        dashboardView.style.display = 'none';
-        docView.style.display = 'block';
-
-      } catch (err) {
-        console.error(err);
-        renderError("Failed to Load Document", `There was an issue fetching the document <code>${docItem.file}</code>. Make sure it is available on the server.`);
+      if (index < DOCS.length - 1) {
+        const nextDoc = DOCS[index + 1];
+        nextBtn.href = `#${nextDoc.id}`;
+        nextTitle.textContent = nextDoc.title;
+        nextBtn.style.visibility = 'visible';
+      } else {
+        nextBtn.style.visibility = 'hidden';
       }
     }
 
@@ -1002,25 +1403,34 @@
       nextBtn.style.visibility = 'hidden';
     }
 
-    // Intercept link clicks inside rendered Markdown
-    // Translates links like models-and-state.md into hash links like #models-and-state
+    // Intercept clicks in markdown content area
     docContent.addEventListener('click', (e) => {
       const target = e.target.closest('a');
       if (!target) return;
 
       const href = target.getAttribute('href');
-      // If it's a relative link pointing to a markdown file
+      
+      // Cross-document relative link translation
       if (href && href.endsWith('.md') && !href.startsWith('http') && !href.startsWith('/') && !href.startsWith('#')) {
         e.preventDefault();
         const docId = href.replace('.md', '');
         window.location.hash = `#${docId}`;
+      } 
+      // Inner-document section anchor link translation
+      else if (href && href.startsWith('#')) {
+        const anchorId = href.slice(1);
+        const element = document.getElementById(anchorId);
+        if (element) {
+          e.preventDefault();
+          element.scrollIntoView({ behavior: 'smooth' });
+          const currentPage = parseRoute().page;
+          history.pushState(null, null, `#${currentPage}#${anchorId}`);
+          updateActiveTocItem(anchorId);
+        }
       }
     });
 
-    // Handle hash change
     window.addEventListener('hashchange', loadRoute);
-    
-    // Initial Load
     window.addEventListener('DOMContentLoaded', loadRoute);
   </script>
 </body>

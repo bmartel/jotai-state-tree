@@ -22,7 +22,7 @@ export default defineConfig({
     execArgv: ["--expose-gc"],
     coverage: {
       provider: "v8",
-      reporter: ["text", "json", "html"],
+      reporter: ["text", "json", "html", "json-summary"],
     },
   },
 });

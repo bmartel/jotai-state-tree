@@ -3,8 +3,8 @@
 A MobX-State-Tree (MST) compatible state management library powered by [Jotai](https://jotai.org/).
 
 [![npm version](https://img.shields.io/npm/v/jotai-state-tree.svg)](https://www.npmjs.com/package/jotai-state-tree)
-[![CI](https://github.com/bmartel/jotai-state-tree/actions/workflows/ci.yml/badge.svg)](https://github.com/bmartel/jotai-state-tree/actions/workflows/ci.yml)
-[![coverage](.github/badges/coverage.svg)](https://github.com/bmartel/jotai-state-tree/actions/workflows/ci.yml)
+[![CI](https://github.com/bmartel/jotai-state-tree/actions/workflows/release.yml/badge.svg)](https://github.com/bmartel/jotai-state-tree/actions/workflows/release.yml)
+[![coverage](.github/badges/coverage.svg)](https://github.com/bmartel/jotai-state-tree/actions/workflows/release.yml)
 [![license](https://img.shields.io/github/license/bmartel/jotai-state-tree.svg)](LICENSE)
 
 `jotai-state-tree` combines the transactional, tree-structured state model of MobX-State-Tree with the lightweight, zero-leak, high-performance atomic updates of Jotai. It is designed to be an API-compatible, drop-in replacement for MobX-State-Tree, featuring perfect TypeScript type safety out of the box.

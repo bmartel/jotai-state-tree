@@ -18,7 +18,7 @@ Primitives represent basic data values and are validated at runtime:
 | `types.boolean` | `typeof value === 'boolean'` | `boolean` | `boolean` |
 | `types.finite` | Finite numbers (not Infinity or NaN) | `number` | `number` |
 | `types.float` | Alias for number | `number` | `number` |
-| `types.Date` | Date objects or timestamps (stored as timestamp) | `Date | number` | `number` |
+| `types.Date` | Date objects or timestamps (stored as timestamp) | `Date \| number` | `number` |
 | `types.null` | `value === null` | `null` | `null` |
 | `types.undefined` | `value === undefined` | `undefined` | `undefined` |
 

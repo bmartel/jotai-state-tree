@@ -1,6 +1,6 @@
 # Examples & Templates
 
-`jotai-state-tree` comes with a set of 7 pre-configured, type-safe, and minimalist Vite starter templates to jump-start your application development. These examples showcase everything from basic undo history to complex tree hierarchies, asynchronous checkout actions, client-side hydration, and URL routing.
+`jotai-state-tree` comes with a set of 8 pre-configured, type-safe, and minimalist Vite starter templates to jump-start your application development. These examples showcase everything from basic undo history to complex tree hierarchies, asynchronous checkout actions, client-side hydration, and URL routing.
 
 ---
 
@@ -96,4 +96,9 @@ Here is a breakdown of the available starter templates and what they demonstrate
 - **Key APIs**: `createRouter`, `RouteView`, `useRouter`, `beforeNavigate`, `afterNavigate`.
 - **Focus**: URL routing, route parameters, wildcards, query parameters, navigation guards, and transition logging.
 - **Features**: A multi-page mock bookstore directory. Showcases dynamic parameter routing for book details, query parameters for search/category filters, a wildcard files route, and a secure administration dashboard protected by navigation guards that redirect unauthenticated visits.
+
+### 8. Resilient Task Hub with Persistence (`./examples/offline-sync-persistence`) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/bmartel/jotai-state-tree/tree/main/examples/offline-sync-persistence?file=src/App.tsx)
+- **Key APIs**: `usePersistence`, `usePersistentModel`, `PersistenceManager`.
+- **Focus**: IndexedDB state persistence, background sync queue, Web Worker compaction, batching, and safety rollbacks.
+- **Features**: A task board that stores state locally inside IndexedDB. Simulates spotty network connections, offline queueing of modifications, background queue compaction on a worker thread, and automatic state rollback on validation/API failures.
 

@@ -1,6 +1,6 @@
 # jotai-state-tree Examples & Templates
 
-This directory contains 7 distinct, ready-to-run Vite + React + TypeScript starter templates designed to showcase the features of `jotai-state-tree`. 
+This directory contains 8 distinct, ready-to-run Vite + React + TypeScript starter templates designed to showcase the features of `jotai-state-tree`. 
 
 Each template demonstrates specific parts of the library, ranging from basic models to advanced features like references, time travel, undo histories, dynamic forms, and SSR hydration. They are structured as self-contained projects that can be copied and used as the foundation for your own applications.
 
@@ -43,6 +43,11 @@ Each template demonstrates specific parts of the library, ranging from basic mod
 - **Key APIs**: `createRouter`, `RouteView`, `useRouter`, `beforeNavigate`, `afterNavigate`.
 - **Description**: A multi-page mock bookstore directory. Showcases dynamic parameter routing for book details, query parameters for search/category filters, a wildcard file page, and a secure administration dashboard protected by navigation guards that redirect unauthenticated visits.
 
+### 8. Resilient Task Hub with Persistence (`./offline-sync-persistence`) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/bmartel/jotai-state-tree/tree/main/examples/offline-sync-persistence?file=src/App.tsx)
+- **Core Focus**: IndexedDB state persistence, background sync revalidation, patch batching, and Web Worker queue compaction.
+- **Key APIs**: `usePersistence`, `usePersistentModel`, `PersistenceManager`.
+- **Description**: A resilient task manager with a premium glassmorphism dark-mode UI. Simulates network latencies, offline queuing, auto-compaction triggers, and validation rollbacks.
+
 ---
 
 ## Quick Start
@@ -82,6 +87,9 @@ npm run example:notes
 
 # Multipage Bookstore Router
 npm run example:router
+
+# Resilient Task Hub with Persistence
+npm run example:persistence
 ```
 
 ---

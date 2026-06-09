@@ -37,6 +37,7 @@
     "example:form": "npm --prefix examples/form-builder-dynamic run dev",
     "example:notes": "npm --prefix examples/note-taking-ssr run dev",
     "example:router": "npm --prefix examples/multipage-router run dev",
+    "example:persistence": "npm --prefix examples/offline-sync-persistence run dev",
     "examples:install": "for dir in examples/*; do [ -d \"$dir\" ] && npm install --prefix \"$dir\"; done"
   },
   "keywords": [

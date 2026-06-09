@@ -1,3 +1,10 @@
+## [1.9.1](https://github.com/bmartel/jotai-state-tree/compare/v1.9.0...v1.9.1) (2026-06-09)
+
+
+### Bug Fixes
+
+* prevent duplicate patch listener registration when initialize() is called multiple times ([0d6dd1c](https://github.com/bmartel/jotai-state-tree/commit/0d6dd1c06f8d044188e6849c5e378c6d9c97d464))
+
 # [1.9.0](https://github.com/bmartel/jotai-state-tree/compare/v1.8.0...v1.9.0) (2026-06-09)
 
 

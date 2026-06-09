@@ -1,6 +1,6 @@
 # Advanced Features
 
-`jotai-state-tree` has built-in support for time-travel, undo/redo histories, action recording/replaying, dynamic model registries (useful for micro-frontends/code-splitting), and middleware hook pipelines.
+`jotai-state-tree` has built-in support for time-travel, undo/redo histories, action recording/replaying, dynamic model registries (useful for micro-frontends/code-splitting), middleware hook pipelines, declarative state-based routing, and resilient IndexedDB persistence with background synchronization.
 
 ---
 
@@ -169,4 +169,152 @@ const dispose = addMiddleware(store, (call, next, abort) => {
   console.log(`Action completed: ${call.name}, returned:`, result);
   return result;
 });
+```
+
+---
+
+## State Router
+
+The State Router enables declarative, type-safe URL routing integrated directly into your state tree. Routing state is tracked reactively, allowing SPA navigation, route parameter matching, wildcard captures, query parameters, navigation guards, and transition logs to be driven by state tree changes.
+
+```typescript
+import { createRouter } from 'jotai-state-tree';
+
+// 1. Create a router instance
+const router = createRouter({
+  routes: {
+    '/': 'home',
+    '/books': 'book-list',
+    '/books/:id': 'book-detail',
+    '/files/*': 'files-browser',
+  },
+  baseUrl: '', // Optional sub-path prefix
+});
+
+// 2. Register navigation guards
+router.beforeNavigate((to, from, proceed, abort) => {
+  if (to.viewName === 'admin-dashboard' && !store.isAuthenticated) {
+    // Redirect to login with redirect path in query param
+    proceed(`/login?redirect=${encodeURIComponent(to.pathname)}`);
+  } else {
+    proceed(); // Proceed with navigation
+  }
+});
+
+// 3. React hook usage & rendering
+import { useRouter, RouteView, RouterContext } from 'jotai-state-tree/react';
+
+const pages = {
+  home: HomeView,
+  'book-list': BookListView,
+  'book-detail': BookDetailView,
+  'files-browser': FilesBrowserView,
+};
+
+function App() {
+  return (
+    <RouterContext.Provider value={router}>
+      <Navbar />
+      <main>
+        {/* Renders the component matching the active viewName */}
+        <RouteView pages={pages} fallback={<div>404 Page Not Found</div>} />
+      </main>
+    </RouterContext.Provider>
+  );
+}
+```
+
+---
+
+## IndexedDB Persistence & Background Sync
+
+Allows models to act as local caches mirroring remote databases or APIs. Provides out-of-the-box optimistic UI updates, offline queueing, background sync revalidation, automatic rollback on validation errors, and background thread queue compaction.
+
+```typescript
+import { createPersistenceManager } from 'jotai-state-tree';
+
+// 1. Create a persistence manager linked to a model instance
+const persistence = createPersistenceManager(store, {
+  dbName: 'task-hub-persistence',
+  key: 'tasks-store',
+  maxQueueSize: 20, // Compact queue on background worker when exceeding this size
+  
+  // Asynchronous remote database query fetcher
+  query: {
+    queryKey: 'tasks-list',
+    queryFn: async () => {
+      const response = await fetch('/api/tasks');
+      return response.json();
+    },
+    staleTime: 5000,          // 5 seconds stale cache threshold
+    refetchOnReconnect: true, // Auto-fetch when browser regains connection
+  },
+  
+  // Asynchronous mutation handler for syncing updates
+  mutation: {
+    syncFn: async (snapshot, patches) => {
+      const response = await fetch('/api/tasks', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(snapshot),
+      });
+      if (!response.ok) throw new Error('Sync Rejection');
+      return response.json();
+    },
+    // Determine whether to trigger optimistic rollback on failure
+    shouldRollback: (error) => {
+      return error.message !== 'Network Offline'; // Rollback on validation/server error
+    },
+  },
+});
+
+// Initialize persistence (loads cache from IndexedDB and runs query check)
+await persistence.initialize();
+```
+
+### React Bindings for Persistence
+
+React developers can utilize hooks to automate persistent model lifecycle and track synchronization status reactively.
+
+```typescript
+import { usePersistentModel, usePersistence } from 'jotai-state-tree/react';
+
+function TaskApp() {
+  // Automatically instantiates model, handles lifecycle, and registers revalidation
+  const { model: store, persistence, status } = usePersistentModel(
+    TodoStore,
+    { todos: [] },
+    {
+      dbName: 'task-hub',
+      key: 'todos',
+      maxQueueSize: 5,
+      query: {
+        queryKey: 'todos',
+        queryFn: async () => (await fetch('/api/todos')).json(),
+      },
+      mutation: {
+        syncFn: async (snapshot) => {
+          await fetch('/api/todos', {
+            method: 'PUT',
+            body: JSON.stringify(snapshot),
+          });
+        },
+      },
+    }
+  );
+
+  return (
+    <div>
+      {status.isSyncing && <span>Syncing with server...</span>}
+      {status.isOffline && <span>Running Offline (Changes Queued)</span>}
+      
+      <ul>
+        {store.todos.map(todo => (
+          <li key={todo.id}>{todo.title}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
 ```

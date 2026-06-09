@@ -34,6 +34,24 @@ npm install jotai-state-tree jotai
 
 ---
 
+## React Native Compatibility
+
+`jotai-state-tree` is fully compatible with React Native projects. 
+
+### Prerequisites & JS Engine
+- **React Native Version**: `>= 0.70` is required.
+- **JavaScript Engine**: The library relies on native ES2021 `WeakRef` and `FinalizationRegistry` features for memory management. If you use the Hermes engine (default since React Native 0.70), it must be version `0.12.0` or newer.
+
+### Using the Router in React Native
+When running in React Native (or any non-browser environment), the built-in state router automatically disables DOM/browser integration and behaves as a fully-featured **in-memory router**. It maintains a navigation history stack internally, enabling you to use:
+- `push(path)` / `replace(path)`
+- `go(delta)` / `goBack()` / `goForward()`
+- `RouteView` to reactively render screen components based on the active path
+
+This allows you to manage native navigation state trees with full time-travel, middleware, and action recording support!
+
+---
+
 ## Quick Start
 
 ```typescript

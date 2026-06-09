@@ -7,6 +7,12 @@ import { optional, maybeNull } from "./utilities";
 import { flow } from "./lifecycle";
 import { getStateTreeNode, hasStateTreeNode, getGlobalStore } from "./tree";
 
+const isBrowser =
+  typeof window !== "undefined" &&
+  typeof window.document !== "undefined" &&
+  typeof window.location !== "undefined" &&
+  typeof window.history !== "undefined";
+
 // ============================================================================
 // Route Definition Model
 // ============================================================================
@@ -169,6 +175,8 @@ export const RouterModel = model("RouterModel", {
   beforeNavigate: null as ((from: any, to: any) => boolean | string | Promise<boolean | string> | undefined) | null,
   afterNavigate: null as ((to: any) => void) | null,
   _popStateListener: null as ((event: PopStateEvent) => void) | null,
+  _historyStack: [] as string[],
+  _historyIndex: -1,
 }))
 .actions((self) => {
   return {
@@ -194,12 +202,29 @@ export const RouterModel = model("RouterModel", {
       self.query = parsed.query;
       self.currentRouteName = matched ? matched.route.name : null;
       
-      if (typeof window !== "undefined" && window.history) {
+      if (isBrowser) {
         const fullPath = pathname + search + hash;
         if (action === "PUSH") {
           window.history.pushState(state, "", fullPath);
         } else if (action === "REPLACE") {
           window.history.replaceState(state, "", fullPath);
+        }
+      } else {
+        const fullPath = pathname + search + hash;
+        if (action === "PUSH") {
+          self._historyStack = self._historyStack.slice(0, self._historyIndex + 1);
+          self._historyStack.push(fullPath);
+          self._historyIndex = self._historyStack.length - 1;
+        } else if (action === "REPLACE") {
+          if (self._historyIndex === -1) {
+            self._historyStack = [fullPath];
+            self._historyIndex = 0;
+          } else {
+            self._historyStack[self._historyIndex] = fullPath;
+          }
+        } else if (action === "INITIAL") {
+          self._historyStack = [fullPath];
+          self._historyIndex = 0;
         }
       }
     },
@@ -287,26 +312,37 @@ export const RouterModel = model("RouterModel", {
     }),
 
     go(delta: number) {
-      if (typeof window !== "undefined" && window.history) {
+      if (isBrowser) {
         window.history.go(delta);
+      } else {
+        const nextIndex = self._historyIndex + delta;
+        if (nextIndex >= 0 && nextIndex < self._historyStack.length) {
+          self._historyIndex = nextIndex;
+          const targetPath = self._historyStack[nextIndex];
+          (self as any).syncLocation(targetPath, "", "", "POP");
+        }
       }
     },
 
     goBack() {
-      if (typeof window !== "undefined" && window.history) {
+      if (isBrowser) {
         window.history.back();
+      } else {
+        (self as any).go(-1);
       }
     },
 
     goForward() {
-      if (typeof window !== "undefined" && window.history) {
+      if (isBrowser) {
         window.history.forward();
+      } else {
+        (self as any).go(1);
       }
     }
   };
 })
 .afterCreate((self) => {
-  if (typeof window !== "undefined") {
+  if (isBrowser) {
     const handlePopState = (event: PopStateEvent) => {
       const parsed = parseUrl(window.location.pathname + window.location.search + window.location.hash);
       const matched = matchRoutes(self.routes, parsed.pathname);
@@ -375,7 +411,7 @@ export const RouterModel = model("RouterModel", {
   }
 })
 .beforeDestroy((self) => {
-  if (typeof window !== "undefined" && self._popStateListener) {
+  if (isBrowser && self._popStateListener) {
     window.removeEventListener("popstate", self._popStateListener);
     self.setPopStateListener(null);
   }
@@ -400,7 +436,7 @@ export function createRouter(config: {
     initialPathname = parsed.pathname;
     initialSearch = parsed.search;
     initialHash = parsed.hash;
-  } else if (typeof window !== "undefined") {
+  } else if (isBrowser) {
     initialPathname = window.location.pathname;
     initialSearch = window.location.search;
     initialHash = window.location.hash;

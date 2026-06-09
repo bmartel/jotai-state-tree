@@ -277,15 +277,98 @@ describe('Utility Types Extra', () => {
     expect(OnlyPostProcessor.validate({ name: 'bob' }, []).valid).toBe(true);
   });
 
-  it('router in node environment (window undefined branches)', () => {
+  it('router in node environment (in-memory stack routing)', () => {
+    const routes = [
+      { path: '/', name: 'home' },
+      { path: '/about', name: 'about' },
+      { path: '/users/:id', name: 'user-profile' },
+      { path: '/contact', name: 'contact' },
+      { path: '/help', name: 'help' },
+    ];
     const r = createRouter({
-      routes: [{ path: '/', name: 'home' }],
+      routes,
+      initialUrl: '/',
     });
+
     expect(r.pathname).toBe('/');
-    expect(() => r.syncLocation('/about', '', '', 'PUSH')).not.toThrow();
-    expect(() => r.go(1)).not.toThrow();
-    expect(() => r.goBack()).not.toThrow();
-    expect(() => r.goForward()).not.toThrow();
+    expect((r as any)._historyStack).toEqual(['/']);
+    expect((r as any)._historyIndex).toBe(0);
+
+    // Push new path
+    r.syncLocation('/about', '', '', 'PUSH');
+    expect(r.pathname).toBe('/about');
+    expect((r as any)._historyStack).toEqual(['/', '/about']);
+    expect((r as any)._historyIndex).toBe(1);
+
+    // Push another path
+    r.syncLocation('/users/123', '', '', 'PUSH');
+    expect(r.pathname).toBe('/users/123');
+    expect(r.params).toEqual({ id: '123' });
+    expect((r as any)._historyStack).toEqual(['/', '/about', '/users/123']);
+    expect((r as any)._historyIndex).toBe(2);
+
+    // Go back
+    r.goBack();
+    expect(r.pathname).toBe('/about');
+    expect((r as any)._historyIndex).toBe(1);
+
+    // Go forward
+    r.goForward();
+    expect(r.pathname).toBe('/users/123');
+    expect((r as any)._historyIndex).toBe(2);
+
+    // Go back 2 steps
+    r.go(-2);
+    expect(r.pathname).toBe('/');
+    expect((r as any)._historyIndex).toBe(0);
+
+    // Push from middle (should truncate forward stack)
+    r.syncLocation('/contact', '', '', 'PUSH');
+    expect(r.pathname).toBe('/contact');
+    expect((r as any)._historyStack).toEqual(['/', '/contact']);
+    expect((r as any)._historyIndex).toBe(1);
+
+    // Replace current path
+    r.syncLocation('/help', '', '', 'REPLACE');
+    expect(r.pathname).toBe('/help');
+    expect((r as any)._historyStack).toEqual(['/', '/help']);
+    expect((r as any)._historyIndex).toBe(1);
+  });
+
+  it('router in environment where window is defined but document is undefined (e.g., React Native remote debugger)', () => {
+    const originalWindow = (global as any).window;
+    try {
+      // Mock window without document (React Native remote debugger environment)
+      (global as any).window = {};
+
+      const routes = [
+        { path: '/', name: 'home' },
+        { path: '/about', name: 'about' },
+      ];
+      const r = createRouter({
+        routes,
+        initialUrl: '/',
+      });
+
+      expect(r.pathname).toBe('/');
+      expect((r as any)._historyStack).toEqual(['/']);
+
+      // Should not throw or crash and behave as in-memory router
+      expect(() => r.syncLocation('/about', '', '', 'PUSH')).not.toThrow();
+      expect(r.pathname).toBe('/about');
+      expect((r as any)._historyStack).toEqual(['/', '/about']);
+      expect((r as any)._historyIndex).toBe(1);
+
+      expect(() => r.goBack()).not.toThrow();
+      expect(r.pathname).toBe('/');
+      expect((r as any)._historyIndex).toBe(0);
+    } finally {
+      if (originalWindow === undefined) {
+        delete (global as any).window;
+      } else {
+        (global as any).window = originalWindow;
+      }
+    }
   });
 });
 

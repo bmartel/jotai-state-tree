@@ -17,6 +17,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  
   <!-- Prism JS Theme -->
   <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
   
@@ -240,7 +243,7 @@
 
     /* Dashboard View */
     .dashboard {
-      display: flex;
+      display: none; /* Hidden by default until router decides */
       flex-direction: column;
       gap: 48px;
       max-width: 900px;
@@ -1309,6 +1312,14 @@
       const isSamePage = docView.style.display === 'block' && docContent.getAttribute('data-current-page') === page;
 
       if (!isSamePage) {
+        const savedPos = sessionStorage.getItem('scroll_pos_' + page);
+        
+        // If there's no saved position and no anchor, scroll to top IMMEDIATELY before fetching,
+        // so the user sees the loading spinner at the top and doesn't get jarred.
+        if (!savedPos && !anchor) {
+          window.scrollTo(0, 0);
+        }
+
         renderLoading();
         document.title = `${docItem.title} | jotai-state-tree`;
 
@@ -1359,13 +1370,13 @@
             element.scrollIntoView({ behavior: 'smooth' });
             updateActiveTocItem(anchor);
           }
-        }, isSamePage ? 0 : 250);
+        }, isSamePage ? 0 : 100);
       } else {
         const savedPos = sessionStorage.getItem('scroll_pos_' + page);
         if (savedPos && !isSamePage) {
           setTimeout(() => {
             window.scrollTo(0, parseInt(savedPos, 10));
-          }, 150);
+          }, 50);
         } else if (!isSamePage) {
           window.scrollTo(0, 0);
         }

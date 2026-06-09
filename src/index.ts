@@ -629,6 +629,23 @@ export {
 } from "./router";
 
 // ============================================================================
+// State Model Persistence
+// ============================================================================
+
+export {
+  PersistenceManager,
+  createPersistenceManager,
+} from "./persistence";
+
+export type {
+  PersistenceStatus,
+  PersistenceOptions,
+  QueryOptions,
+  MutationOptions,
+  QueuedMutation,
+} from "./persistence";
+
+// ============================================================================
 // Re-export for convenience
 // ============================================================================
 

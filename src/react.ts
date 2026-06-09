@@ -18,6 +18,12 @@ import React, {
   type FC,
 } from "react";
 import {
+  PersistenceManager,
+  type PersistenceStatus,
+  type PersistenceOptions,
+} from "./persistence";
+
+import {
   atom,
   useAtom,
   useAtomValue,
@@ -759,7 +765,52 @@ export const RouteView = observer(function RouteView({ router, pages, fallback }
 });
 
 // ============================================================================
+// Persistence Hooks
+// ============================================================================
+
+/**
+ * Hook to read the reactive status of a PersistenceManager.
+ */
+export function usePersistence(
+  persistence: PersistenceManager,
+): PersistenceStatus {
+  return useAtomValue(persistence.statusAtom, { store: getGlobalStore() });
+}
+
+/**
+ * Hook to create a persistent model instance backed by IndexedDB.
+ * Automatically initializes the persistence manager on mount and handles cleanup.
+ */
+export function usePersistentModel<T>(
+  modelType: { create(snapshot?: any, env?: any): T },
+  creationData: any,
+  options: PersistenceOptions,
+): { model: T; persistence: PersistenceManager; status: PersistenceStatus } {
+  // Create the model instance locally
+  const model = useLocalObservable(() => modelType.create(creationData));
+
+  // Instantiate the persistence manager
+  const persistence = useMemo(() => {
+    return new PersistenceManager(model, options);
+  }, [model, options.key, options.dbName]);
+
+  // Subscribe to the persistence status
+  const status = usePersistence(persistence);
+
+  // Initialize on mount, dispose on unmount
+  useEffect(() => {
+    persistence.initialize();
+    return () => {
+      persistence.dispose();
+    };
+  }, [persistence]);
+
+  return { model, persistence, status };
+}
+
+// ============================================================================
 // Type Exports
 // ============================================================================
 
 export type { ObserverOptions, RouteViewProps };
+

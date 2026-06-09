@@ -1,3 +1,11 @@
+# [1.9.0](https://github.com/bmartel/jotai-state-tree/compare/v1.8.0...v1.9.0) (2026-06-09)
+
+
+### Features
+
+* add fully interactive IndexedDB persistence & offline sync example ([aa5dae4](https://github.com/bmartel/jotai-state-tree/commit/aa5dae4c9cb09ee8c2e49523e8d57469abfe2c26))
+* add optional IndexedDB persistence with microtask batching, debouncing, and worker-based compaction ([5b4c26f](https://github.com/bmartel/jotai-state-tree/commit/5b4c26f2f39df40715ac532d6411dec26f7365c6))
+
 # [1.8.0](https://github.com/bmartel/jotai-state-tree/compare/v1.7.5...v1.8.0) (2026-06-09)
 
 

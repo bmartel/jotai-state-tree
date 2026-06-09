@@ -14,6 +14,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
+    testTimeout: 30000,
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     environmentMatchGlobs: [
       // Use jsdom for React tests

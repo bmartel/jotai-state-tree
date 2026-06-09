@@ -421,6 +421,8 @@ describe('State Router', () => {
       popStateCallback(new PopStateEvent('popstate', { state: null }));
     });
     expect(router.pathname).toBe('/users/redirected');
+    expect(window.history.replaceState).toHaveBeenCalledWith(undefined, '', '/users/redirected');
+    expect(window.history.pushState).not.toHaveBeenCalled();
 
     // 2. PopState promise rejection (should revert URL)
     vi.stubGlobal('location', { pathname: '/files/error', search: '', hash: '' });
@@ -533,6 +535,8 @@ describe('State Router', () => {
       popStateCallback(new PopStateEvent('popstate', { state: null }));
     });
     expect(r4.pathname).toBe('/users/redirected');
+    expect(window.history.replaceState).toHaveBeenCalledWith(undefined, '', '/users/redirected');
+    expect(window.history.pushState).not.toHaveBeenCalled();
 
     // 5. popstate with async beforeNavigate resolving to false
     const r5 = createRouter({

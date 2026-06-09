@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    "ignoreDeprecations": "6.0",
+    "types": ["node"],
     "target": "ES2021",
     "module": "ESNext",
     "lib": ["ES2021", "DOM"],

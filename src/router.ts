@@ -349,7 +349,7 @@ export const RouterModel = model("RouterModel", {
             if (res === false) {
               revert();
             } else if (typeof res === "string") {
-              self.push(res);
+              self.replace(res);
             } else {
               proceed();
             }
@@ -360,7 +360,7 @@ export const RouterModel = model("RouterModel", {
           if (result === false) {
             revert();
           } else if (typeof result === "string") {
-            self.push(result);
+            self.replace(result);
           } else {
             proceed();
           }

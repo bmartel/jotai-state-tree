@@ -1081,6 +1081,7 @@
     const copyInstallBtn = document.getElementById('copyInstallBtn');
     
     let activeObserver = null;
+    let scrollTimeout = null;
 
     // Mobile navigation toggle
     function toggleSidebar() {
@@ -1090,6 +1091,17 @@
 
     menuToggle.addEventListener('click', toggleSidebar);
     sidebarOverlay.addEventListener('click', toggleSidebar);
+
+    // Save scroll position for the current page
+    window.addEventListener('scroll', () => {
+      clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(() => {
+        const { page } = parseRoute();
+        if (page !== 'home') {
+          sessionStorage.setItem('scroll_pos_' + page, window.scrollY);
+        }
+      }, 100);
+    });
 
     // Copy install command
     if (copyInstallBtn) {
@@ -1316,6 +1328,9 @@
           docContent.innerHTML = html;
           docContent.setAttribute('data-current-page', page);
 
+          // Reset minimum height once loaded
+          docContent.style.minHeight = '';
+
           // Highlight syntax with Prism
           Prism.highlightAllUnder(docContent);
 
@@ -1336,7 +1351,7 @@
         }
       }
 
-      // Scroll to deep-linked heading anchor
+      // Scroll to deep-linked heading anchor or restore scroll position
       if (anchor) {
         setTimeout(() => {
           const element = document.getElementById(anchor);
@@ -1345,8 +1360,15 @@
             updateActiveTocItem(anchor);
           }
         }, isSamePage ? 0 : 250);
-      } else if (!isSamePage) {
-        window.scrollTo(0, 0);
+      } else {
+        const savedPos = sessionStorage.getItem('scroll_pos_' + page);
+        if (savedPos && !isSamePage) {
+          setTimeout(() => {
+            window.scrollTo(0, parseInt(savedPos, 10));
+          }, 150);
+        } else if (!isSamePage) {
+          window.scrollTo(0, 0);
+        }
       }
     }
 
@@ -1377,6 +1399,12 @@
     }
 
     function renderLoading() {
+      // Preserve current height to prevent scroll resets during route changes
+      const currentHeight = docContent.offsetHeight;
+      if (currentHeight > 0) {
+        docContent.style.minHeight = currentHeight + 'px';
+      }
+      
       dashboardView.style.display = 'none';
       docView.style.display = 'block';
       docContent.innerHTML = `
@@ -1390,6 +1418,7 @@
     }
 
     function renderError(title, message) {
+      docContent.style.minHeight = '';
       dashboardView.style.display = 'none';
       docView.style.display = 'block';
       docContent.innerHTML = `
@@ -1403,8 +1432,8 @@
       nextBtn.style.visibility = 'hidden';
     }
 
-    // Intercept clicks in markdown content area
-    docContent.addEventListener('click', (e) => {
+    // Intercept clicks in document (markdown links, next/prev, sidebar, etc.)
+    document.addEventListener('click', (e) => {
       const target = e.target.closest('a');
       if (!target) return;
 
@@ -1414,11 +1443,21 @@
       if (href && href.endsWith('.md') && !href.startsWith('http') && !href.startsWith('/') && !href.startsWith('#')) {
         e.preventDefault();
         const docId = href.replace('.md', '');
+        sessionStorage.removeItem('scroll_pos_' + docId); // Start at top
         window.location.hash = `#${docId}`;
       } 
-      // Inner-document section anchor link translation
+      // Inner-document section anchor or page navigation link translation
       else if (href && href.startsWith('#')) {
         const anchorId = href.slice(1);
+        
+        // If anchorId is a page ID (like in prev/next navigation), let browser navigate naturally
+        const isPage = DOCS.some(d => d.id === anchorId) || anchorId === 'home' || anchorId === '';
+        if (isPage) {
+          sessionStorage.removeItem('scroll_pos_' + (anchorId || 'home'));
+          return; 
+        }
+        
+        // Otherwise, it's a section anchor on the current page
         const element = document.getElementById(anchorId);
         if (element) {
           e.preventDefault();
@@ -1426,6 +1465,16 @@
           const currentPage = parseRoute().page;
           history.pushState(null, null, `#${currentPage}#${anchorId}`);
           updateActiveTocItem(anchorId);
+        }
+      }
+      // Explicit sidebar nav link click: clear scroll storage
+      else {
+        const navItem = target.closest('.nav-item');
+        if (navItem) {
+          const route = navItem.getAttribute('data-route');
+          if (route) {
+            sessionStorage.removeItem('scroll_pos_' + route);
+          }
         }
       }
     });

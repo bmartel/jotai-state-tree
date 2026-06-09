@@ -490,6 +490,9 @@ export class PersistenceManager {
     }));
 
     // Start listening to patches for optimistic sync
+    if (this.patchDisposer) {
+      this.patchDisposer();
+    }
     this.patchDisposer = onPatch(this.target, (patch, reversePatch) => {
       this.handlePatch(patch, reversePatch);
     });

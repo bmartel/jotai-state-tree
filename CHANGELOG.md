@@ -1,3 +1,10 @@
+## [1.10.1](https://github.com/bmartel/jotai-state-tree/compare/v1.10.0...v1.10.1) (2026-06-10)
+
+
+### Bug Fixes
+
+* change project-starter vite version to ^6.0.0 to resolve install peer dependency error ([7edc92e](https://github.com/bmartel/jotai-state-tree/commit/7edc92ec7212286a8b2680d09a89957ad8d4db84))
+
 # [1.10.0](https://github.com/bmartel/jotai-state-tree/compare/v1.9.1...v1.10.0) (2026-06-10)
 
 

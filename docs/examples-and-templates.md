@@ -1,20 +1,16 @@
 # Examples & Templates
 
-`jotai-state-tree` comes with a set of 8 pre-configured, type-safe, and minimalist Vite starter templates to jump-start your application development. These examples showcase everything from basic undo history to complex tree hierarchies, asynchronous checkout actions, client-side hydration, and URL routing.
+`jotai-state-tree` comes with a comprehensive, production-ready **Project Starter Template** (pre-configured with routing, Tailwind CSS, local storage persistence, and developer tools) along with 8 specialized, type-safe, and minimalist examples to jump-start your application development.
 
 ---
 
-## Scaffolding a New Project from a Template
+## Scaffolding a New Project from the Starter (Recommended)
 
-You can instantly scaffold a new Vite application from any of these examples using either `degit` (recommended) or by cloning the repository.
-
-### Method 1: Using `degit` (Fastest)
-
-`degit` downloads a copy of the subfolder from the repository without its git history, instantly preparing a clean project template.
+You can instantly scaffold a new Vite application from our starter template using `degit`. It downloads a copy of the template folder without its git history, instantly preparing a clean project.
 
 ```bash
-# 1. Scaffold a project from the Todo List template
-npx degit bmartel/jotai-state-tree/examples/todo-list-time-travel my-new-app
+# 1. Scaffold a project from the Project Starter template
+npx degit bmartel/jotai-state-tree/examples/project-starter my-new-app
 
 # 2. Enter the project folder
 cd my-new-app
@@ -60,7 +56,16 @@ cp -r jotai-state-tree/examples/shopping-cart-views my-new-app
 
 ## Template Directory Index
 
-Here is a breakdown of the available starter templates and what they demonstrate:
+### ⭐️ Recommended Project Starter (`./examples/project-starter`) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/bmartel/jotai-state-tree/tree/main/examples/project-starter?file=src/App.tsx)
+- **Key APIs**: Full `jotai-state-tree` lifecycle (`types.model`, `volatile`, `views`, `actions`), routing (`createRouter`, `RouteView`), persistence (`onSnapshot`, `applySnapshot`), history (`createUndoManager`), and JSON Patches (`onPatch`).
+- **Focus**: Production-ready skeleton for starting any new application with premium tooling and styling.
+- **Features**: Class-based dark mode, preconfigured Tailwind CSS v3, Outfit and Inter Google font pairings, full-featured workspace routing, state persistence in localStorage, dynamic notifications (Toast system), and a premium sliding DevTools inspector panel showcasing live snapshots, patch feeds, undo/redo buffers, and error validation blocks. Includes pre-configured agent assistant guides (`AGENTS.md` and `.agents/skills`).
+
+---
+
+## Example Directory Index
+
+Here is a breakdown of the specialized example templates and what they demonstrate:
 
 ### 1. Todo List with Time Travel (`./examples/todo-list-time-travel`) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/bmartel/jotai-state-tree/tree/main/examples/todo-list-time-travel?file=src/App.tsx)
 - **Key APIs**: `types.model`, `types.array`, `createUndoManager`, `createTimeTravelManager` (with `autoRecord: true`).

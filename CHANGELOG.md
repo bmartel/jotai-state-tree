@@ -1,3 +1,10 @@
+# [1.10.0](https://github.com/bmartel/jotai-state-tree/compare/v1.9.1...v1.10.0) (2026-06-10)
+
+
+### Features
+
+* add premium project starter template with Tailwind and Agentic configurations ([37066c5](https://github.com/bmartel/jotai-state-tree/commit/37066c5a5e0eaa11c4fb5da3d35d9f492175f04e))
+
 ## [1.9.1](https://github.com/bmartel/jotai-state-tree/compare/v1.9.0...v1.9.1) (2026-06-09)
 
 

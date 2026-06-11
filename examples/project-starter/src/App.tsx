@@ -6,7 +6,7 @@ import {
   applySnapshot,
   createUndoManager,
 } from 'jotai-state-tree';
-// import { JotaiStateTreeDevtools } from 'jotai-state-tree/devtools';
+import { JotaiStateTreeDevtools } from 'jotai-state-tree/devtools';
 import { createAppStore, IRootStore } from './models/RootStore';
 import { configureRouter } from './routes/router';
 import { Sidebar } from './components/Sidebar';
@@ -123,7 +123,7 @@ export const App = observer(function App() {
             </div>
 
             {/* Devtools Panel */}
-            {/* <JotaiStateTreeDevtools store={store} initialOpen={devPanelOpen} /> */}
+            <JotaiStateTreeDevtools store={store} initialOpen={devPanelOpen} />
           </div>
         </ToastProvider>
       </RouterContext.Provider>

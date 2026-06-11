@@ -649,6 +649,12 @@ export type {
 // Re-export for convenience
 // ============================================================================
 
+// ============================================================================
+// React Integration
+// ============================================================================
+
+export { useFineSnapshot } from "./react";
+
 // Default export for convenient import
 export default types;
 

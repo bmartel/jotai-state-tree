@@ -216,9 +216,11 @@ export class StateTreeNode implements IStateTreeNode {
   readonly $type: IAnyType;
   $parent: StateTreeNode | null = null;
   $path: string = "";
+  cachedPath: string | null = null;
   $env: unknown;
   $isAlive: boolean = true;
   $isApplyingHistory: boolean = false;
+  isSyncingChildren: boolean = false;
 
   /** Child nodes - uses Map but children are explicitly destroyed */
   private children = new Map<string, StateTreeNode>();
@@ -236,10 +238,10 @@ export class StateTreeNode implements IStateTreeNode {
   structureVersionAtom: WritableAtom<number, [number], void>;
 
   /** Snapshot listeners */
-  private snapshotListeners = new Set<(snapshot: unknown) => void>();
+  snapshotListeners = new Set<(snapshot: unknown) => void>();
 
   /** Patch listeners */
-  private patchListeners = new Set<
+  patchListeners = new Set<
     (patch: IJsonPatch, reversePatch: IReversibleJsonPatch) => void
   >();
 
@@ -264,6 +266,7 @@ export class StateTreeNode implements IStateTreeNode {
   private instance: unknown = null;
 
   invalidateSnapshot() {
+    if (this.isSyncingChildren) return;
     if (!this.isSnapshotDirty) {
       this.isSnapshotDirty = true;
       this.cachedSnapshot = undefined;
@@ -274,6 +277,7 @@ export class StateTreeNode implements IStateTreeNode {
   }
 
   incrementStructureVersion() {
+    if (this.isSyncingChildren) return;
     const store = getGlobalStore();
     try {
       const current = store.get(this.structureVersionAtom);
@@ -295,6 +299,7 @@ export class StateTreeNode implements IStateTreeNode {
     this.$env = env ?? parent?.$env;
     this.$parent = parent ?? null;
     this.$path = parent ? `${parent.$path}/${pathSegment}` : "";
+    this.cachedPath = this.$path;
 
     // Create the value atom
     this.valueAtom = atom(initialValue);
@@ -410,6 +415,7 @@ export class StateTreeNode implements IStateTreeNode {
   /** Recursively update the path of a node and all its children */
   private updatePathRecursively(node: StateTreeNode, newPath: string) {
     node.$path = newPath;
+    node.cachedPath = newPath;
 
     // Update all children's paths
     for (const [childKey, childNode] of node.children) {
@@ -650,6 +656,7 @@ export class StateTreeNode implements IStateTreeNode {
       }
       this.$parent = null;
       this.$path = "";
+      this.cachedPath = "";
       parent.invalidateSnapshot();
     }
   }
@@ -874,11 +881,20 @@ export function applySnapshotToNode(node: StateTreeNode, snapshot: unknown) {
       snapshot !== null
     ) {
       const snapshotObj = snapshot as Record<string, unknown>;
-      const children = node.getChildren();
+      const properties = (type as any).properties || {};
 
-      for (const [key, childNode] of children) {
-        if (key in snapshotObj) {
-          applySnapshotToNode(childNode, snapshotObj[key]);
+      for (const key of Object.keys(properties)) {
+        const childNode = node.getChild(key);
+        if (childNode) {
+          if (key in snapshotObj) {
+            applySnapshotToNode(childNode, snapshotObj[key]);
+          } else if (
+            childNode.$type._kind === "optional" ||
+            childNode.$type._kind === "maybe" ||
+            childNode.$type._kind === "maybeNull"
+          ) {
+            applySnapshotToNode(childNode, undefined);
+          }
         }
       }
     } else if (type._kind === "array" && Array.isArray(snapshot)) {
@@ -902,8 +918,12 @@ export function applySnapshotToNode(node: StateTreeNode, snapshot: unknown) {
         node.setValue(snapshot);
       }
     } else {
-      // For primitives
-      node.setValue(snapshot);
+      // For primitives and simple/wrapper types
+      if (type && typeof type.create === "function") {
+        node.setValue(type.create(snapshot, node.$env));
+      } else {
+        node.setValue(snapshot);
+      }
     }
   });
 }
@@ -1090,7 +1110,8 @@ export function getParentOfType<T extends IAnyModelType>(
 
 /** Get the path of a node */
 export function getPath(target: unknown): string {
-  return getStateTreeNode(target).$path;
+  const node = getStateTreeNode(target);
+  return node.cachedPath ?? node.$path;
 }
 
 /** Get path parts as array */

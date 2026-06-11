@@ -47,6 +47,7 @@ import {
   applySnapshotToNode,
   getIsApplyingSnapshotOrPatch,
   setIsApplyingSnapshotOrPatch,
+  $treenode,
 } from "./tree";
 import {
   createUndoManager,
@@ -806,6 +807,223 @@ export function usePersistentModel<T>(
   }, [persistence]);
 
   return { model, persistence, status };
+}
+
+// ============================================================================
+// useFineSnapshot Hook
+// ============================================================================
+
+function getActualKind(type: any): string {
+  let current = type;
+  while (current) {
+    if (
+      current._kind === "optional" ||
+      current._kind === "maybe" ||
+      current._kind === "maybeNull" ||
+      current._kind === "refinement"
+    ) {
+      current = current._subType;
+    } else if (current._kind === "late") {
+      current = current._definition();
+    } else {
+      break;
+    }
+  }
+  return current ? current._kind : "";
+}
+
+function createTrackedProxy(val: any, tracker: { record(atom: Atom<unknown>): void }): any {
+  if (!hasStateTreeNode(val)) return val;
+  const node = getStateTreeNode(val);
+
+  if (val instanceof Map) {
+    return new Proxy(val, {
+      get(target, prop, receiver) {
+        if (prop === $treenode) {
+          return node;
+        }
+
+        const propStr = String(prop);
+
+        if (propStr === "get") {
+          return (key: string) => {
+            const childNode = node.getChild(key);
+            if (childNode) {
+              const kind = getActualKind(childNode.$type);
+              if (kind === "array" || kind === "map") {
+                tracker.record(childNode.isAliveAtom);
+              } else {
+                tracker.record(childNode.valueAtom);
+              }
+              const childInstance = childNode.getInstance();
+              if (childInstance !== undefined && childInstance !== null && typeof childInstance === "object" && $treenode in childInstance) {
+                return createTrackedProxy(childInstance, tracker);
+              }
+              return getGlobalStore().get(childNode.valueAtom);
+            }
+            return target.get(key);
+          };
+        }
+
+        if (propStr === "has") {
+          return (key: string) => {
+            tracker.record(node.structureVersionAtom);
+            return target.has(key);
+          };
+        }
+
+        if (
+          propStr === "size" ||
+          propStr === "keys" ||
+          propStr === "values" ||
+          propStr === "entries" ||
+          propStr === "forEach" ||
+          prop === Symbol.iterator
+        ) {
+          tracker.record(node.valueAtom);
+          const member = Reflect.get(target, prop, receiver);
+          return typeof member === "function" ? member.bind(target) : member;
+        }
+
+        const member = Reflect.get(target, prop, receiver);
+        return typeof member === "function" ? member.bind(target) : member;
+      }
+    });
+  }
+
+  if (Array.isArray(val)) {
+    return new Proxy(val, {
+      get(target, prop, receiver) {
+        if (prop === $treenode) {
+          return node;
+        }
+
+        const propStr = String(prop);
+        const isIndex = /^\d+$/.test(propStr);
+
+        if (isIndex) {
+          const childNode = node.getChild(propStr);
+          if (childNode) {
+            const kind = getActualKind(childNode.$type);
+            if (kind === "array" || kind === "map") {
+              tracker.record(childNode.isAliveAtom);
+            } else {
+              tracker.record(childNode.valueAtom);
+            }
+            const childInstance = childNode.getInstance();
+            if (childInstance !== undefined && childInstance !== null && typeof childInstance === "object" && $treenode in childInstance) {
+              return createTrackedProxy(childInstance, tracker);
+            }
+            return getGlobalStore().get(childNode.valueAtom);
+          }
+        } else if (
+          propStr === "length" ||
+          propStr === "map" ||
+          propStr === "forEach" ||
+          propStr === "reduce" ||
+          propStr === "filter" ||
+          propStr === "some" ||
+          propStr === "every" ||
+          propStr === "indexOf" ||
+          propStr === "includes" ||
+          propStr === "join" ||
+          propStr === "slice" ||
+          prop === Symbol.iterator
+        ) {
+          tracker.record(node.valueAtom);
+        }
+
+        return Reflect.get(target, prop, receiver);
+      }
+    });
+  }
+
+  return new Proxy(val, {
+    get(target, prop, receiver) {
+      if (prop === $treenode) {
+        return node;
+      }
+
+      const propStr = String(prop);
+      const childNode = node.getChild(propStr);
+      if (childNode) {
+        const kind = getActualKind(childNode.$type);
+        if (kind === "array" || kind === "map") {
+          tracker.record(childNode.isAliveAtom);
+        } else {
+          tracker.record(childNode.valueAtom);
+        }
+
+        const childInstance = childNode.getInstance();
+        if (childInstance !== undefined && childInstance !== null && typeof childInstance === "object" && $treenode in childInstance) {
+          return createTrackedProxy(childInstance, tracker);
+        }
+        return getGlobalStore().get(childNode.valueAtom);
+      }
+
+      return Reflect.get(target, prop, receiver);
+    }
+  });
+}
+
+/**
+ * Hook that returns a reactive proxy of the state tree snapshot.
+ * Re-renders the component only when properties that were accessed during render are modified.
+ */
+export function useFineSnapshot<T>(target: T): T {
+  const [, forceUpdate] = useState({});
+  
+  const tracker = useMemo(() => {
+    return {
+      accessedAtoms: new Set<Atom<unknown>>(),
+      record(atom: Atom<unknown>) {
+        this.accessedAtoms.add(atom);
+      }
+    };
+  }, []);
+
+  // Clear accessedAtoms before each render so we only track the ones accessed in the current pass
+  tracker.accessedAtoms.clear();
+
+  const proxy = useMemo(() => {
+    return createTrackedProxy(target, tracker);
+  }, [target, tracker]);
+
+  const lastSubscribedAtomsRef = useRef<Set<Atom<unknown>>>(new Set());
+
+  useEffect(() => {
+    const store = getGlobalStore();
+    const currentAtoms = tracker.accessedAtoms;
+    const lastAtoms = lastSubscribedAtomsRef.current;
+
+    let identical = currentAtoms.size === lastAtoms.size;
+    if (identical) {
+      for (const atom of currentAtoms) {
+        if (!lastAtoms.has(atom)) {
+          identical = false;
+          break;
+        }
+      }
+    }
+
+    if (identical) return;
+
+    const disposers: IDisposer[] = [];
+    for (const atom of currentAtoms) {
+      const disposer = store.sub(atom, () => {
+        forceUpdate({});
+      });
+      disposers.push(disposer);
+    }
+
+    lastSubscribedAtomsRef.current = new Set(currentAtoms);
+
+    return () => {
+      disposers.forEach((d) => d());
+    };
+  }); // Runs on every render, but only re-subscribes if identical set changes
+
+  return proxy;
 }
 
 // ============================================================================

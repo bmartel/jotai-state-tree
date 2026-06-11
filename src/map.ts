@@ -140,48 +140,58 @@ class MSTMap<V> extends Map<string, V> implements IMSTMap<V> {
   }
 
   private syncToNode(): void {
-    // Get current children
-    const existingChildren = new Map(this.node.getChildren());
-    const newChildren = new Map<string, StateTreeNode>();
+    this.node.isSyncingChildren = true;
+    try {
+      // Get current children
+      const existingChildren = new Map(this.node.getChildren());
+      const newChildren = new Map<string, StateTreeNode>();
 
-    // Create new children for each entry
-    this.forEach((value, key) => {
-      if (this.valueType._kind === 'model' || this.valueType._kind === 'array' || this.valueType._kind === 'map') {
-        if (value && typeof value === 'object' && $treenode in value) {
-          const childNode = getStateTreeNode(value);
-          newChildren.set(key, childNode);
+      // Create new children for each entry
+      this.forEach((value, key) => {
+        if (this.valueType._kind === 'model' || this.valueType._kind === 'array' || this.valueType._kind === 'map') {
+          if (value && typeof value === 'object' && $treenode in value) {
+            const childNode = getStateTreeNode(value);
+            newChildren.set(key, childNode);
+          } else {
+            const childInstance = this.valueType.create(value);
+            const childNode = getStateTreeNode(childInstance);
+            newChildren.set(key, childNode);
+            super.set(key, childInstance as V);
+          }
         } else {
-          const childInstance = this.valueType.create(value);
-          const childNode = getStateTreeNode(childInstance);
-          newChildren.set(key, childNode);
-          super.set(key, childInstance as V);
+          const existingChild = existingChildren.get(key);
+          if (existingChild) {
+            if (existingChild.getValue() !== value) {
+              existingChild.setValue(value);
+            }
+            newChildren.set(key, existingChild);
+          } else {
+            const childNode = new StateTreeNode(this.valueType, value, this.node.$env);
+            newChildren.set(key, childNode);
+          }
         }
-      } else {
-        const existingChild = existingChildren.get(key);
-        if (existingChild && existingChild.getValue() === value) {
-          newChildren.set(key, existingChild);
-        } else {
-          const childNode = new StateTreeNode(this.valueType, value, this.node.$env);
-          newChildren.set(key, childNode);
+      });
+
+      // Destroy children that are no longer in the map
+      for (const [key, child] of existingChildren) {
+        if (!newChildren.has(key)) {
+          child.destroy();
         }
       }
-    });
 
-    // Destroy children that are no longer in the map
-    for (const [key, child] of existingChildren) {
-      if (!newChildren.has(key)) {
-        child.destroy();
+      // Clear and set new children
+      this.node.getChildren().clear();
+      for (const [key, childNode] of newChildren) {
+        this.node.addChild(key, childNode);
       }
-    }
 
-    // Clear and set new children
-    this.node.getChildren().clear();
-    for (const [key, childNode] of newChildren) {
-      this.node.addChild(key, childNode);
+      // Update node value
+      this.node.setValue(this.toJSON());
+    } finally {
+      this.node.isSyncingChildren = false;
+      this.node.invalidateSnapshot();
+      this.node.incrementStructureVersion();
     }
-
-    // Update node value
-    this.node.setValue(this.toJSON());
   }
 }
 

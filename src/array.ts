@@ -239,228 +239,250 @@ class MSTArray<T> extends Array<T> implements IMSTArray<T> {
   }
 
   private syncToNode(): void {
-    const oldArray = (this.node.getValue() as unknown[]) || [];
-    const newArray = [...this];
+    this.node.isSyncingChildren = true;
+    try {
+      const oldArray = (this.node.getValue() as unknown[]) || [];
+      const newArray = [...this];
 
-    // Collect snapshots of existing children before we modify the children tree
-    const oldSnapshots = new Map<number, unknown>();
-    for (let i = 0; i < oldArray.length; i++) {
-      const childNode = this.node.getChild(String(i));
-      oldSnapshots.set(i, childNode ? getSnapshotFromNode(childNode) : oldArray[i]);
-    }
+      // Collect snapshots of existing children before we modify the children tree
+      const oldSnapshots = new Map<number, unknown>();
+      for (let i = 0; i < oldArray.length; i++) {
+        const childNode = this.node.getChild(String(i));
+        oldSnapshots.set(i, childNode ? getSnapshotFromNode(childNode) : oldArray[i]);
+      }
 
-    // Collect existing child nodes for cleanup comparison
-    const existingChildNodes = new Set<StateTreeNode>();
-    for (const [, child] of this.node.getChildren()) {
-      existingChildNodes.add(child);
-    }
+      // Collect existing child nodes for cleanup comparison
+      const existingChildNodes = new Set<StateTreeNode>();
+      for (const [, child] of this.node.getChildren()) {
+        existingChildNodes.add(child);
+      }
 
-    const newChildren = new Map<string, StateTreeNode>();
-    const keptNodes = new Set<StateTreeNode>();
-
-    // Create new children for each item
-    this.forEach((item, index) => {
-      const key = String(index);
-      // Check if item is a complex type (has tree node) - handles late/maybe wrappers too
-      if (item && typeof item === "object" && $treenode in item) {
-        const childNode = getStateTreeNode(item);
-        newChildren.set(key, childNode);
-        keptNodes.add(childNode);
-      } else {
-        // Check if we can reconcile/reuse an existing complex node in existingChildNodes
-        let reusedNode: StateTreeNode | null = null;
-
-        // Helper to resolve actual model type (unwrapping wrappers like optional/late/maybe)
-        const resolveActualType = (type: IAnyType): IAnyType => {
-          let current = type;
-          while (current) {
-            if (
-              current._kind === "optional" ||
-              current._kind === "maybe" ||
-              current._kind === "maybeNull" ||
-              current._kind === "refinement"
-            ) {
-              current = (current as any)._subType;
-            } else if (current._kind === "late") {
-              current = (current as any)._definition();
-            } else {
-              break;
-            }
+      // Group unused existing primitive nodes by value for fast lookup
+      const unusedPrimitivesByValue = new Map<unknown, StateTreeNode[]>();
+      for (const existingNode of existingChildNodes) {
+        if (existingNode.$type._kind === "simple" || existingNode.$type._kind === "frozen") {
+          const val = existingNode.getValue();
+          let list = unusedPrimitivesByValue.get(val);
+          if (!list) {
+            list = [];
+            unusedPrimitivesByValue.set(val, list);
           }
-          return current;
-        };
+          list.push(existingNode);
+        }
+      }
 
-        const actualType = resolveActualType(this.itemType);
-        const isComplex =
-          actualType._kind === "model" ||
-          actualType._kind === "array" ||
-          actualType._kind === "map";
+      const newChildren = new Map<string, StateTreeNode>();
+      const keptNodes = new Set<StateTreeNode>();
 
-        const identifierAttr = (actualType as any).identifierAttribute;
+      // Create new children for each item
+      this.forEach((item, index) => {
+        const key = String(index);
+        // Check if item is a complex type (has tree node) - handles late/maybe wrappers too
+        if (item && typeof item === "object" && $treenode in item) {
+          const childNode = getStateTreeNode(item);
+          newChildren.set(key, childNode);
+          keptNodes.add(childNode);
+        } else {
+          // Check if we can reconcile/reuse an existing complex node in existingChildNodes
+          let reusedNode: StateTreeNode | null = null;
 
-        // Try to find existing node by identifier if the type has one
-        if (identifierAttr && item && typeof item === "object") {
-          const idValue = (item as any)[identifierAttr];
-          if (idValue !== undefined && idValue !== null) {
-            for (const existingNode of existingChildNodes) {
+          // Helper to resolve actual model type (unwrapping wrappers like optional/late/maybe)
+          const resolveActualType = (type: IAnyType): IAnyType => {
+            let current = type;
+            while (current) {
               if (
-                !keptNodes.has(existingNode) &&
-                existingNode.identifierValue === idValue
+                current._kind === "optional" ||
+                current._kind === "maybe" ||
+                current._kind === "maybeNull" ||
+                current._kind === "refinement"
               ) {
-                reusedNode = existingNode;
+                current = (current as any)._subType;
+              } else if (current._kind === "late") {
+                current = (current as any)._definition();
+              } else {
                 break;
               }
             }
-          }
-        }
+            return current;
+          };
 
-        // If no identifier, try to reconcile by index/key (matching type)
-        if (!reusedNode && !identifierAttr) {
-          const existingNodeAtIndex = this.node.getChild(key);
-          if (
-            existingNodeAtIndex &&
-            !keptNodes.has(existingNodeAtIndex) &&
-            existingNodeAtIndex.$type === this.itemType
-          ) {
-            reusedNode = existingNodeAtIndex;
-          }
-        }
+          const actualType = resolveActualType(this.itemType);
+          const isComplex =
+            actualType._kind === "model" ||
+            actualType._kind === "array" ||
+            actualType._kind === "map";
 
-        if (reusedNode) {
-          // Reconcile/apply snapshot to the reused node
-          applySnapshotToNode(reusedNode, item);
-          
-          const instance = isComplex ? reusedNode.getInstance() : reusedNode.getValue();
-          newChildren.set(key, reusedNode);
-          keptNodes.add(reusedNode);
-          
-          // Update array with proper instance
-          (this as unknown as unknown[])[index] = instance;
-          (newArray as any)[index] = instance;
-        } else {
-          // Try creating an instance - it might be a late/maybe type that creates complex instances
-          const instance = this.itemType.create(item);
-          if (instance && typeof instance === "object" && $treenode in instance) {
-            const childNode = getStateTreeNode(instance);
-            newChildren.set(key, childNode);
-            keptNodes.add(childNode);
+          const identifierAttr = (actualType as any).identifierAttribute;
+
+          // Try to find existing node by identifier if the type has one
+          if (identifierAttr && item && typeof item === "object") {
+            const idValue = (item as any)[identifierAttr];
+            if (idValue !== undefined && idValue !== null) {
+              for (const existingNode of existingChildNodes) {
+                if (
+                  !keptNodes.has(existingNode) &&
+                  existingNode.identifierValue === idValue
+                ) {
+                  reusedNode = existingNode;
+                  break;
+                }
+              }
+            }
+          }
+
+          // If no identifier, try to reconcile by index/key (matching type)
+          if (!reusedNode && !identifierAttr) {
+            const existingNodeAtIndex = this.node.getChild(key);
+            if (
+              existingNodeAtIndex &&
+              !keptNodes.has(existingNodeAtIndex) &&
+              existingNodeAtIndex.$type === this.itemType
+            ) {
+              reusedNode = existingNodeAtIndex;
+            }
+          }
+
+          if (reusedNode) {
+            // Reconcile/apply snapshot to the reused node
+            applySnapshotToNode(reusedNode, item);
+            
+            const instance = isComplex ? reusedNode.getInstance() : reusedNode.getValue();
+            newChildren.set(key, reusedNode);
+            keptNodes.add(reusedNode);
+            
             // Update array with proper instance
             (this as unknown as unknown[])[index] = instance;
             (newArray as any)[index] = instance;
           } else {
-            // Primitive types - try to find existing node with same value
-            let reusedPrimitiveNode: StateTreeNode | null = null;
-            for (const existingNode of existingChildNodes) {
-              if (
-                !keptNodes.has(existingNode) &&
-                existingNode.getValue() === item
-              ) {
-                reusedPrimitiveNode = existingNode;
-                break;
-              }
-            }
-
-            if (reusedPrimitiveNode) {
-              newChildren.set(key, reusedPrimitiveNode);
-              keptNodes.add(reusedPrimitiveNode);
+            // Try creating an instance - it might be a late/maybe type that creates complex instances
+            const instance = this.itemType.create(item);
+            if (instance && typeof instance === "object" && $treenode in instance) {
+              const childNode = getStateTreeNode(instance);
+              newChildren.set(key, childNode);
+              keptNodes.add(childNode);
+              // Update array with proper instance
               (this as unknown as unknown[])[index] = instance;
               (newArray as any)[index] = instance;
             } else {
-              const childNode = new StateTreeNode(
-                this.itemType,
-                item,
-                this.node.$env,
-              );
-              newChildren.set(key, childNode);
-              keptNodes.add(childNode);
-              (this as unknown as unknown[])[index] = instance;
-              (newArray as any)[index] = instance;
+              // Primitive types - try to find existing node with same value using fast lookup
+              const list = unusedPrimitivesByValue.get(item);
+              let reusedPrimitiveNode: StateTreeNode | null = null;
+              if (list) {
+                while (list.length > 0) {
+                  const nodeCandidate = list.pop()!;
+                  if (!keptNodes.has(nodeCandidate)) {
+                    reusedPrimitiveNode = nodeCandidate;
+                    break;
+                  }
+                }
+              }
+
+              if (reusedPrimitiveNode) {
+                newChildren.set(key, reusedPrimitiveNode);
+                keptNodes.add(reusedPrimitiveNode);
+                (this as unknown as unknown[])[index] = instance;
+                (newArray as any)[index] = instance;
+              } else {
+                const childNode = new StateTreeNode(
+                  this.itemType,
+                  item,
+                  this.node.$env,
+                );
+                newChildren.set(key, childNode);
+                keptNodes.add(childNode);
+                (this as unknown as unknown[])[index] = instance;
+                (newArray as any)[index] = instance;
+              }
             }
           }
         }
+      });
+
+      // Destroy children that are no longer in the array
+      for (const existingNode of existingChildNodes) {
+        if (!keptNodes.has(existingNode)) {
+          existingNode.destroy();
+        }
       }
-    });
 
-    // Destroy children that are no longer in the array
-    for (const existingNode of existingChildNodes) {
-      if (!keptNodes.has(existingNode)) {
-        existingNode.destroy();
+      // Clear and set new children
+      this.node.getChildren().clear();
+      for (const [key, childNode] of newChildren) {
+        this.node.addChild(key, childNode);
       }
-    }
 
-    // Clear and set new children
-    this.node.getChildren().clear();
-    for (const [key, childNode] of newChildren) {
-      this.node.addChild(key, childNode);
-    }
+      // Determine diff and generate granular patches
+      const patches: IJsonPatch[] = [];
+      const reversePatches: IReversibleJsonPatch[] = [];
 
-    // Determine diff and generate granular patches
-    const patches: IJsonPatch[] = [];
-    const reversePatches: IReversibleJsonPatch[] = [];
+      // Case 1: Simple push (items added at the end)
+      if (newArray.length > oldArray.length && oldArray.every((val, idx) => val === newArray[idx])) {
+        for (let i = oldArray.length; i < newArray.length; i++) {
+          const childNode = this.node.getChild(String(i));
+          const valSnap = childNode ? getSnapshotFromNode(childNode) : newArray[i];
+          patches.push({
+            op: "add",
+            path: `${this.node.$path}/${i}`,
+            value: valSnap,
+          });
+          reversePatches.push({
+            op: "remove",
+            path: `${this.node.$path}/${i}`,
+          });
+        }
+      }
+      // Case 2: Simple pop (items removed from the end)
+      else if (newArray.length < oldArray.length && newArray.every((val, idx) => val === oldArray[idx])) {
+        for (let i = oldArray.length - 1; i >= newArray.length; i--) {
+          const oldValSnap = oldSnapshots.get(i);
+          patches.push({
+            op: "remove",
+            path: `${this.node.$path}/${i}`,
+          });
+          reversePatches.push({
+            op: "add",
+            path: `${this.node.$path}/${i}`,
+            value: oldValSnap,
+          });
+        }
+      }
+      // Case 3: Other mutations (fallback to replace array)
+      else {
+        const oldSnap = oldArray.map((_, idx) => oldSnapshots.get(idx));
+        const newSnap = newArray.map((_, idx) => {
+          const childNode = this.node.getChild(String(idx));
+          return childNode ? getSnapshotFromNode(childNode) : newArray[idx];
+        });
 
-    // Case 1: Simple push (items added at the end)
-    if (newArray.length > oldArray.length && oldArray.every((val, idx) => val === newArray[idx])) {
-      for (let i = oldArray.length; i < newArray.length; i++) {
-        const childNode = this.node.getChild(String(i));
-        const valSnap = childNode ? getSnapshotFromNode(childNode) : newArray[i];
         patches.push({
-          op: "add",
-          path: `${this.node.$path}/${i}`,
-          value: valSnap,
+          op: "replace",
+          path: this.node.$path,
+          value: newSnap,
         });
         reversePatches.push({
-          op: "remove",
-          path: `${this.node.$path}/${i}`,
+          op: "replace",
+          path: this.node.$path,
+          value: oldSnap,
         });
       }
-    }
-    // Case 2: Simple pop (items removed from the end)
-    else if (newArray.length < oldArray.length && newArray.every((val, idx) => val === oldArray[idx])) {
-      for (let i = oldArray.length - 1; i >= newArray.length; i--) {
-        const oldValSnap = oldSnapshots.get(i);
-        patches.push({
-          op: "remove",
-          path: `${this.node.$path}/${i}`,
-        });
-        reversePatches.push({
-          op: "add",
-          path: `${this.node.$path}/${i}`,
-          value: oldValSnap,
-        });
-      }
-    }
-    // Case 3: Other mutations (fallback to replace array)
-    else {
-      const oldSnap = oldArray.map((_, idx) => oldSnapshots.get(idx));
-      const newSnap = newArray.map((_, idx) => {
-        const childNode = this.node.getChild(String(idx));
-        return childNode ? getSnapshotFromNode(childNode) : newArray[idx];
+
+      // Update the node's value silently
+      const store = getGlobalStore();
+      store.set(this.node.valueAtom, newArray);
+      this.node.notifySnapshotChange();
+
+      // Notify patch listeners
+      patches.forEach((patch, idx) => {
+        this.node.notifyPatch(patch, reversePatches[idx]);
       });
 
-      patches.push({
-        op: "replace",
-        path: this.node.$path,
-        value: newSnap,
-      });
-      reversePatches.push({
-        op: "replace",
-        path: this.node.$path,
-        value: oldSnap,
-      });
+      // Notify snapshot changes
+      this.node.notifyVolatileChange();
+    } finally {
+      this.node.isSyncingChildren = false;
+      this.node.invalidateSnapshot();
+      this.node.incrementStructureVersion();
     }
-
-    // Update the node's value silently
-    const store = getGlobalStore();
-    store.set(this.node.valueAtom, newArray);
-    this.node.notifySnapshotChange();
-
-    // Notify patch listeners
-    patches.forEach((patch, idx) => {
-      this.node.notifyPatch(patch, reversePatches[idx]);
-    });
-
-    // Notify snapshot changes
-    this.node.notifyVolatileChange();
   }
 }
 

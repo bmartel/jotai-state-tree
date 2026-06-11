@@ -428,8 +428,19 @@ class ReferenceType<T extends IAnyModelType> implements IReferenceType<T> {
 
     const proxy = new Proxy({} as Instance<T>, {
       get(target, prop) {
-        // Resolve the reference
-        if (!resolved) {
+        if (prop === $treenode) {
+          return node;
+        }
+
+        const isInstanceAlive = (inst: any) => {
+          try {
+            return getStateTreeNode(inst).$isAlive;
+          } catch {
+            return false;
+          }
+        };
+
+        if (!resolved || !isInstanceAlive(resolved)) {
           const targetNode = resolveIdentifier(self._targetType.name, snapshot);
           if (!targetNode) {
             throw new Error(
@@ -439,14 +450,18 @@ class ReferenceType<T extends IAnyModelType> implements IReferenceType<T> {
           resolved = targetNode.getInstance() as Instance<T>;
         }
 
-        if (prop === $treenode) {
-          return node;
-        }
-
         return (resolved as unknown as Record<string | symbol, unknown>)[prop];
       },
       set(target, prop, value) {
-        if (!resolved) {
+        const isInstanceAlive = (inst: any) => {
+          try {
+            return getStateTreeNode(inst).$isAlive;
+          } catch {
+            return false;
+          }
+        };
+
+        if (!resolved || !isInstanceAlive(resolved)) {
           const targetNode = resolveIdentifier(self._targetType.name, snapshot);
           if (!targetNode) {
             throw new Error(
@@ -459,13 +474,21 @@ class ReferenceType<T extends IAnyModelType> implements IReferenceType<T> {
         return true;
       },
       has(target, prop) {
-        if (!resolved) {
+        const isInstanceAlive = (inst: any) => {
+          try {
+            return getStateTreeNode(inst).$isAlive;
+          } catch {
+            return false;
+          }
+        };
+
+        if (!resolved || !isInstanceAlive(resolved)) {
           const targetNode = resolveIdentifier(self._targetType.name, snapshot);
           if (targetNode) {
             resolved = targetNode.getInstance() as Instance<T>;
           }
         }
-        return resolved ? prop in (resolved as object) : false;
+        return resolved && isInstanceAlive(resolved) ? prop in (resolved as object) : false;
       },
     });
 

@@ -1,3 +1,10 @@
+## [1.14.1](https://github.com/bmartel/jotai-state-tree/compare/v1.14.0...v1.14.1) (2026-06-11)
+
+
+### Bug Fixes
+
+* **examples:** resolve StackBlitz white-screen by checking root node_modules for local mode ([085dd67](https://github.com/bmartel/jotai-state-tree/commit/085dd67a90ba416a7ba4624c48363e094d7df3e5))
+
 # [1.14.0](https://github.com/bmartel/jotai-state-tree/compare/v1.13.1...v1.14.0) (2026-06-11)
 
 

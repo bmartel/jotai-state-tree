@@ -1,3 +1,10 @@
+# [1.14.0](https://github.com/bmartel/jotai-state-tree/compare/v1.13.1...v1.14.0) (2026-06-11)
+
+
+### Features
+
+* implement granular computed views memoization, caching and notification batching ([de0150e](https://github.com/bmartel/jotai-state-tree/commit/de0150edb34f2d8c387df9b04c259b99689a6425))
+
 ## [1.13.1](https://github.com/bmartel/jotai-state-tree/compare/v1.13.0...v1.13.1) (2026-06-11)
 
 # [1.13.0](https://github.com/bmartel/jotai-state-tree/compare/v1.12.1...v1.13.0) (2026-06-11)

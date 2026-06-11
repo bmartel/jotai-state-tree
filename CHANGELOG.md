@@ -1,3 +1,10 @@
+## [1.12.1](https://github.com/bmartel/jotai-state-tree/compare/v1.12.0...v1.12.1) (2026-06-11)
+
+
+### Bug Fixes
+
+* **project-starter:** resolve theme toggling, invalid tailwind colors, and sidebar layout shift ([414dd8f](https://github.com/bmartel/jotai-state-tree/commit/414dd8f852f71649d86d8f513bbda8da2610c984))
+
 # [1.12.0](https://github.com/bmartel/jotai-state-tree/compare/v1.11.0...v1.12.0) (2026-06-11)
 
 

@@ -1,3 +1,10 @@
+## [1.14.3](https://github.com/bmartel/jotai-state-tree/compare/v1.14.2...v1.14.3) (2026-06-11)
+
+
+### Bug Fixes
+
+* **examples:** correct path aliases on StackBlitz for project-starter template ([90e0af9](https://github.com/bmartel/jotai-state-tree/commit/90e0af9e33b7b9983c1035f2f1f36c109f93a712))
+
 ## [1.14.2](https://github.com/bmartel/jotai-state-tree/compare/v1.14.1...v1.14.2) (2026-06-11)
 
 

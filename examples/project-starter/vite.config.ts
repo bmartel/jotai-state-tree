@@ -14,11 +14,15 @@ export default defineConfig({
     tailwindcss(),
   ],
   resolve: {
-    alias: isLocal ? {
-      'jotai-state-tree/react': path.resolve(__dirname, '../../src/react.ts'),
-      'jotai-state-tree/devtools': path.resolve(__dirname, '../../src/devtools.tsx'),
-      'jotai-state-tree': path.resolve(__dirname, '../../src/index.ts'),
-    } : {},
+    alias: {
+      ...(isLocal ? {
+        'jotai-state-tree/react': path.resolve(__dirname, '../../src/react.ts'),
+        'jotai-state-tree/devtools': path.resolve(__dirname, '../../src/devtools.tsx'),
+        'jotai-state-tree': path.resolve(__dirname, '../../src/index.ts'),
+      } : {}),
+      'react': path.resolve(__dirname, './node_modules/react'),
+      'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
+    },
   },
   server: {
     port: 3000,

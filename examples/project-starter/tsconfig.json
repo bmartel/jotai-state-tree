@@ -19,6 +19,10 @@
         "../../src/react.ts",
         "./node_modules/jotai-state-tree/dist/react.d.ts"
       ],
+      "jotai-state-tree/devtools": [
+        "../../src/devtools.tsx",
+        "./node_modules/jotai-state-tree/dist/devtools.d.ts"
+      ],
       "jotai-state-tree": [
         "../../src/index.ts",
         "./node_modules/jotai-state-tree/dist/index.d.ts"

@@ -373,6 +373,8 @@ function defaultShouldRollback(error: any): boolean {
 // Persistence Manager Class
 // ============================================================================
 
+export const activePersistenceManagers = new WeakMap<any, PersistenceManager>();
+
 export class PersistenceManager {
   readonly target: any;
   readonly options: PersistenceOptions;
@@ -409,6 +411,7 @@ export class PersistenceManager {
   constructor(target: any, options: PersistenceOptions = {}) {
     this.target = target;
     this.options = options;
+    activePersistenceManagers.set(target, this);
 
     if (typeof indexedDB === "undefined") {
       throw new Error(
@@ -882,6 +885,7 @@ export class PersistenceManager {
   }
 
   dispose(): void {
+    activePersistenceManagers.delete(this.target);
     if (this.fetchTimeout) {
       clearTimeout(this.fetchTimeout);
       this.fetchTimeout = null;

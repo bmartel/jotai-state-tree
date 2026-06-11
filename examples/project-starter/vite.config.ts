@@ -16,6 +16,7 @@ export default defineConfig({
   resolve: {
     alias: isLocal ? {
       'jotai-state-tree/react': path.resolve(__dirname, '../../src/react.ts'),
+      'jotai-state-tree/devtools': path.resolve(__dirname, '../../src/devtools.tsx'),
       'jotai-state-tree': path.resolve(__dirname, '../../src/index.ts'),
     } : {},
   },

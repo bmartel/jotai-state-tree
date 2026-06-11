@@ -6,11 +6,11 @@ import {
   applySnapshot,
   createUndoManager,
 } from 'jotai-state-tree';
+import { JotaiStateTreeDevtools } from 'jotai-state-tree/devtools';
 import { createAppStore, IRootStore } from './models/RootStore';
 import { configureRouter } from './routes/router';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
-import { DeveloperPanel } from './components/DeveloperPanel';
 import { ToastProvider } from './components/Toast';
 
 // Views
@@ -126,8 +126,8 @@ export const App = observer(function App() {
               </main>
             </div>
 
-            {/* Right Developer Drawer Panel */}
-            {devPanelOpen && <DeveloperPanel undoManager={undoManager} />}
+            {/* Devtools Panel */}
+            <JotaiStateTreeDevtools store={store} initialOpen={devPanelOpen} />
           </div>
         </ToastProvider>
       </RouterContext.Provider>

@@ -232,6 +232,9 @@ export class StateTreeNode implements IStateTreeNode {
   /** Atom tracking the isAlive status */
   isAliveAtom: WritableAtom<boolean, [boolean], void>;
 
+  /** Atom tracking structure and volatile state changes */
+  structureVersionAtom: WritableAtom<number, [number], void>;
+
   /** Snapshot listeners */
   private snapshotListeners = new Set<(snapshot: unknown) => void>();
 
@@ -270,6 +273,16 @@ export class StateTreeNode implements IStateTreeNode {
     }
   }
 
+  incrementStructureVersion() {
+    const store = getGlobalStore();
+    try {
+      const current = store.get(this.structureVersionAtom);
+      store.set(this.structureVersionAtom, current + 1);
+    } catch (e) {
+      // Ignore store errors during teardown/initialization
+    }
+  }
+
   constructor(
     type: IAnyType,
     initialValue: unknown,
@@ -287,6 +300,8 @@ export class StateTreeNode implements IStateTreeNode {
     this.valueAtom = atom(initialValue);
 
     this.isAliveAtom = atom(true);
+
+    this.structureVersionAtom = atom(0);
 
     this.snapshotAtom = atom((get) => {
       const value = get(this.valueAtom);
@@ -389,6 +404,7 @@ export class StateTreeNode implements IStateTreeNode {
     this.children.set(key, child);
     lifecycleHookHandlers.runAfterAttach?.(child);
     this.invalidateSnapshot();
+    this.incrementStructureVersion();
   }
 
   /** Recursively update the path of a node and all its children */
@@ -409,6 +425,7 @@ export class StateTreeNode implements IStateTreeNode {
       child.destroy();
       this.children.delete(key);
       this.invalidateSnapshot();
+      this.incrementStructureVersion();
     }
   }
 
@@ -480,6 +497,7 @@ export class StateTreeNode implements IStateTreeNode {
   }
 
 
+
   /** Notify patch listeners */
   notifyPatch(patch: IJsonPatch, reversePatch: IReversibleJsonPatch) {
     const serializedPatch: IJsonPatch = {
@@ -502,7 +520,17 @@ export class StateTreeNode implements IStateTreeNode {
       delete (serializedReversePatch as any).oldValue;
     }
 
-    this.patchListeners.forEach((listener) => listener(serializedPatch, serializedReversePatch));
+    if (notificationBatchDepth > 0) {
+      pendingPatches.push({
+        node: this,
+        patch: serializedPatch,
+        reversePatch: serializedReversePatch,
+        actionContext: currentAction,
+      });
+    } else {
+      this.patchListeners.forEach((listener) => listener(serializedPatch, serializedReversePatch));
+    }
+
     // Bubble up to parent
     if (this.$parent) {
       this.$parent.notifyPatch(serializedPatch, serializedReversePatch);
@@ -514,8 +542,12 @@ export class StateTreeNode implements IStateTreeNode {
     let current: StateTreeNode | null = this;
     while (current) {
       current.invalidateSnapshot();
-      const snapshot = getSnapshotFromNode(current);
-      current.snapshotListeners.forEach((listener) => listener(snapshot));
+      if (notificationBatchDepth > 0) {
+        pendingSnapshotNotifications.add(current);
+      } else {
+        const snapshot = getSnapshotFromNode(current);
+        current.snapshotListeners.forEach((listener) => listener(snapshot));
+      }
       current = current.$parent;
     }
   }
@@ -532,6 +564,7 @@ export class StateTreeNode implements IStateTreeNode {
 
   /** Notify about a volatile state change (triggers snapshot listeners without patches) */
   notifyVolatileChange() {
+    this.incrementStructureVersion();
     this.notifySnapshotChange();
   }
 
@@ -622,6 +655,131 @@ export class StateTreeNode implements IStateTreeNode {
   }
 }
 
+export interface ActionContext {
+  name: string;
+  args: unknown[];
+  tree: StateTreeNode;
+  parent?: ActionContext | null;
+}
+
+export interface ActionCall {
+  name: string;
+  path: string;
+  args: unknown[];
+}
+
+let currentAction: ActionContext | null = null;
+
+export function getCurrentAction(): ActionContext | null {
+  return currentAction;
+}
+
+const actionListeners = new Set<(call: ActionCall) => void>();
+
+/** Action recorder hooks - set by lifecycle.ts to avoid circular imports */
+const actionRecorderHooks: Array<
+  (node: StateTreeNode, call: ActionCall) => void
+> = [];
+
+/** Register an action recorder hook (called by lifecycle.ts) */
+export function registerActionRecorderHook(
+  hook: (node: StateTreeNode, call: ActionCall) => void,
+): () => void {
+  actionRecorderHooks.push(hook);
+  return () => {
+    const index = actionRecorderHooks.indexOf(hook);
+    if (index >= 0) {
+      actionRecorderHooks.splice(index, 1);
+    }
+  };
+}
+
+/** Check if an action is currently running */
+export function isActionRunning(): boolean {
+  return currentAction !== null;
+}
+
+let notificationBatchDepth = 0;
+const pendingSnapshotNotifications = new Set<StateTreeNode>();
+const pendingPatches: {
+  node: StateTreeNode;
+  patch: IJsonPatch;
+  reversePatch: IReversibleJsonPatch;
+  actionContext: ActionContext | null;
+}[] = [];
+const pendingActions: {
+  node: StateTreeNode;
+  call: ActionCall;
+  actionContext: ActionContext | null;
+}[] = [];
+
+export function batchNotifications<T>(fn: () => T): T {
+  notificationBatchDepth++;
+  try {
+    return fn();
+  } finally {
+    notificationBatchDepth--;
+    if (notificationBatchDepth === 0) {
+      // Trigger snapshot notifications
+      const nodesToNotify = Array.from(pendingSnapshotNotifications);
+      pendingSnapshotNotifications.clear();
+      for (const node of nodesToNotify) {
+        if (node.$isAlive) {
+          const snapshot = getSnapshotFromNode(node);
+          node.snapshotListeners.forEach((listener) => {
+            try {
+              listener(snapshot);
+            } catch (e) {
+              console.error(e);
+            }
+          });
+        }
+      }
+
+      // Trigger patch notifications
+      const patchesToEmit = [...pendingPatches];
+      pendingPatches.length = 0;
+      const previousGlobalAction = currentAction;
+      for (const { node, patch, reversePatch, actionContext } of patchesToEmit) {
+        if (node.$isAlive) {
+          currentAction = actionContext;
+          node.patchListeners.forEach((listener) => {
+            try {
+              listener(patch, reversePatch);
+            } catch (e) {
+              console.error(e);
+            }
+          });
+        }
+      }
+      currentAction = previousGlobalAction;
+
+      // Trigger action notifications
+      const actionsToEmit = [...pendingActions];
+      pendingActions.length = 0;
+      const previousGlobalActionForActions = currentAction;
+      for (const { node, call, actionContext } of actionsToEmit) {
+        currentAction = actionContext;
+        actionListeners.forEach((listener) => {
+          try {
+            listener(call);
+          } catch (e) {
+            console.error(e);
+          }
+        });
+        actionRecorderHooks.forEach((hook) => {
+          try {
+            hook(node, call);
+          } catch (e) {
+            console.error(e);
+          }
+        });
+      }
+      currentAction = previousGlobalActionForActions;
+    }
+  }
+}
+
 // ============================================================================
 // Node Utilities
 // ============================================================================
@@ -698,54 +856,56 @@ export function getSnapshotFromNode(node: StateTreeNode): unknown {
 
 /** Apply snapshot to a node */
 export function applySnapshotToNode(node: StateTreeNode, snapshot: unknown) {
-  if (!node.$isAlive) {
-    throw new Error("[jotai-state-tree] Cannot apply snapshot to a dead node");
-  }
+  return batchNotifications(() => {
+    if (!node.$isAlive) {
+      throw new Error("[jotai-state-tree] Cannot apply snapshot to a dead node");
+    }
 
-  const type = node.$type;
+    const type = node.$type;
 
-  // Apply pre processor if exists
-  if (node.preProcessor) {
-    snapshot = node.preProcessor(snapshot);
-  }
+    // Apply pre processor if exists
+    if (node.preProcessor) {
+      snapshot = node.preProcessor(snapshot);
+    }
 
-  if (
-    type._kind === "model" &&
-    typeof snapshot === "object" &&
-    snapshot !== null
-  ) {
-    const snapshotObj = snapshot as Record<string, unknown>;
-    const children = node.getChildren();
+    if (
+      type._kind === "model" &&
+      typeof snapshot === "object" &&
+      snapshot !== null
+    ) {
+      const snapshotObj = snapshot as Record<string, unknown>;
+      const children = node.getChildren();
 
-    for (const [key, childNode] of children) {
-      if (key in snapshotObj) {
-        applySnapshotToNode(childNode, snapshotObj[key]);
+      for (const [key, childNode] of children) {
+        if (key in snapshotObj) {
+          applySnapshotToNode(childNode, snapshotObj[key]);
+        }
       }
-    }
-  } else if (type._kind === "array" && Array.isArray(snapshot)) {
-    // For arrays, we need to reconcile
-    const mstArray = node.getInstance() as any;
-    if (mstArray) {
-      mstArray.replace(snapshot);
+    } else if (type._kind === "array" && Array.isArray(snapshot)) {
+      // For arrays, we need to reconcile
+      const mstArray = node.getInstance() as any;
+      if (mstArray) {
+        mstArray.replace(snapshot);
+      } else {
+        node.setValue(snapshot);
+      }
+    } else if (
+      type._kind === "map" &&
+      typeof snapshot === "object" &&
+      snapshot !== null
+    ) {
+      // For maps, replace all entries
+      const mstMap = node.getInstance() as any;
+      if (mstMap) {
+        mstMap.replace(snapshot);
+      } else {
+        node.setValue(snapshot);
+      }
     } else {
+      // For primitives
       node.setValue(snapshot);
     }
-  } else if (
-    type._kind === "map" &&
-    typeof snapshot === "object" &&
-    snapshot !== null
-  ) {
-    // For maps, replace all entries
-    const mstMap = node.getInstance() as any;
-    if (mstMap) {
-      mstMap.replace(snapshot);
-    } else {
-      node.setValue(snapshot);
-    }
-  } else {
-    // For primitives
-    node.setValue(snapshot);
-  }
+  });
 }
 
 /** Look up a node by identifier */
@@ -1041,18 +1201,20 @@ export function applyPatch(
   target: unknown,
   patch: IJsonPatch | IJsonPatch[],
 ): void {
-  const patches = Array.isArray(patch) ? patch : [patch];
-  const rootNode = getStateTreeNode(target).getRoot();
+  return batchNotifications(() => {
+    const patches = Array.isArray(patch) ? patch : [patch];
+    const rootNode = getStateTreeNode(target).getRoot();
 
-  const wasApplying = getIsApplyingSnapshotOrPatch();
-  setIsApplyingSnapshotOrPatch(true);
-  try {
-    for (const p of patches) {
-      applyPatchToNode(rootNode, p);
+    const wasApplying = getIsApplyingSnapshotOrPatch();
+    setIsApplyingSnapshotOrPatch(true);
+    try {
+      for (const p of patches) {
+        applyPatchToNode(rootNode, p);
+      }
+    } finally {
+      setIsApplyingSnapshotOrPatch(wasApplying);
     }
-  } finally {
-    setIsApplyingSnapshotOrPatch(wasApplying);
-  }
+  });
 }
 
 function applyPatchToNode(rootNode: StateTreeNode, patch: IJsonPatch): void {
@@ -1177,49 +1339,6 @@ export function recordPatches(target: unknown): {
 // Action Tracking
 // ============================================================================
 
-export interface ActionContext {
-  name: string;
-  args: unknown[];
-  tree: StateTreeNode;
-  parent?: ActionContext | null;
-}
-
-let currentAction: ActionContext | null = null;
-
-export function getCurrentAction(): ActionContext | null {
-  return currentAction;
-}
-const actionListeners = new Set<(call: ActionCall) => void>();
-
-/** Action recorder hooks - set by lifecycle.ts to avoid circular imports */
-const actionRecorderHooks: Array<
-  (node: StateTreeNode, call: ActionCall) => void
-> = [];
-
-/** Register an action recorder hook (called by lifecycle.ts) */
-export function registerActionRecorderHook(
-  hook: (node: StateTreeNode, call: ActionCall) => void,
-): () => void {
-  actionRecorderHooks.push(hook);
-  return () => {
-    const index = actionRecorderHooks.indexOf(hook);
-    if (index >= 0) {
-      actionRecorderHooks.splice(index, 1);
-    }
-  };
-}
-
-export interface ActionCall {
-  name: string;
-  path: string;
-  args: unknown[];
-}
-
-/** Check if an action is currently running */
-export function isActionRunning(): boolean {
-  return currentAction !== null;
-}
-
 /** Track an action call */
 export function trackAction<T>(
   node: StateTreeNode,
@@ -1227,27 +1346,35 @@ export function trackAction<T>(
   args: unknown[],
   fn: () => T,
 ): T {
-  const previousAction = currentAction;
-  currentAction = { name, args, tree: node, parent: previousAction };
+  return batchNotifications(() => {
+    const previousAction = currentAction;
+    currentAction = { name, args, tree: node, parent: previousAction };
 
-  try {
-    const result = fn();
+    try {
+      const result = fn();
 
-    // Notify action listeners
-    const call: ActionCall = {
-      name,
-      path: node.$path,
-      args,
-    };
-    actionListeners.forEach((listener) => listener(call));
+      // Notify action listeners
+      const call: ActionCall = {
+        name,
+        path: node.$path,
+        args,
+      };
+      if (notificationBatchDepth > 0) {
+        pendingActions.push({
+          node,
+          call,
+          actionContext: currentAction,
+        });
+      } else {
+        actionListeners.forEach((listener) => listener(call));
+        actionRecorderHooks.forEach((hook) => hook(node, call));
+      }
 
-    // Notify action recorder hooks (registered by lifecycle.ts)
-    actionRecorderHooks.forEach((hook) => hook(node, call));
-
-    return result;
-  } finally {
-    currentAction = previousAction;
-  }
+      return result;
+    } finally {
+      currentAction = previousAction;
+    }
+  });
 }
 
 /** Subscribe to action calls */

@@ -8,7 +8,9 @@
  * - No global caches that could accumulate entries
  */
 
-import { atom, type WritableAtom } from "jotai";
+import { atom, type WritableAtom, type Atom } from "jotai";
+
+let activeJotaiGet: ((atom: Atom<unknown>) => unknown) | null = null;
 import type {
   IModelType,
   ModelProperties,
@@ -275,19 +277,39 @@ class ModelType<
     store: ReturnType<typeof getGlobalStore>,
   ): ModelInstance<P, V, A, Vol> & V & A & Vol {
     const self = this;
-    // Use bounded LRU caches to prevent unbounded memory growth
-    // These caches are instance-scoped and will be GC'd with the instance
-    const viewCache = new LRUCache<string, unknown>(MAX_CACHE_SIZE);
-    const actionCache = new LRUCache<string, Function>(MAX_CACHE_SIZE);
+    // Use stable property and volatile atoms for granular dependency tracking
+    const stablePropertyAtoms = new Map<string, Atom<unknown>>();
+    function getOrCreateStablePropertyAtom(key: string): Atom<unknown> {
+      let propAtom = stablePropertyAtoms.get(key);
+      if (!propAtom) {
+        propAtom = atom((get) => {
+          get(node.structureVersionAtom);
+          const currentAtom = propertyAtoms.get(key);
+          return currentAtom ? get(currentAtom) : undefined;
+        });
+        stablePropertyAtoms.set(key, propAtom);
+      }
+      return propAtom;
+    }
+
+    const stableVolatileAtoms = new Map<string, Atom<unknown>>();
+    function getOrCreateStableVolatileAtom(key: string): Atom<unknown> {
+      let valAtom = stableVolatileAtoms.get(key);
+      if (!valAtom) {
+        valAtom = atom((get) => {
+          get(node.structureVersionAtom);
+          return node.volatileState[key];
+        });
+        stableVolatileAtoms.set(key, valAtom);
+      }
+      return valAtom;
+    }
 
     // Collect all views
     const allViews: Record<string, PropertyDescriptor> = {};
 
     // Collect all actions
     const allActions: Record<string, Function> = {};
-
-    // Collect volatile state
-    const volatileState: Record<string, unknown> = {};
 
     // Create base object with tree node reference
     const base = {
@@ -308,6 +330,9 @@ class ModelType<
         }
 
         if (!node.$isAlive) {
+          if (prop === "then" || prop === "toJSON" || typeof prop === "symbol") {
+            return undefined;
+          }
           throw new Error(`[jotai-state-tree] Cannot access '${String(prop)}' - the node is dead.`);
         }
 
@@ -320,6 +345,8 @@ class ModelType<
             // Track access to the property's child node for granular updates
             trackNodeAccess(childNode);
 
+            const stableAtom = getOrCreateStablePropertyAtom(propStr);
+
             // Check if the child node has an instance (complex types like model, array, map)
             // This handles both direct complex types and wrapper types (maybe, late, optional)
             // that contain complex types
@@ -331,11 +358,15 @@ class ModelType<
                 typeof instance === "object" &&
                 $treenode in instance
               ) {
+                // If activeJotaiGet is active, subscribe to the stable property atom
+                if (activeJotaiGet) {
+                  activeJotaiGet(stableAtom);
+                }
                 return instance;
               }
             }
-            // For primitive types, get from atom
-            return store.get(propertyAtoms.get(propStr)!);
+            // For primitive types, get from stable atom
+            return activeJotaiGet ? activeJotaiGet(stableAtom) : store.get(stableAtom);
           }
         }
 
@@ -343,7 +374,8 @@ class ModelType<
         if (propStr in node.volatileState) {
           // Volatile state is stored at the parent node level, so track parent node access
           trackNodeAccess(node);
-          return node.volatileState[propStr];
+          const stableAtom = getOrCreateStableVolatileAtom(propStr);
+          return activeJotaiGet ? activeJotaiGet(stableAtom) : store.get(stableAtom);
         }
 
         // Check views
@@ -511,10 +543,31 @@ class ModelType<
     // Initialize views
     for (const viewFn of this.config.views) {
       const views = viewFn(proxy);
-      for (const [key, value] of Object.entries(
+      for (const [key, descriptor] of Object.entries(
         Object.getOwnPropertyDescriptors(views),
       )) {
-        allViews[key] = value;
+        if (descriptor.get) {
+          const getter = descriptor.get;
+          const viewAtom = atom((get) => {
+            const prevGet = activeJotaiGet;
+            activeJotaiGet = get;
+            try {
+              return getter.call(proxy);
+            } finally {
+              activeJotaiGet = prevGet;
+            }
+          });
+          allViews[key] = {
+            get() {
+              return activeJotaiGet ? activeJotaiGet(viewAtom) : store.get(viewAtom);
+            },
+            set: descriptor.set ? (val) => descriptor.set!.call(proxy, val) : undefined,
+            enumerable: true,
+            configurable: true,
+          };
+        } else {
+          allViews[key] = descriptor;
+        }
       }
     }
 

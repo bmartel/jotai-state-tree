@@ -539,6 +539,9 @@ class ArrayType<T extends IAnyType> implements IArrayType<T> {
           return node;
         }
         if (!node.$isAlive) {
+          if (prop === "then" || prop === "toJSON" || typeof prop === "symbol") {
+            return undefined;
+          }
           throw new Error("[jotai-state-tree] Cannot access array - the node is dead.");
         }
         return Reflect.get(target, prop, receiver);

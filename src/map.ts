@@ -108,7 +108,7 @@ class MSTMap<V> extends Map<string, V> implements IMSTMap<V> {
     }
     if (this.valueType._kind === 'model' || this.valueType._kind === 'array' || this.valueType._kind === 'map') {
       const childNode = this.node.getChild(key);
-      if (childNode) {
+      if (childNode && childNode.$isAlive) {
         return childNode.getInstance() as V;
       }
       return undefined;

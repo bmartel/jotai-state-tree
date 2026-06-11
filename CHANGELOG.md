@@ -1,3 +1,10 @@
+# [1.11.0](https://github.com/bmartel/jotai-state-tree/compare/v1.10.1...v1.11.0) (2026-06-11)
+
+
+### Features
+
+* upgrade project-starter to latest dependencies (React 19, Jotai 2.11, Vite 8, Tailwind v4) ([7556cf7](https://github.com/bmartel/jotai-state-tree/commit/7556cf7a1d725064d7a94c118df7d625e7ab5d6b))
+
 ## [1.10.1](https://github.com/bmartel/jotai-state-tree/compare/v1.10.0...v1.10.1) (2026-06-10)
 
 

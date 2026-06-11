@@ -1,3 +1,10 @@
+## [1.14.2](https://github.com/bmartel/jotai-state-tree/compare/v1.14.1...v1.14.2) (2026-06-11)
+
+
+### Bug Fixes
+
+* **examples:** resolve duplicate React 19 instance issue in project-starter template ([e5a0364](https://github.com/bmartel/jotai-state-tree/commit/e5a03649b0e168d2aa93c38f08c4260b4146ccea))
+
 ## [1.14.1](https://github.com/bmartel/jotai-state-tree/compare/v1.14.0...v1.14.1) (2026-06-11)
 
 

@@ -1,3 +1,10 @@
+## [1.14.6](https://github.com/bmartel/jotai-state-tree/compare/v1.14.5...v1.14.6) (2026-06-11)
+
+
+### Bug Fixes
+
+* **devtools:** define JotaiStateTreeDevtools as const component to prevent ESM assignment crashes ([217c7f3](https://github.com/bmartel/jotai-state-tree/commit/217c7f3918738d19aa6c2bf533c12cc6e4c3acd4))
+
 ## [1.14.5](https://github.com/bmartel/jotai-state-tree/compare/v1.14.4...v1.14.5) (2026-06-11)
 
 

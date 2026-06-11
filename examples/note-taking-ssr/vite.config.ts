@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import fs from 'fs';
 
-const isLocal = fs.existsSync(path.resolve(__dirname, '../../src/index.ts'));
+const isLocal = fs.existsSync(path.resolve(__dirname, '../../src/index.ts')) && fs.existsSync(path.resolve(__dirname, '../../node_modules'));
 
 // https://vitejs.dev/config/
 export default defineConfig({

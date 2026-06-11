@@ -5,7 +5,7 @@ import path from 'path';
 import fs from 'fs';
 
 const __dirname = path.resolve();
-const isLocal = fs.existsSync(path.resolve(__dirname, '../../src/index.ts'));
+const isLocal = fs.existsSync(path.resolve(__dirname, '../../src/index.ts')) && fs.existsSync(path.resolve(__dirname, '../../node_modules'));
 
 // https://vite.dev/config/
 export default defineConfig({

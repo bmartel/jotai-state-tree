@@ -74,7 +74,7 @@ export const TasksView = observer(function TasksView() {
               value={taskText}
               onChange={(e) => setTaskText(e.target.value)}
               placeholder="e.g. Integrate indexedDB snapshot caching..."
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 dark:bg-zinc-850 dark:border-zinc-700/80 text-sm text-slate-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all"
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 dark:bg-zinc-800 dark:border-zinc-700/80 text-sm text-slate-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all"
             />
           </div>
 
@@ -85,7 +85,7 @@ export const TasksView = observer(function TasksView() {
             <select
               value={taskCategory}
               onChange={(e) => setTaskCategory(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 dark:bg-zinc-850 dark:border-zinc-700/80 text-sm text-slate-850 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all appearance-none"
+              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 dark:bg-zinc-800 dark:border-zinc-700/80 text-sm text-slate-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all appearance-none"
             >
               <option value="Engineering">Engineering</option>
               <option value="Design">Design</option>
@@ -115,7 +115,7 @@ export const TasksView = observer(function TasksView() {
               onClick={() => store.tasks.setFilter(filter)}
               className={`px-4 py-2 rounded-lg transition-all ${
                 store.tasks.filter === filter
-                  ? 'bg-white text-slate-800 dark:bg-zinc-850 dark:text-zinc-100 shadow-sm font-semibold'
+                  ? 'bg-white text-slate-800 dark:bg-zinc-800 dark:text-zinc-100 shadow-sm font-semibold'
                   : 'text-slate-500 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-zinc-200'
               }`}
             >

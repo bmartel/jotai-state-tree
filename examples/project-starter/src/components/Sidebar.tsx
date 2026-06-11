@@ -15,10 +15,10 @@ const Link = observer(function Link({ to, children, icon }: LinkProps) {
   return (
     <button
       onClick={() => router.push(to)}
-      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 ${
         isActive
           ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400 font-semibold shadow-sm border border-indigo-100/50 dark:border-indigo-900/30'
-          : 'text-slate-600 hover:bg-slate-50 dark:text-zinc-400 dark:hover:bg-zinc-900/60 dark:hover:text-zinc-200'
+          : 'text-slate-600 hover:bg-slate-50 dark:text-zinc-400 dark:hover:bg-zinc-900/60 dark:hover:text-zinc-200 border border-transparent'
       }`}
     >
       {icon && (

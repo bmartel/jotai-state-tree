@@ -67,7 +67,7 @@ export const SettingsView = observer(function SettingsView() {
                 value={profileName}
                 onChange={(e) => setProfileName(e.target.value)}
                 placeholder="Enter display name..."
-                className="w-full max-w-md px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 dark:bg-zinc-850 dark:border-zinc-700/80 text-sm text-slate-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all"
+                className="w-full max-w-md px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 dark:bg-zinc-800 dark:border-zinc-700/80 text-sm text-slate-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all"
               />
             </div>
             <button
@@ -106,7 +106,7 @@ export const SettingsView = observer(function SettingsView() {
           <button
             onClick={handleTogglePersistence}
             className={`w-12 h-6.5 rounded-full p-1 transition-colors duration-200 ${
-              store.persistenceEnabled ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-zinc-850'
+              store.persistenceEnabled ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-zinc-800'
             }`}
           >
             <div
@@ -134,8 +134,8 @@ export const SettingsView = observer(function SettingsView() {
                 onClick={() => store.setTheme(theme)}
                 className={`px-3 py-1.5 rounded-md text-xs font-semibold uppercase tracking-wider transition-all ${
                   store.theme === theme
-                    ? 'bg-white text-slate-850 dark:bg-zinc-800 dark:text-zinc-100 shadow-sm'
-                    : 'text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-350'
+                    ? 'bg-white text-slate-800 dark:bg-zinc-800 dark:text-zinc-100 shadow-sm'
+                    : 'text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300'
                 }`}
               >
                 {theme}

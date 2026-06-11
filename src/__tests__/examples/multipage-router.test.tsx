@@ -170,16 +170,16 @@ describe('Multipage Bookstore Router Example App', () => {
     // ========================================================================
     // 6. Login and Return Redirection
     // ========================================================================
-    const usernameInput = screen.getByPlaceholderText('Enter your name (e.g. brandon)');
+    const usernameInput = screen.getByPlaceholderText('Enter your name (e.g. guest)');
     const submitLoginBtn = screen.getByRole('button', { name: 'Login & Continue' });
 
-    await user.type(usernameInput, 'brandon');
+    await user.type(usernameInput, 'guest');
     await user.click(submitLoginBtn);
 
     // Redirected back to the original target: /admin
     await waitFor(() => {
       expect(screen.getByText('Admin Dashboard')).toBeDefined();
-      expect(screen.getAllByText('brandon').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('guest').length).toBeGreaterThan(0);
     });
     expect(screen.getByText('"/admin"')).toBeDefined();
     expect(screen.getByText('"admin"')).toBeDefined();
@@ -192,7 +192,7 @@ describe('Multipage Bookstore Router Example App', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Welcome to State Bookshop')).toBeDefined();
-      expect(screen.queryAllByText('brandon').length).toBe(0);
+      expect(screen.queryAllByText('guest').length).toBe(0);
     });
     expect(screen.getByText('"/"')).toBeDefined();
   });

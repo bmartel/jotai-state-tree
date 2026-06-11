@@ -407,7 +407,7 @@ const LoginView = observer(function LoginView() {
           <input
             type="text"
             id="username"
-            placeholder="Enter your name (e.g. brandon)"
+            placeholder="Enter your name (e.g. guest)"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             required

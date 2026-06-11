@@ -63,7 +63,7 @@ export const LoginView = observer(function LoginView() {
               id="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="e.g. brandon"
+              placeholder="e.g. guest"
               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 dark:bg-zinc-800 dark:border-zinc-700/80 text-sm text-slate-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all"
               required
               autoFocus

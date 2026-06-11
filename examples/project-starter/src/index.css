@@ -1,13 +1,11 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', sans-serif;
+  --font-display: 'Outfit', sans-serif;
+}
 
 @layer base {
-  :root {
-    --font-sans: 'Inter', sans-serif;
-    --font-display: 'Outfit', sans-serif;
-  }
-
   body {
     font-family: var(--font-sans);
     overflow-x: hidden;

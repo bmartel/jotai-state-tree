@@ -1,3 +1,11 @@
+# [1.12.0](https://github.com/bmartel/jotai-state-tree/compare/v1.11.0...v1.12.0) (2026-06-11)
+
+
+### Features
+
+* configure semantic-release to automatically update jotai-state-tree version in all examples package.json files on release ([57eaf83](https://github.com/bmartel/jotai-state-tree/commit/57eaf83b8679b28d7cd0583ab0d7555f03813e06))
+* upgrade project-starter typescript to 6.0.3 and add vite-env.d.ts declarations ([51e89dc](https://github.com/bmartel/jotai-state-tree/commit/51e89dc0c6138608b4adc90d3321c75dd115a0d3))
+
 # [1.11.0](https://github.com/bmartel/jotai-state-tree/compare/v1.10.1...v1.11.0) (2026-06-11)
 
 

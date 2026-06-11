@@ -1,3 +1,10 @@
+## [1.14.4](https://github.com/bmartel/jotai-state-tree/compare/v1.14.3...v1.14.4) (2026-06-11)
+
+
+### Bug Fixes
+
+* **devtools:** safeguard process.env checks in browser environments ([7bda8dc](https://github.com/bmartel/jotai-state-tree/commit/7bda8dc4af9e487c8152a85269b9a02fdf084dba))
+
 ## [1.14.3](https://github.com/bmartel/jotai-state-tree/compare/v1.14.2...v1.14.3) (2026-06-11)
 
 

@@ -23,9 +23,6 @@ export interface DevtoolsProps {
   initialOpen?: boolean;
 }
 
-// Default export is null in production to support tree-shaking
-export let JotaiStateTreeDevtools: React.ComponentType<DevtoolsProps> = () => null;
-
 const isDev = (() => {
   try {
     return process.env.NODE_ENV !== "production";
@@ -45,8 +42,6 @@ const isDev = (() => {
     return false;
   }
 })();
-
-if (isDev) {
   // SVG Icons
   const Icons = {
     Tree: () => (
@@ -1461,7 +1456,11 @@ if (isDev) {
         </div>
       </div>
     );
-  };
+};
 
-  JotaiStateTreeDevtools = JotaiStateTreeDevtoolsImpl;
-}
+export const JotaiStateTreeDevtools: React.ComponentType<DevtoolsProps> = (props) => {
+  if (isDev) {
+    return <JotaiStateTreeDevtoolsImpl {...props} />;
+  }
+  return null;
+};

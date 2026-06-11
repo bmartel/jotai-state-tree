@@ -26,7 +26,27 @@ export interface DevtoolsProps {
 // Default export is null in production to support tree-shaking
 export let JotaiStateTreeDevtools: React.ComponentType<DevtoolsProps> = () => null;
 
-if (process.env.NODE_ENV !== "production") {
+const isDev = (() => {
+  try {
+    return process.env.NODE_ENV !== "production";
+  } catch (e) {
+    if (typeof window !== "undefined" && window.location) {
+      const host = window.location.hostname;
+      return (
+        host === "localhost" ||
+        host === "127.0.0.1" ||
+        host === "[::1]" ||
+        host.endsWith(".local") ||
+        host.endsWith(".webcontainer.io") ||
+        host.endsWith(".stackblitz.io") ||
+        host.endsWith(".stackblitz.app")
+      );
+    }
+    return false;
+  }
+})();
+
+if (isDev) {
   // SVG Icons
   const Icons = {
     Tree: () => (

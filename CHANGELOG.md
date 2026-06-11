@@ -1,3 +1,15 @@
+# [1.13.0](https://github.com/bmartel/jotai-state-tree/compare/v1.12.1...v1.13.0) (2026-06-11)
+
+
+### Bug Fixes
+
+* **release:** pull latest origin/main before running semantic-release ([bc8b34f](https://github.com/bmartel/jotai-state-tree/commit/bc8b34f26393b4a0511a992b35e54dbfab0a2557))
+
+
+### Features
+
+* implement jotai-state-tree-devtools with production tree-shaking support ([f076cb7](https://github.com/bmartel/jotai-state-tree/commit/f076cb76b3d64428f323537e00f8bc001bbe26a9))
+
 ## [1.12.1](https://github.com/bmartel/jotai-state-tree/compare/v1.12.0...v1.12.1) (2026-06-11)
 
 

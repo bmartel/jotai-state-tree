@@ -3,8 +3,11 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
 
-const __dirname = path.resolve();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const isLocal = fs.existsSync(path.resolve(__dirname, '../../src/index.ts')) && fs.existsSync(path.resolve(__dirname, '../../node_modules'));
 
 // https://vite.dev/config/
@@ -19,9 +22,9 @@ export default defineConfig({
         'jotai-state-tree/react': path.resolve(__dirname, '../../src/react.ts'),
         'jotai-state-tree/devtools': path.resolve(__dirname, '../../src/devtools.tsx'),
         'jotai-state-tree': path.resolve(__dirname, '../../src/index.ts'),
+        'react': path.resolve(__dirname, './node_modules/react'),
+        'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
       } : {}),
-      'react': path.resolve(__dirname, './node_modules/react'),
-      'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
     },
   },
   server: {

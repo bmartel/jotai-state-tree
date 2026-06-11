@@ -1,3 +1,10 @@
+## [1.14.5](https://github.com/bmartel/jotai-state-tree/compare/v1.14.4...v1.14.5) (2026-06-11)
+
+
+### Bug Fixes
+
+* **examples:** migrate project-starter to @tailwindcss/postcss to support StackBlitz WebContainers ([a6d7353](https://github.com/bmartel/jotai-state-tree/commit/a6d7353132affd30865621a55dbe2077d46862a9))
+
 ## [1.14.4](https://github.com/bmartel/jotai-state-tree/compare/v1.14.3...v1.14.4) (2026-06-11)
 
 

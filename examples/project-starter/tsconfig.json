@@ -13,6 +13,7 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
+    "types": ["node"],
     "paths": {
       "jotai-state-tree/react": [
         "../../src/react.ts",

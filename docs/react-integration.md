@@ -111,6 +111,29 @@ Subscribes the component to the full snapshot of a state tree node. Re-renders o
 const snapshot = useSnapshot(store);
 ```
 
+### `useFineSnapshot(node)`
+Returns a reactive Proxy of the state tree snapshot. Re-renders the component **only when properties that were accessed during render are mutated** (fine-grained subscription).
+
+```typescript
+// Re-renders ONLY if store.name changes. Other mutations (e.g. store.age) will not trigger a re-render.
+const snap = useFineSnapshot(store);
+return <div>{snap.name}</div>;
+```
+
+#### Comparison: `useSnapshot` vs `useFineSnapshot`
+
+| Feature | `useSnapshot` | `useFineSnapshot` |
+| :--- | :--- | :--- |
+| **Return Type** | Plain JavaScript Object | JavaScript Proxy |
+| **Re-render Scope** | Coarse-grained (on any update to target node/descendants) | Fine-grained (only on accessed properties) |
+| **Best For** | Serialization (`JSON.stringify`), React `useEffect` dependency arrays, forms/third-party libraries (e.g. Formik). | Maximizing render performance in complex or nested UI components without HOCs. |
+
+#### Why can't we just make `useSnapshot` fine-grained by default?
+In MobX-State-Tree, a "snapshot" specifically means a plain, immutable, serializable state tree dump. Returning a Proxy from `useSnapshot` by default would violate this definition and break crucial features:
+1. **Third-Party Libraries**: Many UI or form libraries (e.g., Formik or React Hook Form) clone, check prototypes, or iterate properties, which can trigger infinite loops or crash if given a Proxy.
+2. **React Dependency Arrays**: Passing a Proxy to `useEffect` or `useMemo` dependency arrays won't trigger updates because the Proxy reference remains stable across renders. A plain snapshot reference updates when its contents change.
+3. **Serialization**: Plain objects are instantly serializable, while Proxies require custom unwrapping or serializing in some environments.
+
 ### `useWatchPath(node, path, defaultValue?)`
 Subscribes to changes at a specific absolute path in the tree. Highly performant because re-renders are triggered only when that exact path value changes.
 

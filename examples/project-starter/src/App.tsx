@@ -49,6 +49,8 @@ export const App = observer(function App() {
     return { store: s, router: r, undoManager: u };
   }, []);
 
+  const currentTheme = store.theme;
+
   // 2. Hydrate from localStorage and hook up updates
   useEffect(() => {
     if (store.persistenceEnabled) {
@@ -56,12 +58,6 @@ export const App = observer(function App() {
       if (cached) {
         try {
           applySnapshot(store, JSON.parse(cached));
-          // Apply active theme classes to document on startup
-          if (store.theme === 'dark') {
-            document.documentElement.classList.add('dark');
-          } else {
-            document.documentElement.classList.remove('dark');
-          }
         } catch (e) {
           console.error('Failed to load snapshot cache', e);
         }
@@ -93,7 +89,7 @@ export const App = observer(function App() {
     <StoreContext.Provider value={store}>
       <RouterContext.Provider value={router}>
         <ToastProvider>
-          <div className="flex h-screen w-screen overflow-hidden bg-slate-50 dark:bg-zinc-950 transition-colors duration-300">
+          <div className={`flex h-screen w-screen overflow-hidden bg-slate-50 dark:bg-zinc-950 transition-colors duration-300 ${currentTheme}`}>
             {/* Left Sidebar navigation */}
             <Sidebar />
 

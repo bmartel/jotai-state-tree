@@ -15,20 +15,9 @@ export const RootStore = types
   .actions((self) => ({
     toggleTheme() {
       self.theme = self.theme === 'light' ? 'dark' : 'light';
-      // Apply theme to HTML tag
-      if (self.theme === 'dark') {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
     },
     setTheme(theme: string) {
       self.theme = theme;
-      if (theme === 'dark') {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
     },
     setPersistenceEnabled(enabled: boolean) {
       self.persistenceEnabled = enabled;

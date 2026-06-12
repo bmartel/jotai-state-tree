@@ -1,3 +1,10 @@
+## [1.14.9](https://github.com/bmartel/jotai-state-tree/compare/v1.14.8...v1.14.9) (2026-06-12)
+
+
+### Bug Fixes
+
+* **devtools:** filter out logPatch and clearPatchLogs actions from timeline to prevent cluttering time travel history ([e598591](https://github.com/bmartel/jotai-state-tree/commit/e5985916964e73c9bdbb909bb82f67907ea09200))
+
 ## [1.14.8](https://github.com/bmartel/jotai-state-tree/compare/v1.14.7...v1.14.8) (2026-06-12)
 
 

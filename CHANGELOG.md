@@ -1,3 +1,10 @@
+## [1.14.8](https://github.com/bmartel/jotai-state-tree/compare/v1.14.7...v1.14.8) (2026-06-12)
+
+
+### Bug Fixes
+
+* **examples:** restore tailwind css v4 vite plugin in project-starter ([d55e9db](https://github.com/bmartel/jotai-state-tree/commit/d55e9db10d582f026484c3fd6496ac52fdd1b012))
+
 ## [1.14.7](https://github.com/bmartel/jotai-state-tree/compare/v1.14.6...v1.14.7) (2026-06-12)
 
 

@@ -1,3 +1,10 @@
+## [1.14.7](https://github.com/bmartel/jotai-state-tree/compare/v1.14.6...v1.14.7) (2026-06-12)
+
+
+### Bug Fixes
+
+* **examples:** pin jotai-state-tree to 1.14.6 in project-starter to bust StackBlitz cache ([9743e42](https://github.com/bmartel/jotai-state-tree/commit/9743e429b2962954677ceb452631f09a6de6f3c8))
+
 ## [1.14.6](https://github.com/bmartel/jotai-state-tree/compare/v1.14.5...v1.14.6) (2026-06-11)
 
 

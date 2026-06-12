@@ -727,6 +727,11 @@ const isDev = (() => {
       const disposeActions = onAction(activeStore, (call) => {
         if (isTimeTravelingRef.current) return;
 
+        // Skip logging patch logging actions in the timeline to avoid clutter
+        if (call.name === "logPatch" || call.name === "clearPatchLogs") {
+          return;
+        }
+
         setActions((prev) => {
           const nextIndex = prev.length;
           const newAction = {

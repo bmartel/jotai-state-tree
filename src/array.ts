@@ -20,6 +20,7 @@ import {
   getGlobalStore,
   getSnapshotFromNode,
   applySnapshotToNode,
+  getIndexString,
 } from "./tree";
 import { canWrite } from "./lifecycle";
 
@@ -248,11 +249,21 @@ class MSTArray<T> extends Array<T> implements IMSTArray<T> {
       const oldArray = (this.node.getValue() as unknown[]) || [];
       const newArray = [...this];
 
-      // Collect snapshots of existing children before we modify the children tree
+      const isSimplePush = newArray.length > oldArray.length && oldArray.every((val, idx) => val === newArray[idx]);
+      const isSimplePop = newArray.length < oldArray.length && newArray.every((val, idx) => val === oldArray[idx]);
+
+      // Collect snapshots of existing children before we modify the children tree (only if needed)
       const oldSnapshots = new Map<number, unknown>();
-      for (let i = 0; i < oldArray.length; i++) {
-        const childNode = this.node.getChild(String(i));
-        oldSnapshots.set(i, childNode ? getSnapshotFromNode(childNode) : oldArray[i]);
+      if (isSimplePop) {
+        for (let i = newArray.length; i < oldArray.length; i++) {
+          const childNode = this.node.getChild(getIndexString(i));
+          oldSnapshots.set(i, childNode ? getSnapshotFromNode(childNode) : oldArray[i]);
+        }
+      } else if (!isSimplePush) {
+        for (let i = 0; i < oldArray.length; i++) {
+          const childNode = this.node.getChild(getIndexString(i));
+          oldSnapshots.set(i, childNode ? getSnapshotFromNode(childNode) : oldArray[i]);
+        }
       }
 
       // Collect existing child nodes for cleanup comparison
@@ -278,9 +289,47 @@ class MSTArray<T> extends Array<T> implements IMSTArray<T> {
       const newChildren = new Map<string, StateTreeNode>();
       const keptNodes = new Set<StateTreeNode>();
 
+      // Helper to resolve actual model type (unwrapping wrappers like optional/late/maybe)
+      const resolveActualType = (type: IAnyType): IAnyType => {
+        let current = type;
+        while (current) {
+          if (
+            current._kind === "optional" ||
+            current._kind === "maybe" ||
+            current._kind === "maybeNull" ||
+            current._kind === "refinement"
+          ) {
+            current = (current as any)._subType;
+          } else if (current._kind === "late") {
+            current = (current as any)._definition();
+          } else {
+            break;
+          }
+        }
+        return current;
+      };
+
+      const actualType = resolveActualType(this.itemType);
+      const isComplex =
+        actualType._kind === "model" ||
+        actualType._kind === "array" ||
+        actualType._kind === "map";
+
+      const identifierAttr = (actualType as any).identifierAttribute;
+
+      // Group existing child nodes by identifier for fast lookup
+      const existingNodesByIdentifier = new Map<string | number, StateTreeNode>();
+      if (identifierAttr) {
+        for (const existingNode of existingChildNodes) {
+          if (existingNode.identifierValue !== undefined && existingNode.identifierValue !== null) {
+            existingNodesByIdentifier.set(existingNode.identifierValue, existingNode);
+          }
+        }
+      }
+
       // Create new children for each item
       this.forEach((item, index) => {
-        const key = String(index);
+        const key = getIndexString(index);
         // Check if item is a complex type (has tree node) - handles late/maybe wrappers too
         if (item && typeof item === "object" && $treenode in item) {
           const childNode = getStateTreeNode(item);
@@ -290,46 +339,13 @@ class MSTArray<T> extends Array<T> implements IMSTArray<T> {
           // Check if we can reconcile/reuse an existing complex node in existingChildNodes
           let reusedNode: StateTreeNode | null = null;
 
-          // Helper to resolve actual model type (unwrapping wrappers like optional/late/maybe)
-          const resolveActualType = (type: IAnyType): IAnyType => {
-            let current = type;
-            while (current) {
-              if (
-                current._kind === "optional" ||
-                current._kind === "maybe" ||
-                current._kind === "maybeNull" ||
-                current._kind === "refinement"
-              ) {
-                current = (current as any)._subType;
-              } else if (current._kind === "late") {
-                current = (current as any)._definition();
-              } else {
-                break;
-              }
-            }
-            return current;
-          };
-
-          const actualType = resolveActualType(this.itemType);
-          const isComplex =
-            actualType._kind === "model" ||
-            actualType._kind === "array" ||
-            actualType._kind === "map";
-
-          const identifierAttr = (actualType as any).identifierAttribute;
-
           // Try to find existing node by identifier if the type has one
           if (identifierAttr && item && typeof item === "object") {
             const idValue = (item as any)[identifierAttr];
             if (idValue !== undefined && idValue !== null) {
-              for (const existingNode of existingChildNodes) {
-                if (
-                  !keptNodes.has(existingNode) &&
-                  existingNode.identifierValue === idValue
-                ) {
-                  reusedNode = existingNode;
-                  break;
-                }
+              const nodeCandidate = existingNodesByIdentifier.get(idValue);
+              if (nodeCandidate && !keptNodes.has(nodeCandidate)) {
+                reusedNode = nodeCandidate;
               }
             }
           }
@@ -422,7 +438,7 @@ class MSTArray<T> extends Array<T> implements IMSTArray<T> {
       // Case 1: Simple push (items added at the end)
       if (newArray.length > oldArray.length && oldArray.every((val, idx) => val === newArray[idx])) {
         for (let i = oldArray.length; i < newArray.length; i++) {
-          const childNode = this.node.getChild(String(i));
+          const childNode = this.node.getChild(getIndexString(i));
           const valSnap = childNode ? getSnapshotFromNode(childNode) : newArray[i];
           patches.push({
             op: "add",
@@ -454,7 +470,7 @@ class MSTArray<T> extends Array<T> implements IMSTArray<T> {
       else {
         const oldSnap = oldArray.map((_, idx) => oldSnapshots.get(idx));
         const newSnap = newArray.map((_, idx) => {
-          const childNode = this.node.getChild(String(idx));
+          const childNode = this.node.getChild(getIndexString(idx));
           return childNode ? getSnapshotFromNode(childNode) : newArray[idx];
         });
 
@@ -526,11 +542,12 @@ class ArrayType<T extends IAnyType> implements IArrayType<T> {
     // Create instances for each item
     const instances = items.map((item, index) => {
       const instance = this._subType.create(item, env);
+      const indexStr = getIndexString(index);
 
       // Check if the instance has a tree node (complex type, including via late/maybe wrappers)
       if (instance && typeof instance === "object" && $treenode in instance) {
         const childNode = getStateTreeNode(instance);
-        node.addChild(String(index), childNode);
+        node.addChild(indexStr, childNode);
       } else {
         // Primitive - create a child node for it
         const childNode = new StateTreeNode(
@@ -538,9 +555,9 @@ class ArrayType<T extends IAnyType> implements IArrayType<T> {
           instance,
           env,
           node,
-          String(index),
+          indexStr,
         );
-        node.addChild(String(index), childNode);
+        node.addChild(indexStr, childNode);
       }
 
       return instance;

@@ -163,6 +163,19 @@ function generateNodeId(): string {
   return `node_${++nodeIdCounter}_${Date.now().toString(36)}`;
 }
 
+/** Pre-allocated string representations of integers to avoid string allocations on array hot paths */
+const INDEX_STRINGS: string[] = [];
+for (let i = 0; i < 10000; i++) {
+  INDEX_STRINGS.push(String(i));
+}
+
+export function getIndexString(index: number): string {
+  if (index >= 0 && index < INDEX_STRINGS.length) {
+    return INDEX_STRINGS[index];
+  }
+  return String(index);
+}
+
 // ============================================================================
 // Lifecycle Change Listeners (for useIsAlive and other subscribers)
 // ============================================================================
@@ -865,7 +878,7 @@ export function getSnapshotFromNode(node: StateTreeNode): unknown {
   } else if (type._kind === "array") {
     const arr = value as unknown[];
     snapshot = arr.map((_, index) => {
-      const childNode = node.getChild(String(index));
+      const childNode = node.getChild(getIndexString(index));
       return childNode ? getSnapshotFromNode(childNode) : arr[index];
     });
   } else if (type._kind === "map") {

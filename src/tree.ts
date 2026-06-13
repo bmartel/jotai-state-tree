@@ -265,6 +265,9 @@ export class StateTreeNode implements IStateTreeNode {
     (patch: IJsonPatch, reversePatch: IReversibleJsonPatch) => void
   >();
 
+  /** Action listeners */
+  actionListeners = new Set<(call: ActionCall) => void>();
+
   /** Volatile state (non-serialized) */
   volatileState: Record<string, unknown> = {};
 
@@ -658,6 +661,7 @@ export class StateTreeNode implements IStateTreeNode {
     // Clear listeners
     this.snapshotListeners.clear();
     this.patchListeners.clear();
+    this.actionListeners.clear();
   }
 
   /** Detach from parent */
@@ -700,8 +704,6 @@ let currentAction: ActionContext | null = null;
 export function getCurrentAction(): ActionContext | null {
   return currentAction;
 }
-
-const actionListeners = new Set<(call: ActionCall) => void>();
 
 /** Action recorder hooks - set by lifecycle.ts to avoid circular imports */
 const actionRecorderHooks: Array<
@@ -787,13 +789,19 @@ export function batchNotifications<T>(fn: () => T): T {
       const previousGlobalActionForActions = currentAction;
       for (const { node, call, actionContext } of actionsToEmit) {
         currentAction = actionContext;
-        actionListeners.forEach((listener) => {
-          try {
-            listener(call);
-          } catch (e) {
-            console.error(e);
+        let current: StateTreeNode | null = node;
+        while (current) {
+          if (current.$isAlive) {
+            current.actionListeners.forEach((listener) => {
+              try {
+                listener(call);
+              } catch (e) {
+                console.error(e);
+              }
+            });
           }
-        });
+          current = current.$parent;
+        }
         actionRecorderHooks.forEach((hook) => {
           try {
             hook(node, call);
@@ -1407,7 +1415,13 @@ export function trackAction<T>(
           actionContext: currentAction,
         });
       } else {
-        actionListeners.forEach((listener) => listener(call));
+        let current: StateTreeNode | null = node;
+        while (current) {
+          if (current.$isAlive) {
+            current.actionListeners.forEach((listener) => listener(call));
+          }
+          current = current.$parent;
+        }
         actionRecorderHooks.forEach((hook) => hook(node, call));
       }
 
@@ -1423,9 +1437,10 @@ export function onAction(
   target: unknown,
   listener: (call: ActionCall) => void,
 ): IDisposer {
-  actionListeners.add(listener);
+  const node = getStateTreeNode(target);
+  node.actionListeners.add(listener);
   return () => {
-    actionListeners.delete(listener);
+    node.actionListeners.delete(listener);
   };
 }
 

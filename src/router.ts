@@ -13,6 +13,16 @@ const isBrowser =
   typeof window.location !== "undefined" &&
   typeof window.history !== "undefined";
 
+function createPopStateListener(routerRef: WeakRef<any>) {
+  return (event: PopStateEvent) => {
+    const router = routerRef.deref();
+    if (router && getStateTreeNode(router).$isAlive) {
+      router._handlePopState(event);
+    }
+  };
+}
+
+
 // ============================================================================
 // Route Definition Model
 // ============================================================================
@@ -175,6 +185,7 @@ export const RouterModel = model("RouterModel", {
   beforeNavigate: null as ((from: any, to: any) => boolean | string | Promise<boolean | string> | undefined) | null,
   afterNavigate: null as ((to: any) => void) | null,
   _popStateListener: null as ((event: PopStateEvent) => void) | null,
+  _popStateRef: null as any | null,
   _historyStack: [] as string[],
   _historyIndex: -1,
 }))
@@ -187,6 +198,10 @@ export const RouterModel = model("RouterModel", {
     
     setPopStateListener(listener: any) {
       self._popStateListener = listener;
+    },
+
+    _setPopStateRef(ref: any) {
+      self._popStateRef = ref;
     },
 
     syncLocation(pathname: string, search: string, hash: string, action: "PUSH" | "REPLACE" | "POP" | "INITIAL", state?: any) {
@@ -338,12 +353,9 @@ export const RouterModel = model("RouterModel", {
       } else {
         (self as any).go(1);
       }
-    }
-  };
-})
-.afterCreate((self) => {
-  if (isBrowser) {
-    const handlePopState = (event: PopStateEvent) => {
+    },
+
+    _handlePopState(event: PopStateEvent) {
       const parsed = parseUrl(window.location.pathname + window.location.search + window.location.hash);
       const matched = matchRoutes(self.routes, parsed.pathname);
       
@@ -367,7 +379,7 @@ export const RouterModel = model("RouterModel", {
       };
 
       const proceed = () => {
-        self.syncLocation(to.pathname, to.search, to.hash, "POP", event.state);
+        (self as any).syncLocation(to.pathname, to.search, to.hash, "POP", event.state);
         if (self.afterNavigate) {
           self.afterNavigate(to);
         }
@@ -385,7 +397,7 @@ export const RouterModel = model("RouterModel", {
             if (res === false) {
               revert();
             } else if (typeof res === "string") {
-              self.replace(res);
+              (self as any).replace(res);
             } else {
               proceed();
             }
@@ -396,7 +408,7 @@ export const RouterModel = model("RouterModel", {
           if (result === false) {
             revert();
           } else if (typeof result === "string") {
-            self.replace(result);
+            (self as any).replace(result);
           } else {
             proceed();
           }
@@ -404,10 +416,15 @@ export const RouterModel = model("RouterModel", {
       } else {
         proceed();
       }
-    };
-    
-    window.addEventListener("popstate", handlePopState);
-    self.setPopStateListener(handlePopState);
+    }
+  };
+})
+.afterCreate((self) => {
+  if (isBrowser) {
+    const routerRef = new WeakRef(self);
+    const listener = createPopStateListener(routerRef);
+    window.addEventListener("popstate", listener);
+    self.setPopStateListener(listener);
   }
 })
 .beforeDestroy((self) => {

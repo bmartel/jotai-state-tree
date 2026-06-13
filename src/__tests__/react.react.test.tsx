@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, act, waitFor, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { createStore } from "jotai";
 import {
   types,
   destroy,
@@ -14,6 +15,7 @@ import {
   getSnapshot,
   onSnapshot,
   clearAllRegistries,
+  setGlobalStore,
   resetGlobalStore,
   getRegistryStats,
   createUndoManager,
@@ -1242,4 +1244,70 @@ describe("React Integration", () => {
       expect(screen.getByTestId("tt-index").textContent).toBe("Index: 1 / 1");
     });
   });
+
+  describe("useObserver Memory & Cleanup", () => {
+    it("should unsubscribe from all nodes and view atoms on unmount", async () => {
+      const Model = types
+        .model("CleanupModel", {
+          count: types.number,
+        })
+        .views((self) => ({
+          get double() {
+            return self.count * 2;
+          },
+        }));
+
+      const instance = Model.create({ count: 5 });
+
+      // Create a custom store to spy on store.sub and its disposers
+      const originalStore = createStore();
+      const subSpies: Array<{ atom: any; disposerSpy: any }> = [];
+
+      const customStore = {
+        ...originalStore,
+        sub: (atom: any, callback: any) => {
+          const disposer = originalStore.sub(atom, callback);
+          const disposerSpy = vi.fn(() => {
+            disposer();
+          });
+          subSpies.push({ atom, disposerSpy });
+          return disposerSpy;
+        },
+      };
+
+      setGlobalStore(customStore as any);
+
+      // Render a component that accesses count (valueAtom) and double (viewAtom)
+      const TestComponent = observer(() => {
+        return (
+          <div>
+            <span data-testid="count">{instance.count}</span>
+            <span data-testid="double">{instance.double}</span>
+          </div>
+        );
+      });
+
+      const { unmount } = render(<TestComponent />);
+
+      expect(screen.getByTestId("count").textContent).toBe("5");
+      expect(screen.getByTestId("double").textContent).toBe("10");
+
+      // Verify that store.sub has been called for at least the value atom and the view atom
+      expect(subSpies.length).toBeGreaterThanOrEqual(2);
+
+      // Verify all disposer spys have not been called yet
+      for (const spyObj of subSpies) {
+        expect(spyObj.disposerSpy).not.toHaveBeenCalled();
+      }
+
+      // Unmount the component
+      unmount();
+
+      // Verify that all disposers were called when component unmounted
+      for (const spyObj of subSpies) {
+        expect(spyObj.disposerSpy).toHaveBeenCalledTimes(1);
+      }
+    });
+  });
 });
+

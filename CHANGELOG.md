@@ -1,3 +1,10 @@
+## [1.14.10](https://github.com/bmartel/jotai-state-tree/compare/v1.14.9...v1.14.10) (2026-06-13)
+
+
+### Bug Fixes
+
+* **devtools:** fix timeline snapshot corruption on item deletion and avoid undomanager pollution ([92785f1](https://github.com/bmartel/jotai-state-tree/commit/92785f1a62dded6bcd19cc88ffbd04f6d4ec470f))
+
 ## [1.14.9](https://github.com/bmartel/jotai-state-tree/compare/v1.14.8...v1.14.9) (2026-06-12)
 
 

@@ -1,3 +1,15 @@
+## [1.14.13](https://github.com/bmartel/jotai-state-tree/compare/v1.14.12...v1.14.13) (2026-06-13)
+
+
+### Bug Fixes
+
+* resolve memory leaks in undoManager and router popstate listener ([a2c80f7](https://github.com/bmartel/jotai-state-tree/commit/a2c80f76a808d0eeae9a032145379157150d5e13))
+
+
+### Performance Improvements
+
+* optimize MSTArray reconciliation, caching, and string conversions ([7eea13e](https://github.com/bmartel/jotai-state-tree/commit/7eea13ea5b9eb8430cba66960319866b92a74a00))
+
 ## [1.14.12](https://github.com/bmartel/jotai-state-tree/compare/v1.14.11...v1.14.12) (2026-06-13)
 
 

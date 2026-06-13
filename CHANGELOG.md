@@ -1,3 +1,10 @@
+## [1.14.12](https://github.com/bmartel/jotai-state-tree/compare/v1.14.11...v1.14.12) (2026-06-13)
+
+
+### Bug Fixes
+
+* **react:** track view atom dependencies to resolve time-travel reactivity cache issue ([ae23af1](https://github.com/bmartel/jotai-state-tree/commit/ae23af1929091112e086df2560be6ab4443bea4e))
+
 ## [1.14.11](https://github.com/bmartel/jotai-state-tree/compare/v1.14.10...v1.14.11) (2026-06-13)
 
 

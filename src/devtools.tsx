@@ -636,13 +636,22 @@ const isDev = (() => {
     const isTimeTravelingRef = useRef(false);
     const actionPatchesRef = useRef<Map<any, any[]>>(new Map());
 
+    // Sync selectedStoreIndex with propStore when it is provided and found in discoveredRoots
+    useEffect(() => {
+      if (propStore && discoveredRoots.length > 0) {
+        const idx = discoveredRoots.indexOf(propStore);
+        if (idx !== -1 && idx !== selectedStoreIndex) {
+          setSelectedStoreIndex(idx);
+        }
+      }
+    }, [propStore, discoveredRoots, selectedStoreIndex]);
+
     // Active Store
     const activeStore = useMemo(() => {
-      if (propStore) return propStore;
       if (discoveredRoots.length > 0 && selectedStoreIndex < discoveredRoots.length) {
         return discoveredRoots[selectedStoreIndex];
       }
-      return null;
+      return propStore || null;
     }, [propStore, discoveredRoots, selectedStoreIndex]);
 
     // Active store snapshot

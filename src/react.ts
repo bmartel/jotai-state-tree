@@ -41,6 +41,8 @@ import {
   type IDisposer,
   setActiveTrackingFn,
   getActiveTrackingFn,
+  setActiveAtomTrackingFn,
+  getActiveAtomTrackingFn,
   onPatch,
   StateTreeNode,
   getGlobalStore,
@@ -158,10 +160,13 @@ export const Observer: FC<ObserverComponentProps> = observer(({ children }) => {
 export function useObserver<T>(fn: () => T): T {
   const [, forceUpdate] = useState({});
   const nextTrackedNodesRef = useRef<Set<StateTreeNode>>(new Set());
+  const nextTrackedAtomsRef = useRef<Set<Atom<unknown>>>(new Set());
   const subscriptionsRef = useRef<Map<StateTreeNode, IDisposer>>(new Map());
+  const atomSubscriptionsRef = useRef<Map<Atom<unknown>, IDisposer>>(new Map());
 
-  // Clear nextTrackedNodesRef at the beginning of this render
+  // Clear tracked sets at the beginning of this render
   nextTrackedNodesRef.current = new Set();
+  nextTrackedAtomsRef.current = new Set();
 
   // Update subscriptions on every render
   useEffect(() => {
@@ -186,6 +191,26 @@ export function useObserver<T>(fn: () => T): T {
         currentSubscriptions.set(node, disposer);
       }
     }
+
+    // Unsubscribe from atoms no longer accessed
+    const nextAtoms = nextTrackedAtomsRef.current;
+    const currentAtomSubscriptions = atomSubscriptionsRef.current;
+    for (const [atomVal, disposer] of currentAtomSubscriptions.entries()) {
+      if (!nextAtoms.has(atomVal)) {
+        disposer();
+        currentAtomSubscriptions.delete(atomVal);
+      }
+    }
+
+    // Subscribe to newly accessed atoms
+    for (const atomVal of nextAtoms) {
+      if (!currentAtomSubscriptions.has(atomVal)) {
+        const disposer = store.sub(atomVal, () => {
+          forceUpdate({});
+        });
+        currentAtomSubscriptions.set(atomVal, disposer);
+      }
+    }
   }); // Runs on every render
 
   // Unsubscribe on unmount
@@ -195,19 +220,29 @@ export function useObserver<T>(fn: () => T): T {
         disposer();
       }
       subscriptionsRef.current.clear();
+
+      for (const disposer of atomSubscriptionsRef.current.values()) {
+        disposer();
+      }
+      atomSubscriptionsRef.current.clear();
     };
   }, []);
 
   // Execute the function under active tracking
   const prevTrackingFn = getActiveTrackingFn();
+  const prevAtomTrackingFn = getActiveAtomTrackingFn();
   setActiveTrackingFn((node) => {
     nextTrackedNodesRef.current.add(node);
+  });
+  setActiveAtomTrackingFn((atomVal) => {
+    nextTrackedAtomsRef.current.add(atomVal);
   });
 
   try {
     return fn();
   } finally {
     setActiveTrackingFn(prevTrackingFn);
+    setActiveAtomTrackingFn(prevAtomTrackingFn);
   }
 }
 

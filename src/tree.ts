@@ -85,6 +85,26 @@ export function trackNodeAccess(node: StateTreeNode) {
   }
 }
 
+/** Active atom tracking function for reactive observation */
+let activeAtomTrackingFn: ((atom: any) => void) | null = null;
+
+/** Get the active atom tracking function */
+export function getActiveAtomTrackingFn(): ((atom: any) => void) | null {
+  return activeAtomTrackingFn;
+}
+
+/** Set the active atom tracking function */
+export function setActiveAtomTrackingFn(fn: ((atom: any) => void) | null) {
+  activeAtomTrackingFn = fn;
+}
+
+/** Track access to a Jotai atom */
+export function trackAtomAccess(atomVal: any) {
+  if (activeAtomTrackingFn) {
+    activeAtomTrackingFn(atomVal);
+  }
+}
+
 // ============================================================================
 // Node Registry with Weak References
 // ============================================================================

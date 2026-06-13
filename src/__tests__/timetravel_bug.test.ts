@@ -27,6 +27,9 @@ const TaskStore = types
         self.items.splice(idx, 1);
       }
     },
+    replaceItems(newItems: any[]) {
+      self.items.replace(newItems);
+    },
   }));
 
 describe("Timetravel bug reproduction", () => {
@@ -62,5 +65,29 @@ describe("Timetravel bug reproduction", () => {
     applySnapshot(store, snap2);
     expect(store.items.length).toBe(2);
     expect(store.items.map(t => t.id)).toEqual(['1', '3']);
+  });
+
+  it("reproduces clearCompleted and replace time travel", () => {
+    const store = TaskStore.create({
+      items: [
+        { id: '1', text: 'Task 1', completed: true },
+        { id: '2', text: 'Task 2', completed: false },
+      ]
+    });
+
+    const snapBefore = getSnapshot(store);
+
+    // Call replace (clearCompleted equivalent)
+    const activeItems = store.items.filter((item) => !item.completed);
+    store.replaceItems(activeItems);
+
+    expect(store.items.length).toBe(1);
+    expect(store.items[0].id).toBe('2');
+
+    // Time travel back
+    console.log("Applying snapBefore...");
+    applySnapshot(store, snapBefore);
+    expect(store.items.length).toBe(2);
+    expect(store.items.map(t => t.id)).toEqual(['1', '2']);
   });
 });

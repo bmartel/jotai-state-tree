@@ -36,6 +36,7 @@ import {
   getGlobalStore,
   applySnapshotToNode,
   trackNodeAccess,
+  trackAtomAccess,
 } from "./tree";
 import { canWrite, registerHooks, runAfterCreate, createMiddlewareRunner } from "./lifecycle";
 
@@ -559,6 +560,7 @@ class ModelType<
           });
           allViews[key] = {
             get() {
+              trackAtomAccess(viewAtom);
               return activeJotaiGet ? activeJotaiGet(viewAtom) : store.get(viewAtom);
             },
             set: descriptor.set ? (val) => descriptor.set!.call(proxy, val) : undefined,

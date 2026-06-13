@@ -1,3 +1,10 @@
+## [1.14.11](https://github.com/bmartel/jotai-state-tree/compare/v1.14.10...v1.14.11) (2026-06-13)
+
+
+### Bug Fixes
+
+* **devtools:** fix activeStore reference mismatch during HMR and remounts ([c392116](https://github.com/bmartel/jotai-state-tree/commit/c3921164868077d7377c77ff4178e87d0dfd660b))
+
 ## [1.14.10](https://github.com/bmartel/jotai-state-tree/compare/v1.14.9...v1.14.10) (2026-06-13)
 
 

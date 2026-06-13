@@ -359,7 +359,12 @@ export {
 
   // Lifecycle subscriptions
   onLifecycleChange,
+
+  // Action helpers
+  getCurrentAction,
+  isActionRunning,
 } from "./tree";
+
 
 // ============================================================================
 // Lifecycle & Middleware

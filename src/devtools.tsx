@@ -13,9 +13,11 @@ import {
   getRegistryStats,
   splitJsonPath,
   joinJsonPath,
+  getCurrentAction,
+  isActionRunning,
 } from "./index";
 import { activePersistenceManagers } from "./persistence";
-import { nodeRegistry, identifierRegistry } from "./tree";
+import { nodeRegistry, identifierRegistry, getStateTreeNode } from "./tree";
 
 export interface DevtoolsProps {
   store?: any;
@@ -632,6 +634,7 @@ const isDev = (() => {
     const [isPlaying, setIsPlaying] = useState(false);
     const playTimerRef = useRef<any>(null);
     const isTimeTravelingRef = useRef(false);
+    const actionPatchesRef = useRef<Map<any, any[]>>(new Map());
 
     // Active Store
     const activeStore = useMemo(() => {
@@ -688,6 +691,7 @@ const isDev = (() => {
       ]);
       setSelectedActionIndex(0);
       setPatchesLog([]);
+      actionPatchesRef.current.clear();
 
       // 1. Subscribe to Snapshots
       const disposeSnap = onSnapshot(activeStore, (nextSnap) => {
@@ -709,18 +713,26 @@ const isDev = (() => {
 
         setPatchesLog((prev) => [logEntry, ...prev].slice(0, 100));
 
-        // Aggregate patches into the latest action
-        setActions((prev) => {
-          if (prev.length <= 1) return prev;
-          const copy = [...prev];
-          const lastIdx = copy.length - 1;
-          copy[lastIdx] = {
-            ...copy[lastIdx],
-            patches: [...(copy[lastIdx].patches || []), patch],
-            snapshot: getSnapshot(activeStore)
-          };
-          return copy;
-        });
+        const currentCtx = getCurrentAction();
+        if (currentCtx) {
+          if (!actionPatchesRef.current.has(currentCtx)) {
+            actionPatchesRef.current.set(currentCtx, []);
+          }
+          actionPatchesRef.current.get(currentCtx)!.push(patch);
+        } else {
+          // Aggregate patches into the latest action
+          setActions((prev) => {
+            if (prev.length <= 1) return prev;
+            const copy = [...prev];
+            const lastIdx = copy.length - 1;
+            copy[lastIdx] = {
+              ...copy[lastIdx],
+              patches: [...(copy[lastIdx].patches || []), patch],
+              snapshot: getSnapshot(activeStore)
+            };
+            return copy;
+          });
+        }
       });
 
       // 3. Subscribe to Actions
@@ -729,7 +741,17 @@ const isDev = (() => {
 
         // Skip logging patch logging actions in the timeline to avoid clutter
         if (call.name === "logPatch" || call.name === "clearPatchLogs") {
+          const currentCtx = getCurrentAction();
+          if (currentCtx) {
+            actionPatchesRef.current.delete(currentCtx);
+          }
           return;
+        }
+
+        const currentCtx = getCurrentAction();
+        const patches = currentCtx ? (actionPatchesRef.current.get(currentCtx) || []) : [];
+        if (currentCtx) {
+          actionPatchesRef.current.delete(currentCtx);
         }
 
         setActions((prev) => {
@@ -741,7 +763,7 @@ const isDev = (() => {
             args: call.args,
             timestamp: Date.now(),
             snapshot: getSnapshot(activeStore),
-            patches: []
+            patches: patches
           };
           setSelectedActionIndex(nextIndex);
           return [...prev, newAction];
@@ -795,12 +817,17 @@ const isDev = (() => {
     const jumpToStateIndex = useCallback((index: number) => {
       if (!activeStore || index < 0 || index >= actions.length) return;
       isTimeTravelingRef.current = true;
+      const node = getStateTreeNode(activeStore);
+      const rootNode = node.getRoot();
+      const wasApplyingHistory = rootNode.$isApplyingHistory;
+      rootNode.$isApplyingHistory = true;
       try {
         const targetState = actions[index].snapshot;
         applySnapshot(activeStore, targetState);
         setActiveSnapshot(targetState);
         setSelectedActionIndex(index);
       } finally {
+        rootNode.$isApplyingHistory = wasApplyingHistory;
         isTimeTravelingRef.current = false;
       }
     }, [activeStore, actions]);

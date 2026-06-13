@@ -32,6 +32,10 @@ class MSTArray<T> extends Array<T> implements IMSTArray<T> {
   private itemType: IAnyType;
   _isMutating = false;
 
+  static get [Symbol.species]() {
+    return Array;
+  }
+
   constructor(node: StateTreeNode, itemType: IAnyType, items: T[] = []) {
     super(...items);
     this.node = node;

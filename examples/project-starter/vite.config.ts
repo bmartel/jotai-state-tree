@@ -31,6 +31,6 @@ export default defineConfig({
     port: 3000,
   },
   ssr: {
-    noExternal: ['jotai-state-tree'],
+    noExternal: ['jotai-state-tree', 'react', 'react-dom'],
   },
 });

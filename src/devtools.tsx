@@ -12,7 +12,7 @@ import {
   isAlive,
 } from "./index";
 import { activePersistenceManagers } from "./persistence";
-import { nodeRegistry, identifierRegistry, getStateTreeNode, onLifecycleChange, activeReactRoots, incrementRootRef, decrementRootRef } from "./tree";
+import { nodeRegistry, identifierRegistry, getStateTreeNode, onLifecycleChange, activeReactRoots, incrementRootRef, decrementRootRef, rootNodesRegistry } from "./tree";
 import { observer } from "./react";
 
 export interface DevtoolsProps {
@@ -650,9 +650,9 @@ const DevtoolsModel = types
     updateRoots() {
       const rootsMap = new Set<any>();
       const hasActiveReactRoots = activeReactRoots.size > 0;
-      for (const entry of nodeRegistry.values()) {
-        const node = entry.node.deref();
-        if (node && node.$isAlive && !node.$parent) {
+      for (const weakRef of rootNodesRegistry.values()) {
+        const node = weakRef.deref();
+        if (node && node.$isAlive) {
           if (node.$type.name === "DevtoolsModel") {
             continue;
           }

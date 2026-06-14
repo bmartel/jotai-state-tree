@@ -22,6 +22,14 @@ function createPopStateListener(routerRef: WeakRef<any>) {
   };
 }
 
+const routerFinalizationRegistry = new FinalizationRegistry((cleanupFn: () => void) => {
+  try {
+    cleanupFn();
+  } catch (e) {
+    // Ignore errors during finalization
+  }
+});
+
 
 // ============================================================================
 // Route Definition Model
@@ -425,12 +433,20 @@ export const RouterModel = model("RouterModel", {
     const listener = createPopStateListener(routerRef);
     window.addEventListener("popstate", listener);
     self.setPopStateListener(listener);
+    
+    const cleanup = () => {
+      window.removeEventListener("popstate", listener);
+    };
+    routerFinalizationRegistry.register(self, cleanup, self);
   }
 })
 .beforeDestroy((self) => {
-  if (isBrowser && self._popStateListener) {
-    window.removeEventListener("popstate", self._popStateListener);
-    self.setPopStateListener(null);
+  if (isBrowser) {
+    routerFinalizationRegistry.unregister(self);
+    if (self._popStateListener) {
+      window.removeEventListener("popstate", self._popStateListener);
+      self.setPopStateListener(null);
+    }
   }
 });
 

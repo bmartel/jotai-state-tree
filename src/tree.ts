@@ -121,6 +121,12 @@ interface NodeEntry {
 export const nodeRegistry = new Map<string, NodeEntry>();
 
 /**
+ * Registry mapping root node IDs to their WeakRefs.
+ * Maintains only root nodes for efficient lookup in DevTools.
+ */
+export const rootNodesRegistry = new Map<string, WeakRef<StateTreeNode>>();
+
+/**
  * Registry of root store instances that are currently mounted/active in React.
  * This is used to filter out dangling root stores (e.g. from React StrictMode's discarded first render pass) in DevTools.
  */
@@ -147,10 +153,11 @@ export function decrementRootRef(root: unknown): void {
 
 /**
  * FinalizationRegistry for automatic cleanup when nodes are garbage collected
- * This ensures the nodeRegistry doesn't accumulate stale entries
+ * This ensures the registries don't accumulate stale entries
  */
 const nodeFinalizationRegistry = new FinalizationRegistry((nodeId: string) => {
   nodeRegistry.delete(nodeId);
+  rootNodesRegistry.delete(nodeId);
 });
 
 /**
@@ -411,6 +418,10 @@ export class StateTreeNode implements IStateTreeNode {
     // Register this node with WeakRef
     nodeRegistry.set(this.$id, { node: new WeakRef(this), instance: null });
 
+    if (!parent) {
+      rootNodesRegistry.set(this.$id, new WeakRef(this));
+    }
+
     // Register for automatic cleanup on GC
     nodeFinalizationRegistry.register(this, this.$id, this);
   }
@@ -468,6 +479,7 @@ export class StateTreeNode implements IStateTreeNode {
     }
     child.$env = child.$env ?? this.$env;
     this.children.set(key, child);
+    rootNodesRegistry.delete(child.$id);
     lifecycleHookHandlers.runAfterAttach?.(child);
     this.invalidateSnapshot();
     this.incrementStructureVersion();
@@ -673,6 +685,7 @@ export class StateTreeNode implements IStateTreeNode {
 
     // Remove from node registry
     nodeRegistry.delete(this.$id);
+    rootNodesRegistry.delete(this.$id);
 
     // Unregister from finalization registry (already destroyed, don't need GC cleanup)
     nodeFinalizationRegistry.unregister(this);
@@ -719,6 +732,7 @@ export class StateTreeNode implements IStateTreeNode {
       this.$parent = null;
       this.$path = "";
       this.cachedPath = "";
+      rootNodesRegistry.set(this.$id, new WeakRef(this));
       parent.invalidateSnapshot();
     }
   }
@@ -1106,6 +1120,7 @@ export function clearAllRegistries(): void {
     }
   }
   nodeRegistry.clear();
+  rootNodesRegistry.clear();
   identifierRegistry.clear();
   activeReactRoots.clear();
   activeReactRootsCounts.clear();

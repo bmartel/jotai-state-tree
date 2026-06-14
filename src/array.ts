@@ -125,7 +125,7 @@ class MSTArray<T> extends Array<T> implements IMSTArray<T> {
     this._isMutating = true;
     try {
       const result = super.push(...items);
-      this.syncToNode();
+      this.syncToNode(wasMutating ? undefined : { type: "push", items });
       return result;
     } finally {
       this._isMutating = wasMutating;
@@ -138,7 +138,7 @@ class MSTArray<T> extends Array<T> implements IMSTArray<T> {
     this._isMutating = true;
     try {
       const result = super.pop();
-      this.syncToNode();
+      this.syncToNode(wasMutating ? undefined : { type: "pop" });
       return result;
     } finally {
       this._isMutating = wasMutating;
@@ -243,9 +243,125 @@ class MSTArray<T> extends Array<T> implements IMSTArray<T> {
     return [...this];
   }
 
-  private syncToNode(): void {
+  private syncToNode(op?: { type: "push"; items: T[] } | { type: "pop" }): void {
     this.node.isSyncingChildren = true;
     try {
+      if (op && op.type === "push") {
+        const addedItems = op.items;
+        const oldLength = this.node.getChildren().size;
+        
+        const resolveActualType = (type: IAnyType): IAnyType => {
+          let current = type;
+          while (current) {
+            if (
+              current._kind === "optional" ||
+              current._kind === "maybe" ||
+              current._kind === "maybeNull" ||
+              current._kind === "refinement"
+            ) {
+              current = (current as any)._subType;
+            } else if (current._kind === "late") {
+              current = (current as any)._definition();
+            } else {
+              break;
+            }
+          }
+          return current;
+        };
+
+        const actualType = resolveActualType(this.itemType);
+        const isComplex =
+          actualType._kind === "model" ||
+          actualType._kind === "array" ||
+          actualType._kind === "map";
+
+        const patches: IJsonPatch[] = [];
+        const reversePatches: IReversibleJsonPatch[] = [];
+
+        addedItems.forEach((item, i) => {
+          const index = oldLength + i;
+          const key = getIndexString(index);
+          let childNode: StateTreeNode;
+          let instance: unknown;
+
+          if (item && typeof item === "object" && $treenode in item) {
+            childNode = getStateTreeNode(item);
+            instance = item;
+          } else {
+            instance = this.itemType.create(item);
+            if (instance && typeof instance === "object" && $treenode in instance) {
+              childNode = getStateTreeNode(instance);
+              (this as unknown as unknown[])[index] = instance;
+            } else {
+              childNode = new StateTreeNode(
+                this.itemType,
+                item,
+                this.node.$env
+              );
+            }
+          }
+
+          this.node.addChild(key, childNode);
+
+          const valSnap = childNode ? getSnapshotFromNode(childNode) : instance;
+          patches.push({
+            op: "add",
+            path: `${this.node.$path}/${index}`,
+            value: valSnap,
+          });
+          reversePatches.push({
+            op: "remove",
+            path: `${this.node.$path}/${index}`,
+          });
+        });
+
+        const store = getGlobalStore();
+        store.set(this.node.valueAtom, [...this]);
+        this.node.notifySnapshotChange();
+
+        patches.forEach((patch, idx) => {
+          this.node.notifyPatch(patch, reversePatches[idx]);
+        });
+
+        this.node.notifyVolatileChange();
+        return;
+      }
+
+      if (op && op.type === "pop") {
+        const oldLength = this.node.getChildren().size;
+        if (oldLength > 0) {
+          const index = oldLength - 1;
+          const key = getIndexString(index);
+          const childNode = this.node.getChild(key);
+          
+          let oldValSnap: unknown = undefined;
+          if (childNode) {
+            oldValSnap = getSnapshotFromNode(childNode);
+            childNode.destroy();
+            this.node.getChildren().delete(key);
+          }
+
+          const store = getGlobalStore();
+          store.set(this.node.valueAtom, [...this]);
+          this.node.notifySnapshotChange();
+
+          this.node.notifyPatch(
+            {
+              op: "remove",
+              path: `${this.node.$path}/${index}`,
+            },
+            {
+              op: "add",
+              path: `${this.node.$path}/${index}`,
+              value: oldValSnap,
+            }
+          );
+
+          this.node.notifyVolatileChange();
+        }
+        return;
+      }
+
       const oldArray = (this.node.getValue() as unknown[]) || [];
       const newArray = [...this];
 

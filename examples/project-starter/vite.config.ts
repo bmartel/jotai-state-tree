@@ -18,13 +18,13 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
+      'react': path.resolve(__dirname, './node_modules/react'),
+      'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
       ...(isLocal ? {
         'jotai-state-tree/react': path.resolve(__dirname, '../../src/react.ts'),
         'jotai-state-tree/devtools': path.resolve(__dirname, '../../src/devtools.tsx'),
         'jotai-state-tree/ssr': path.resolve(__dirname, '../../src/ssr.ts'),
         'jotai-state-tree': path.resolve(__dirname, '../../src/index.ts'),
-        'react': path.resolve(__dirname, './node_modules/react'),
-        'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
       } : {}),
     },
   },

@@ -1,3 +1,10 @@
+## [1.15.2](https://github.com/bmartel/jotai-state-tree/compare/v1.15.1...v1.15.2) (2026-06-14)
+
+
+### Performance Improvements
+
+* optimize array mutations, root discovery in devtools, and clean up router events ([1977dc6](https://github.com/bmartel/jotai-state-tree/commit/1977dc6173ed4d3c8d9d90178be371b71e593a7a))
+
 ## [1.15.1](https://github.com/bmartel/jotai-state-tree/compare/v1.15.0...v1.15.1) (2026-06-14)
 
 # [1.15.0](https://github.com/bmartel/jotai-state-tree/compare/v1.14.15...v1.15.0) (2026-06-14)

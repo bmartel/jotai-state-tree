@@ -25,7 +25,7 @@ async function createServer() {
   // In development, we load the TypeScript source file directly via Vite's load module.
   const { createSSRHandler } = isProd
     ? await import('jotai-state-tree/ssr')
-    : await vite.ssrLoadModule('../../src/ssr.ts');
+    : await vite.ssrLoadModule('jotai-state-tree/ssr');
 
   // Load Route Config, API routes, and Store creators
   let routes, apiRoutes, createAppStore;

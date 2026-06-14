@@ -1,3 +1,10 @@
+## [1.16.4](https://github.com/bmartel/jotai-state-tree/compare/v1.16.3...v1.16.4) (2026-06-14)
+
+
+### Bug Fixes
+
+* resolve devtools volatile property mutation error and disable server-side devtools execution ([d7c5db2](https://github.com/bmartel/jotai-state-tree/commit/d7c5db223326991007ccf7ed22d610fd2be2867d))
+
 ## [1.16.3](https://github.com/bmartel/jotai-state-tree/compare/v1.16.2...v1.16.3) (2026-06-14)
 
 

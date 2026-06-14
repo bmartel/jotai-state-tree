@@ -735,14 +735,11 @@ export function useHydrateStore(
   snapshot: unknown,
   options?: { store?: ReturnType<typeof getGlobalStore> }
 ): void {
-  if (!hasStateTreeNode(target) || !snapshot) {
-    return;
-  }
-
-  const node = getStateTreeNode(target);
+  const node = hasStateTreeNode(target) ? getStateTreeNode(target) : null;
 
   // Apply the snapshot structure to the tree first so that child nodes exist
   useMemo(() => {
+    if (!node || !snapshot) return;
     const wasApplying = getIsApplyingSnapshotOrPatch();
     setIsApplyingSnapshotOrPatch(true);
     try {
@@ -753,6 +750,7 @@ export function useHydrateStore(
   }, [node, snapshot]);
 
   const pairs = useMemo(() => {
+    if (!node || !snapshot) return [];
     const collectedPairs: [WritableAtom<any, any[], any>, unknown][] = [];
     
     function collect(n: any) {
@@ -771,25 +769,27 @@ export function useHydrateStore(
     return collectedPairs;
   }, [node, snapshot]);
 
-  if (pairs.length > 0) {
-    useHydrateAtoms(pairs, { store: options?.store ?? getGlobalStore() });
-  }
+  useHydrateAtoms(pairs, { store: options?.store ?? getGlobalStore() });
 }
 
 /**
  * Client-side hook to automatically read and hydrate a store instance on mount.
  */
 export function useAutoHydrate(store: unknown) {
-  useMemo(() => {
+  const snapshot = useMemo(() => {
     if (typeof window !== "undefined") {
       const dataNode = window.document.getElementById("__JST_DATA__");
       if (dataNode && (window as any).__JST_DATA__) {
-        useHydrateStore(store, (window as any).__JST_DATA__);
+        const data = (window as any).__JST_DATA__;
         // Clean up window object to avoid double hydration issues
         delete (window as any).__JST_DATA__;
+        return data;
       }
     }
-  }, [store]);
+    return undefined;
+  }, []);
+
+  useHydrateStore(store, snapshot);
 }
 
 /**

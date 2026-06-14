@@ -1026,6 +1026,12 @@ const JotaiStateTreeDevtoolsImpl: React.ComponentType<DevtoolsProps> = observer(
   position = "bottom-right",
   initialOpen = false,
 }) => {
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Sync props to devtoolsStore
   devtoolsStore.syncProps(propStore, initialOpen);
 
@@ -1039,6 +1045,21 @@ const JotaiStateTreeDevtoolsImpl: React.ComponentType<DevtoolsProps> = observer(
       };
     }
   }, [propStore]);
+
+  // CSS styling injector
+  React.useEffect(() => {
+    const styleId = "jst-devtools-styles";
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement("style");
+      style.id = styleId;
+      style.textContent = cssStyles;
+      document.head.appendChild(style);
+    }
+  }, []);
+
+  if (typeof window === "undefined" || !mounted) {
+    return null;
+  }
 
   // Active Persistence Manager
   const persistenceManager = devtoolsStore.activeStore ? activePersistenceManagers.get(devtoolsStore.activeStore) : null;
@@ -1118,16 +1139,7 @@ const JotaiStateTreeDevtoolsImpl: React.ComponentType<DevtoolsProps> = observer(
     }
   })();
 
-  // CSS styling injector
-  React.useEffect(() => {
-    const styleId = "jst-devtools-styles";
-    if (!document.getElementById(styleId)) {
-      const style = document.createElement("style");
-      style.id = styleId;
-      style.textContent = cssStyles;
-      document.head.appendChild(style);
-    }
-  }, []);
+
 
   // Navigation router helpers
   const triggerNavigation = () => {

@@ -337,6 +337,7 @@ export {
   getGlobalStore,
   setGlobalStore,
   resetGlobalStore,
+  setActiveStoreResolver,
 
   // Advanced tree utilities
   getRelativePath,

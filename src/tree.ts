@@ -50,8 +50,17 @@ export type { IDisposer };
 /** Global Jotai store instance */
 let globalStore = createStore();
 
+/** Store resolver hook to intercept getGlobalStore (useful for SSR context-specific isolation) */
+let activeStoreResolver: (() => ReturnType<typeof createStore> | null) | null = null;
+
 /** Get the global store */
 export function getGlobalStore() {
+  if (activeStoreResolver) {
+    const resolved = activeStoreResolver();
+    if (resolved) {
+      return resolved;
+    }
+  }
   return globalStore;
 }
 
@@ -63,6 +72,11 @@ export function setGlobalStore(store: ReturnType<typeof createStore>) {
 /** Reset the global store (useful for testing) */
 export function resetGlobalStore() {
   globalStore = createStore();
+}
+
+/** Set the active store resolver function */
+export function setActiveStoreResolver(resolver: (() => ReturnType<typeof createStore> | null) | null) {
+  activeStoreResolver = resolver;
 }
 
 /** Active tracking function for reactive observation */
@@ -442,7 +456,7 @@ export class StateTreeNode implements IStateTreeNode {
 
   /** Get current value from atom */
   getValue(): unknown {
-    return globalStore.get(this.valueAtom);
+    return getGlobalStore().get(this.valueAtom);
   }
 
   /** Set value on atom */
@@ -458,7 +472,7 @@ export class StateTreeNode implements IStateTreeNode {
     if (oldValue === value) {
       return;
     }
-    globalStore.set(this.valueAtom, value);
+    getGlobalStore().set(this.valueAtom, value);
 
     // Notify snapshot listeners (bubble up to root)
     this.notifySnapshotChange();
@@ -675,7 +689,7 @@ export class StateTreeNode implements IStateTreeNode {
     // Mark as dead
     this.$isAlive = false;
     try {
-      globalStore.set(this.isAliveAtom, false);
+      getGlobalStore().set(this.isAliveAtom, false);
     } catch (e) {
       // Ignore store errors during teardown
     }
@@ -704,7 +718,7 @@ export class StateTreeNode implements IStateTreeNode {
 
     // Notify atom subscribers of destruction
     try {
-      globalStore.set(this.valueAtom, undefined);
+      getGlobalStore().set(this.valueAtom, undefined);
     } catch (e) {
       // Ignore store errors during teardown
     }
@@ -1113,7 +1127,7 @@ export function clearAllRegistries(): void {
     if (node) {
       node.$isAlive = false;
       try {
-        globalStore.set(node.isAliveAtom, false);
+        getGlobalStore().set(node.isAliveAtom, false);
       } catch (e) {
         // Ignore store errors during teardown
       }

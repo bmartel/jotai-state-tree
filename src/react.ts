@@ -53,6 +53,7 @@ import {
   incrementRootRef,
   decrementRootRef,
   destroy,
+  applyPatch,
 } from "./tree";
 import {
   createUndoManager,
@@ -772,6 +773,59 @@ export function useHydrateStore(
   if (pairs.length > 0) {
     useHydrateAtoms(pairs, { store: options?.store ?? getGlobalStore() });
   }
+}
+
+/**
+ * Client-side hook to automatically read and hydrate a store instance on mount.
+ */
+export function useAutoHydrate(store: unknown) {
+  useMemo(() => {
+    if (typeof window !== "undefined") {
+      const dataNode = window.document.getElementById("__JST_DATA__");
+      if (dataNode && (window as any).__JST_DATA__) {
+        useHydrateStore(store, (window as any).__JST_DATA__);
+        // Clean up window object to avoid double hydration issues
+        delete (window as any).__JST_DATA__;
+      }
+    }
+  }, [store]);
+}
+
+/**
+ * Helper to define a client-callable Server Action.
+ */
+export function createServerAction<Args, Result>(actionName: string) {
+  return async (storeInstance: any, args: Args): Promise<Result> => {
+    if (typeof window === "undefined") {
+      throw new Error(`Server action "${actionName}" cannot be run client-side on the server.`);
+    }
+
+    const response = await fetch("/api/_jst_action", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        actionName,
+        args,
+        clientSnapshot: getSnapshot(storeInstance),
+      }),
+    });
+
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      throw new Error(errBody.error || `Server action "${actionName}" request failed.`);
+    }
+
+    const { result, patches } = await response.json();
+
+    // Apply any server-side mutations (patches) back to the client state tree
+    if (patches && patches.length > 0) {
+      applyPatch(storeInstance, patches);
+    }
+
+    return result;
+  };
 }
 
 // ============================================================================

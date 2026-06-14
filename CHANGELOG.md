@@ -1,3 +1,10 @@
+## [1.16.5](https://github.com/bmartel/jotai-state-tree/compare/v1.16.4...v1.16.5) (2026-06-14)
+
+
+### Bug Fixes
+
+* resolve ssr router pathname hydration mismatch and preserve store loader data ([36d581e](https://github.com/bmartel/jotai-state-tree/commit/36d581ea0abd86cbd302d0d3f51e554836f89071))
+
 ## [1.16.4](https://github.com/bmartel/jotai-state-tree/compare/v1.16.3...v1.16.4) (2026-06-14)
 
 

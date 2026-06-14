@@ -30,16 +30,4 @@ export default defineConfig({
   server: {
     port: 3000,
   },
-  ssr: {
-    noExternal: ['jotai-state-tree', 'react', 'react-dom'],
-    optimizeDeps: {
-      include: [
-        'react',
-        'react-dom',
-        'react-dom/server',
-        'react/jsx-runtime',
-        'react/jsx-dev-runtime'
-      ],
-    },
-  },
 });

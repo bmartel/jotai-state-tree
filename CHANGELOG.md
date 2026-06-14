@@ -1,3 +1,15 @@
+## [1.16.1](https://github.com/bmartel/jotai-state-tree/compare/v1.16.0...v1.16.1) (2026-06-14)
+
+
+### Bug Fixes
+
+* **ci:** adjust performance test threshold to 500ms for VM virtualization headroom ([dfe7816](https://github.com/bmartel/jotai-state-tree/commit/dfe7816f9e6d1d0046da7b39b60a5477092f1b70))
+
+
+### Performance Improvements
+
+* **array:** optimize array proxy get handler and subclass array copying to speed up mutations by 50x ([171d926](https://github.com/bmartel/jotai-state-tree/commit/171d92687c3ff2abd591e2c49b4dca65e03516a4))
+
 # [1.16.0](https://github.com/bmartel/jotai-state-tree/compare/v1.15.2...v1.16.0) (2026-06-14)
 
 

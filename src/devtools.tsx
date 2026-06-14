@@ -881,38 +881,41 @@ const DevtoolsModel = types
   .afterCreate((self) => {
     // 1. Polling root discovery
     (self as any).updateRoots();
-    const interval = setInterval(() => {
-      (self as any).updateRoots();
-    }, 1500);
-    (self as any).setCleanupInterval(() => clearInterval(interval));
 
-    // 2. Global window resize handlers
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!self.isResizing) return;
-      if (self.dock === "bottom") {
-        const newHeight = window.innerHeight - e.clientY;
-        (self as any).setHeight(Math.max(180, Math.min(window.innerHeight - 50, newHeight)));
-      } else {
-        const newWidth = window.innerWidth - e.clientX;
-        (self as any).setWidth(Math.max(250, Math.min(window.innerWidth - 50, newWidth)));
-      }
-    };
+    if (typeof window !== "undefined") {
+      const interval = setInterval(() => {
+        (self as any).updateRoots();
+      }, 1500);
+      (self as any).setCleanupInterval(() => clearInterval(interval));
 
-    const handleMouseUp = () => {
-      if (self.isResizing) {
-        (self as any).setIsResizing(false);
-        document.body.style.userSelect = "";
-        document.body.style.cursor = "";
-      }
-    };
+      // 2. Global window resize handlers
+      const handleMouseMove = (e: MouseEvent) => {
+        if (!self.isResizing) return;
+        if (self.dock === "bottom") {
+          const newHeight = window.innerHeight - e.clientY;
+          (self as any).setHeight(Math.max(180, Math.min(window.innerHeight - 50, newHeight)));
+        } else {
+          const newWidth = window.innerWidth - e.clientX;
+          (self as any).setWidth(Math.max(250, Math.min(window.innerWidth - 50, newWidth)));
+        }
+      };
 
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
+      const handleMouseUp = () => {
+        if (self.isResizing) {
+          (self as any).setIsResizing(false);
+          document.body.style.userSelect = "";
+          document.body.style.cursor = "";
+        }
+      };
 
-    (self as any).setCleanupResize(() => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    });
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+
+      (self as any).setCleanupResize(() => {
+        window.removeEventListener("mousemove", handleMouseMove);
+        window.removeEventListener("mouseup", handleMouseUp);
+      });
+    }
   })
   .beforeDestroy((self) => {
     self.storeDisposers.forEach((d) => d());

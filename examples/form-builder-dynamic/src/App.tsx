@@ -1,36 +1,13 @@
-import { useState, useMemo } from 'react';
-import { useSnapshot } from 'jotai-state-tree/react';
+import { useState } from 'react';
+import { createStoreContext } from 'jotai-state-tree/react';
 import { getSnapshot } from 'jotai-state-tree';
 import { FormStore, IFormStore } from './store';
 
-export function App() {
-  // Initialize form store once
-  const store = useMemo(() => {
-    return FormStore.create({
-      title: 'Customer Feedback Survey',
-      rootSection: {
-        id: 'root_sec',
-        title: 'General Feedback',
-        questions: [
-          { id: 'q1', type: 'text', label: 'What is your name?', required: true, placeholder: 'Jane Doe' },
-          { id: 'q2', type: 'number', label: 'Overall Rating (1-10)', required: true, min: 1, max: 10 },
-          { id: 'q3', type: 'choice', label: 'How did you hear about us?', required: false, options: ['Search Engine', 'Friend Reference', 'Social Media'] },
-        ],
-        subsections: [
-          {
-            id: 'sub1',
-            title: 'Technical Support Quality',
-            questions: [
-              { id: 'q4', type: 'toggle', label: 'Did the agent resolve your issue?', required: true }
-            ],
-            subsections: []
-          }
-        ]
-      }
-    });
-  }, []);
+const { Provider, useStore, useStoreSnapshot } = createStoreContext<IFormStore>();
 
-  useSnapshot(store);
+function AppContent() {
+  const store = useStore();
+  useStoreSnapshot();
   const [optionInputs, setOptionInputs] = useState<Record<string, string>>({});
 
   return (
@@ -102,6 +79,35 @@ export function App() {
         </div>
       </div>
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <Provider createStore={() => FormStore.create({
+      title: 'Customer Feedback Survey',
+      rootSection: {
+        id: 'root_sec',
+        title: 'General Feedback',
+        questions: [
+          { id: 'q1', type: 'text', label: 'What is your name?', required: true, placeholder: 'Jane Doe' },
+          { id: 'q2', type: 'number', label: 'Overall Rating (1-10)', required: true, min: 1, max: 10 },
+          { id: 'q3', type: 'choice', label: 'How did you hear about us?', required: false, options: ['Search Engine', 'Friend Reference', 'Social Media'] },
+        ],
+        subsections: [
+          {
+            id: 'sub1',
+            title: 'Technical Support Quality',
+            questions: [
+              { id: 'q4', type: 'toggle', label: 'Did the agent resolve your issue?', required: true }
+            ],
+            subsections: []
+          }
+        ]
+      }
+    })}>
+      <AppContent />
+    </Provider>
   );
 }
 

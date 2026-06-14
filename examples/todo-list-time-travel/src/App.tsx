@@ -1,20 +1,13 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { useSnapshot, useUndoManager, useTimeTravelManager } from 'jotai-state-tree/react';
+import React, { useState, useEffect } from 'react';
+import { createStoreContext, useUndoManager, useTimeTravelManager } from 'jotai-state-tree/react';
 import { onPatch, IJsonPatch } from 'jotai-state-tree';
 import { TodoStore, ITodoStore } from './store';
 
-export function App() {
-  // Initialize the store once
-  const store = useMemo(() => TodoStore.create({
-    todos: [
-      { id: '1', title: 'Learn jotai-state-tree', done: true },
-      { id: '2', title: 'Explore Vite templates', done: false },
-      { id: '3', title: 'Build clean minimalist UIs', done: false },
-    ]
-  }), []);
+const { Provider, useStore, useStoreSnapshot } = createStoreContext<ITodoStore>();
 
-  // Subscribe to store updates for reactive rendering
-  useSnapshot(store);
+function AppContent() {
+  const store = useStore();
+  useStoreSnapshot();
 
   // Initialize managers cleanly using dedicated hooks
   const undoManager = useUndoManager(store, { maxHistoryLength: 50 });
@@ -40,7 +33,7 @@ export function App() {
     return () => {
       dispose();
     };
-  }, [store, undoManager, timeTravel]);
+  }, [store]);
 
   const handleAddTodo = (e: React.FormEvent) => {
     e.preventDefault();
@@ -225,5 +218,19 @@ export function App() {
         </div>
       </div>
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <Provider createStore={() => TodoStore.create({
+      todos: [
+        { id: '1', title: 'Learn jotai-state-tree', done: true },
+        { id: '2', title: 'Explore Vite templates', done: false },
+        { id: '3', title: 'Build clean minimalist UIs', done: false },
+      ]
+    })}>
+      <AppContent />
+    </Provider>
   );
 }

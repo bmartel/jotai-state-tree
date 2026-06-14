@@ -1,6 +1,8 @@
-import React, { useState, useMemo } from 'react';
-import { useSnapshot } from 'jotai-state-tree/react';
+import React, { useState } from 'react';
+import { createStoreContext } from 'jotai-state-tree/react';
 import { ShopStore, IShopStore } from './store';
+
+const { Provider, useStore, useStoreSnapshot } = createStoreContext<IShopStore>();
 
 const CATALOG_ITEMS = [
   { id: 'p1', name: 'Mechanical Keyboard', price: 129.99, description: 'Tactile switches, RGB backlight, anodized aluminum frame.' },
@@ -9,20 +11,9 @@ const CATALOG_ITEMS = [
   { id: 'p4', name: 'Noise-Cancelling Headphones', price: 299.99, description: 'Active noise cancellation, 30-hour battery life, spatial audio.' },
 ];
 
-export function App() {
-  // Initialize shop store with the product catalog
-  const store = useMemo(() => {
-    const catalogData: Record<string, any> = {};
-    CATALOG_ITEMS.forEach(item => {
-      catalogData[item.id] = item;
-    });
-    return ShopStore.create({
-      catalog: catalogData,
-      cart: []
-    });
-  }, []);
-
-  useSnapshot(store);
+function AppContent() {
+  const store = useStore();
+  useStoreSnapshot();
   const [couponInput, setCouponInput] = useState('');
 
   const handleApplyCoupon = (e: React.FormEvent) => {
@@ -181,5 +172,22 @@ export function App() {
         </div>
       </div>
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <Provider createStore={() => {
+      const catalogData: Record<string, any> = {};
+      CATALOG_ITEMS.forEach(item => {
+        catalogData[item.id] = item;
+      });
+      return ShopStore.create({
+        catalog: catalogData,
+        cart: []
+      });
+    }}>
+      <AppContent />
+    </Provider>
   );
 }

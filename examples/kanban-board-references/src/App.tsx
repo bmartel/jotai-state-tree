@@ -1,28 +1,13 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { useSnapshot } from 'jotai-state-tree/react';
+import React, { useState, useEffect } from 'react';
+import { createStoreContext } from 'jotai-state-tree/react';
 import { onPatch, applySnapshot, getSnapshot, IJsonPatch } from 'jotai-state-tree';
 import { KanbanBoard, IKanbanBoard } from './store';
 
-export function App() {
-  // Initialize board store once
-  const board = useMemo(() => {
-    const store = KanbanBoard.create({
-      users: {
-        'u1': { id: 'u1', name: 'Alice Smith' },
-        'u2': { id: 'u2', name: 'Bob Jones' },
-        'u3': { id: 'u3', name: 'Charlie Brown' },
-      },
-      tasks: {}
-    });
-    // Add default tasks
-    store.addTask('t1', 'Define project requirements', 'backlog');
-    store.addTask('t2', 'Design database schema', 'todo', 'u1');
-    store.addTask('t3', 'Implement jotai-state-tree integration', 'in_progress', 'u2');
-    store.addTask('t4', 'Set up build pipeline', 'done', 'u3');
-    return store;
-  }, []);
+const { Provider, useStore: useBoard, useStoreSnapshot: useBoardSnapshot } = createStoreContext<IKanbanBoard>();
 
-  useSnapshot(board);
+function AppContent() {
+  const board = useBoard();
+  useBoardSnapshot();
 
   // States
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -264,5 +249,28 @@ export function App() {
         </div>
       </div>
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <Provider createStore={() => {
+      const store = KanbanBoard.create({
+        users: {
+          'u1': { id: 'u1', name: 'Alice Smith' },
+          'u2': { id: 'u2', name: 'Bob Jones' },
+          'u3': { id: 'u3', name: 'Charlie Brown' },
+        },
+        tasks: {}
+      });
+      // Add default tasks
+      store.addTask('t1', 'Define project requirements', 'backlog');
+      store.addTask('t2', 'Design database schema', 'todo', 'u1');
+      store.addTask('t3', 'Implement jotai-state-tree integration', 'in_progress', 'u2');
+      store.addTask('t4', 'Set up build pipeline', 'done', 'u3');
+      return store;
+    }}>
+      <AppContent />
+    </Provider>
   );
 }

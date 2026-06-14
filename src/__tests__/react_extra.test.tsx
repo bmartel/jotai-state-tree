@@ -549,7 +549,7 @@ describe('React Extra Hooks & Bindings', () => {
     expect(isAlive(renderedStore)).toBe(true);
 
     unmount();
-    expect(isAlive(renderedStore)).toBe(false); // Destroyed on unmount!
+    expect(isAlive(renderedStore)).toBe(true); // Not destroyed on unmount anymore for StrictMode compatibility
     cleanup();
 
     // 13. Provider and RouterProvider recreation warnings

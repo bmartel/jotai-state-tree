@@ -379,9 +379,6 @@ export function Provider<T>({
       incrementRootRef(root);
       return () => {
         decrementRootRef(root);
-        if (createStore) {
-          destroy(store);
-        }
       };
     }
   }, [store, createStore]);
@@ -504,12 +501,9 @@ export function createStoreContext<T>() {
         incrementRootRef(root);
         return () => {
           decrementRootRef(root);
-          if (createStore) {
-            destroy(store);
-          }
         };
       }
-    }, [store, createStore]);
+    }, [store]);
 
     return React.createElement(Context.Provider, { value: store as T }, children);
   }
@@ -964,12 +958,9 @@ export function RouterProvider({
       incrementRootRef(root);
       return () => {
         decrementRootRef(root);
-        if (createRouter) {
-          destroy(router);
-        }
       };
     }
-  }, [router, createRouter]);
+  }, [router]);
 
   return React.createElement(RouterContext.Provider, { value: router }, children);
 }

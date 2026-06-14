@@ -1,15 +1,11 @@
-import React, { useState } from 'react';
-import { observer, RouteView, useRouter, RouterContext } from 'jotai-state-tree/react';
+import React, { useState, useMemo } from 'react';
+import { observer, RouteView, createStoreContext, RouterProvider, useRouter } from 'jotai-state-tree/react';
 import { createAppStore, IRootStore } from './store';
 
-export const StoreContext = React.createContext<IRootStore | null>(null);
+const { Provider, useStore } = createStoreContext<IRootStore>();
 
 export function useAppStore() {
-  const store = React.useContext(StoreContext);
-  if (!store) {
-    throw new Error('[jotai-state-tree] useAppStore must be used within StoreContext.Provider');
-  }
-  return store;
+  return useStore();
 }
 
 // ============================================================================
@@ -621,11 +617,11 @@ const DevToolsInspector = observer(function DevToolsInspector() {
 // App Component Entrypoint
 // ============================================================================
 export const App = observer(function App() {
-  const { store, router } = React.useMemo(() => createAppStore(), []);
+  const { store, router } = useMemo(() => createAppStore(), []);
 
   return (
-    <StoreContext.Provider value={store}>
-      <RouterContext.Provider value={router}>
+    <Provider store={store}>
+      <RouterProvider router={router}>
         <div className="app-container">
           <Navbar />
 
@@ -648,7 +644,7 @@ export const App = observer(function App() {
             <DevToolsInspector />
           </div>
         </div>
-      </RouterContext.Provider>
-    </StoreContext.Provider>
+      </RouterProvider>
+    </Provider>
   );
 });

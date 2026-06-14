@@ -1,24 +1,13 @@
-import { useState, useMemo, useEffect } from 'react';
-import { useSnapshot } from 'jotai-state-tree/react';
-import { onPatch, destroy } from 'jotai-state-tree';
+import { useState, useEffect } from 'react';
+import { createStoreContext } from 'jotai-state-tree/react';
+import { onPatch } from 'jotai-state-tree';
 import { DashboardStore, IDashboardStore } from './store';
 
-export function App() {
-  // Initialize store with metrics
-  const store = useMemo(() => {
-    return DashboardStore.create({
-      metrics: {
-        cpu: { id: 'cpu', name: 'CPU Load', value: 25.0, unit: '%', threshold: 80 },
-        ram: { id: 'ram', name: 'Memory Usage', value: 55.0, unit: '%', threshold: 85 },
-        network: { id: 'network', name: 'Network Speed', value: 85.0, unit: 'Mbps', threshold: 300 },
-        db: { id: 'db', name: 'Active DB Connections', value: 15, unit: 'conns', threshold: 40 },
-      },
-      isPaused: false,
-      updateIntervalMs: 1000,
-    });
-  }, []);
+const { Provider, useStore, useStoreSnapshot } = createStoreContext<IDashboardStore>();
 
-  useSnapshot(store);
+function AppContent() {
+  const store = useStore();
+  useStoreSnapshot();
 
   // States
   const [logs, setLogs] = useState<Array<{ id: string; time: string; msg: string; level: 'info' | 'warn' | 'error' }>>([]);
@@ -184,5 +173,22 @@ export function App() {
         </div>
       </div>
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <Provider createStore={() => DashboardStore.create({
+      metrics: {
+        cpu: { id: 'cpu', name: 'CPU Load', value: 25.0, unit: '%', threshold: 80 },
+        ram: { id: 'ram', name: 'Memory Usage', value: 55.0, unit: '%', threshold: 85 },
+        network: { id: 'network', name: 'Network Speed', value: 85.0, unit: 'Mbps', threshold: 300 },
+        db: { id: 'db', name: 'Active DB Connections', value: 15, unit: 'conns', threshold: 40 },
+      },
+      isPaused: false,
+      updateIntervalMs: 1000,
+    })}>
+      <AppContent />
+    </Provider>
   );
 }

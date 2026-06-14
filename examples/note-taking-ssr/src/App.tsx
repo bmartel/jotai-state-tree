@@ -36,12 +36,8 @@ export function App() {
     setGlobalStore(js as any); // Bind jotai-state-tree to this isolated Jotai instance
   }, []);
 
-  // 4. Instantiate our jotai-state-tree model.
-  // We initialize it empty, because we will hydrate it from our SSR snapshot.
-  const storeInstance = useMemo(() => NotesStore.create({}), []);
-
   return (
-    <Provider store={storeInstance}>
+    <Provider createStore={() => NotesStore.create({})}>
       <div className="container-notes">
         <header>
           <div>

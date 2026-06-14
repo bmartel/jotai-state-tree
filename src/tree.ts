@@ -121,6 +121,31 @@ interface NodeEntry {
 export const nodeRegistry = new Map<string, NodeEntry>();
 
 /**
+ * Registry of root store instances that are currently mounted/active in React.
+ * This is used to filter out dangling root stores (e.g. from React StrictMode's discarded first render pass) in DevTools.
+ */
+export const activeReactRoots = new Set<unknown>();
+const activeReactRootsCounts = new Map<unknown, number>();
+
+export function incrementRootRef(root: unknown): void {
+  if (!root) return;
+  const count = activeReactRootsCounts.get(root) || 0;
+  activeReactRootsCounts.set(root, count + 1);
+  activeReactRoots.add(root);
+}
+
+export function decrementRootRef(root: unknown): void {
+  if (!root) return;
+  const count = activeReactRootsCounts.get(root) || 0;
+  if (count <= 1) {
+    activeReactRootsCounts.delete(root);
+    activeReactRoots.delete(root);
+  } else {
+    activeReactRootsCounts.set(root, count - 1);
+  }
+}
+
+/**
  * FinalizationRegistry for automatic cleanup when nodes are garbage collected
  * This ensures the nodeRegistry doesn't accumulate stale entries
  */
@@ -1082,6 +1107,8 @@ export function clearAllRegistries(): void {
   }
   nodeRegistry.clear();
   identifierRegistry.clear();
+  activeReactRoots.clear();
+  activeReactRootsCounts.clear();
   nodeIdCounter = 0;
 }
 

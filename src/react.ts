@@ -50,6 +50,9 @@ import {
   getIsApplyingSnapshotOrPatch,
   setIsApplyingSnapshotOrPatch,
   $treenode,
+  incrementRootRef,
+  decrementRootRef,
+  destroy,
 } from "./tree";
 import {
   createUndoManager,
@@ -164,6 +167,8 @@ export function useObserver<T>(fn: () => T): T {
   const subscriptionsRef = useRef<Map<StateTreeNode, IDisposer>>(new Map());
   const atomSubscriptionsRef = useRef<Map<Atom<unknown>, IDisposer>>(new Map());
 
+  const componentRootsRef = useRef<Set<unknown>>(new Set());
+
   // Clear tracked sets at the beginning of this render
   nextTrackedNodesRef.current = new Set();
   nextTrackedAtomsRef.current = new Set();
@@ -172,6 +177,31 @@ export function useObserver<T>(fn: () => T): T {
   useEffect(() => {
     const nextNodes = nextTrackedNodesRef.current;
     const currentSubscriptions = subscriptionsRef.current;
+
+    // Track active react roots
+    const nextRoots = new Set<unknown>();
+    for (const node of nextNodes) {
+      const rootInst = node.getRoot().getInstance();
+      if (rootInst) {
+        nextRoots.add(rootInst);
+      }
+    }
+    
+    // Decrement ref count for roots no longer accessed
+    for (const root of componentRootsRef.current) {
+      if (!nextRoots.has(root)) {
+        decrementRootRef(root);
+      }
+    }
+    
+    // Increment ref count for roots newly accessed
+    for (const root of nextRoots) {
+      if (!componentRootsRef.current.has(root)) {
+        incrementRootRef(root);
+      }
+    }
+    
+    componentRootsRef.current = nextRoots;
 
     // Unsubscribe from nodes no longer accessed
     for (const [node, disposer] of currentSubscriptions.entries()) {
@@ -216,6 +246,12 @@ export function useObserver<T>(fn: () => T): T {
   // Unsubscribe on unmount
   useEffect(() => {
     return () => {
+      // Decrement root refs
+      for (const root of componentRootsRef.current) {
+        decrementRootRef(root);
+      }
+      componentRootsRef.current.clear();
+
       for (const disposer of subscriptionsRef.current.values()) {
         disposer();
       }
@@ -296,7 +332,8 @@ const StoreContext = React.createContext<StoreContextValue<unknown> | null>(
 );
 
 interface ProviderProps<T> {
-  store: T;
+  store?: T;
+  createStore?: () => T;
   children: ReactNode;
 }
 
@@ -305,9 +342,50 @@ interface ProviderProps<T> {
  * @deprecated Use createStoreContext() for better type inference
  */
 export function Provider<T>({
-  store,
+  store: propStore,
+  createStore,
   children,
 }: ProviderProps<T>): JSX.Element {
+  const storeRef = useRef<T | null>(null);
+  const renderCountRef = useRef(0);
+  renderCountRef.current++;
+
+  if (storeRef.current === null) {
+    if (createStore) {
+      storeRef.current = createStore();
+    } else if (propStore) {
+      storeRef.current = propStore;
+    }
+  } else if (propStore && propStore !== storeRef.current) {
+    storeRef.current = propStore;
+  }
+
+  const store = storeRef.current;
+
+  useEffect(() => {
+    if (renderCountRef.current > 1 && propStore) {
+      console.warn(
+        `[jotai-state-tree] Warning: A new store instance was passed to <Provider> on render. ` +
+        `This usually indicates that the store is being recreated on every render. ` +
+        `To avoid memory leaks and performance issues, please use the 'createStore' prop instead: ` +
+        `<Provider createStore={() => RootStore.create()}> or instantiate the store outside the component.`
+      );
+    }
+  }, [propStore]);
+
+  useEffect(() => {
+    if (store && hasStateTreeNode(store)) {
+      const root = getStateTreeNode(store).getRoot().getInstance();
+      incrementRootRef(root);
+      return () => {
+        decrementRootRef(root);
+        if (createStore) {
+          destroy(store);
+        }
+      };
+    }
+  }, [store, createStore]);
+
   const value = useMemo(() => ({ store }), [store]);
   return React.createElement(StoreContext.Provider, { value }, children);
 }
@@ -323,7 +401,17 @@ export function useStore<T>(): T {
       "[jotai-state-tree] useStore must be used within a Provider",
     );
   }
-  return context.store as T;
+  const store = context.store;
+  useEffect(() => {
+    if (hasStateTreeNode(store)) {
+      const root = getStateTreeNode(store).getRoot().getInstance();
+      incrementRootRef(root);
+      return () => {
+        decrementRootRef(root);
+      };
+    }
+  }, [store]);
+  return store as T;
 }
 
 /**
@@ -375,13 +463,55 @@ export function createStoreContext<T>() {
   const Context = React.createContext<T | null>(null);
 
   function StoreProvider({
-    store,
+    store: propStore,
+    createStore,
     children,
   }: {
-    store: T;
+    store?: T;
+    createStore?: () => T;
     children: ReactNode;
   }): JSX.Element {
-    return React.createElement(Context.Provider, { value: store }, children);
+    const storeRef = useRef<T | null>(null);
+    const renderCountRef = useRef(0);
+    renderCountRef.current++;
+
+    if (storeRef.current === null) {
+      if (createStore) {
+        storeRef.current = createStore();
+      } else if (propStore) {
+        storeRef.current = propStore;
+      }
+    } else if (propStore && propStore !== storeRef.current) {
+      storeRef.current = propStore;
+    }
+
+    const store = storeRef.current;
+
+    useEffect(() => {
+      if (renderCountRef.current > 1 && propStore) {
+        console.warn(
+          `[jotai-state-tree] Warning: A new store instance was passed to <Provider> on render. ` +
+          `This usually indicates that the store is being recreated on every render. ` +
+          `To avoid memory leaks and performance issues, please use the 'createStore' prop instead: ` +
+          `<Provider createStore={() => RootStore.create()}> or instantiate the store outside the component.`
+        );
+      }
+    }, [propStore]);
+
+    useEffect(() => {
+      if (store && hasStateTreeNode(store)) {
+        const root = getStateTreeNode(store).getRoot().getInstance();
+        incrementRootRef(root);
+        return () => {
+          decrementRootRef(root);
+          if (createStore) {
+            destroy(store);
+          }
+        };
+      }
+    }, [store, createStore]);
+
+    return React.createElement(Context.Provider, { value: store as T }, children);
   }
 
   function useTypedStore(): T {
@@ -391,6 +521,15 @@ export function createStoreContext<T>() {
         "[jotai-state-tree] useStore must be used within a Provider",
       );
     }
+    useEffect(() => {
+      if (hasStateTreeNode(store)) {
+        const root = getStateTreeNode(store).getRoot().getInstance();
+        incrementRootRef(root);
+        return () => {
+          decrementRootRef(root);
+        };
+      }
+    }, [store]);
     return store;
   }
 
@@ -432,6 +571,13 @@ export function useSnapshot<T>(target: unknown): T {
     return target as T;
   }
   const node = getStateTreeNode(target);
+  useEffect(() => {
+    const root = node.getRoot().getInstance();
+    incrementRootRef(root);
+    return () => {
+      decrementRootRef(root);
+    };
+  }, [node]);
   return useAtomValue(node.snapshotAtom, { store: getGlobalStore() }) as T;
 }
 
@@ -773,6 +919,60 @@ export function useTimeTravelManager(
 // ============================================================================
 
 export { RouterContext, useRouter };
+
+interface RouterProviderProps {
+  router?: any;
+  createRouter?: () => any;
+  children: ReactNode;
+}
+
+export function RouterProvider({
+  router: propRouter,
+  createRouter,
+  children,
+}: RouterProviderProps): JSX.Element {
+  const routerRef = useRef<any>(null);
+  const renderCountRef = useRef(0);
+  renderCountRef.current++;
+
+  if (routerRef.current === null) {
+    if (createRouter) {
+      routerRef.current = createRouter();
+    } else if (propRouter) {
+      routerRef.current = propRouter;
+    }
+  } else if (propRouter && propRouter !== routerRef.current) {
+    routerRef.current = propRouter;
+  }
+
+  const router = routerRef.current;
+
+  useEffect(() => {
+    if (renderCountRef.current > 1 && propRouter) {
+      console.warn(
+        `[jotai-state-tree] Warning: A new router instance was passed to <RouterProvider> on render. ` +
+        `This usually indicates that the router is being recreated on every render. ` +
+        `To avoid memory leaks and performance issues, please use the 'createRouter' prop instead: ` +
+        `<RouterProvider createRouter={() => configureRouter(store)}> or instantiate the router outside the component.`
+      );
+    }
+  }, [propRouter]);
+
+  useEffect(() => {
+    if (router && hasStateTreeNode(router)) {
+      const root = getStateTreeNode(router).getRoot().getInstance();
+      incrementRootRef(root);
+      return () => {
+        decrementRootRef(root);
+        if (createRouter) {
+          destroy(router);
+        }
+      };
+    }
+  }, [router, createRouter]);
+
+  return React.createElement(RouterContext.Provider, { value: router }, children);
+}
 
 interface RouteViewProps {
   router?: any;

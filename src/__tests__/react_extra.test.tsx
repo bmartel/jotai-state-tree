@@ -4,7 +4,7 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, act, cleanup } from '@testing-library/react';
-import { types, clearAllRegistries, resetGlobalStore } from '../index';
+import { types, clearAllRegistries, resetGlobalStore, isAlive } from '../index';
 import {
   usePatches,
   useCleanup,
@@ -28,6 +28,7 @@ import {
   useUndoManager,
   useObserverTracking,
   createStoreContext,
+  RouterProvider,
 } from '../react';
 import { $treenode } from '../tree';
 
@@ -517,6 +518,60 @@ describe('React Extra Hooks & Bindings', () => {
     const refLegacy = React.createRef<any>();
     render(<ObservedLegacy name="legacy-val" ref={refLegacy} />);
     expect(screen.getByTestId('legacy').textContent).toBe('legacy-val');
+    cleanup();
+
+    // 12. createStoreContext Provider with createStore prop
+    const SimpleModel = types.model('SimpleModel', {
+      value: types.string,
+    });
+    const { Provider: SimpleProvider, useStore: useSimpleStore } = createStoreContext<any>();
+    
+    let renderedStore: any = null;
+    const TestComp = () => {
+      renderedStore = useSimpleStore();
+      return <div data-testid="val">{renderedStore.value}</div>;
+    };
+
+    let storeCreatedCount = 0;
+    const createFn = () => {
+      storeCreatedCount++;
+      return SimpleModel.create({ value: 'hello' });
+    };
+
+    const { unmount } = render(
+      <SimpleProvider createStore={createFn}>
+        <TestComp />
+      </SimpleProvider>
+    );
+
+    expect(screen.getByTestId('val').textContent).toBe('hello');
+    expect(storeCreatedCount).toBe(1);
+    expect(isAlive(renderedStore)).toBe(true);
+
+    unmount();
+    expect(isAlive(renderedStore)).toBe(false); // Destroyed on unmount!
+    cleanup();
+
+    // 13. Provider and RouterProvider recreation warnings
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    
+    const TestRecreation = ({ step }: { step: number }) => {
+      const currentStore = SimpleModel.create({ value: `val-${step}` });
+      return (
+        <SimpleProvider store={currentStore}>
+          <div>test</div>
+        </SimpleProvider>
+      );
+    };
+
+    const { rerender } = render(<TestRecreation step={1} />);
+    expect(consoleWarnSpy).not.toHaveBeenCalled();
+
+    rerender(<TestRecreation step={2} />);
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Warning: A new store instance was passed to <Provider> on render")
+    );
+    consoleWarnSpy.mockRestore();
     cleanup();
   });
 });

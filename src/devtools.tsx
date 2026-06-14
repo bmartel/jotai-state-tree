@@ -12,7 +12,7 @@ import {
   isAlive,
 } from "./index";
 import { activePersistenceManagers } from "./persistence";
-import { nodeRegistry, identifierRegistry, getStateTreeNode, onLifecycleChange } from "./tree";
+import { nodeRegistry, identifierRegistry, getStateTreeNode, onLifecycleChange, activeReactRoots, incrementRootRef, decrementRootRef } from "./tree";
 import { observer } from "./react";
 
 export interface DevtoolsProps {
@@ -649,6 +649,7 @@ const DevtoolsModel = types
     },
     updateRoots() {
       const rootsMap = new Set<any>();
+      const hasActiveReactRoots = activeReactRoots.size > 0;
       for (const entry of nodeRegistry.values()) {
         const node = entry.node.deref();
         if (node && node.$isAlive && !node.$parent) {
@@ -656,7 +657,12 @@ const DevtoolsModel = types
             continue;
           }
           const inst = node.getInstance();
-          if (inst) rootsMap.add(inst);
+          if (inst) {
+            if (hasActiveReactRoots && !activeReactRoots.has(inst)) {
+              continue;
+            }
+            rootsMap.add(inst);
+          }
         }
       }
       const arrayRoots = Array.from(rootsMap);
@@ -1019,6 +1025,17 @@ const JotaiStateTreeDevtoolsImpl: React.ComponentType<DevtoolsProps> = observer(
 }) => {
   // Sync props to devtoolsStore
   devtoolsStore.syncProps(propStore, initialOpen);
+
+  // Register propStore in activeReactRoots on mount/update
+  React.useEffect(() => {
+    if (propStore) {
+      const root = getStateTreeNode(propStore).getRoot().getInstance();
+      incrementRootRef(root);
+      return () => {
+        decrementRootRef(root);
+      };
+    }
+  }, [propStore]);
 
   // Active Persistence Manager
   const persistenceManager = devtoolsStore.activeStore ? activePersistenceManagers.get(devtoolsStore.activeStore) : null;

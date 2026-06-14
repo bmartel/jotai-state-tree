@@ -54,6 +54,7 @@ import {
   decrementRootRef,
   destroy,
   applyPatch,
+  trackAction,
 } from "./tree";
 import {
   createUndoManager,
@@ -821,7 +822,10 @@ export function createServerAction<Args, Result>(actionName: string) {
 
     // Apply any server-side mutations (patches) back to the client state tree
     if (patches && patches.length > 0) {
-      applyPatch(storeInstance, patches);
+      const node = getStateTreeNode(storeInstance);
+      trackAction(node, actionName, [args], () => {
+        applyPatch(storeInstance, patches);
+      });
     }
 
     return result;

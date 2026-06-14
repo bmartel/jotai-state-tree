@@ -2,20 +2,68 @@
  * @vitest-environment jsdom
  */
 import React from 'react';
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { render, screen, act, cleanup, fireEvent } from '@testing-library/react';
-import { clearAllRegistries, resetGlobalStore } from '../../index';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { render, screen, act, cleanup, fireEvent, waitFor } from '@testing-library/react';
+import { clearAllRegistries, resetGlobalStore, onPatch, applySnapshot } from '../../index';
 import { App } from '../../../examples/project-starter/src/App';
+import { createAppStore } from '../../../examples/project-starter/src/models/RootStore';
 
 beforeEach(() => {
   clearAllRegistries();
   resetGlobalStore();
+
+  // Mock server actions for SSR endpoint /api/_jst_action
+  vi.spyOn(global, 'fetch').mockImplementation(async (input: any, init?: RequestInit) => {
+    const urlStr = typeof input === 'string' ? input : (input as any)?.url || '';
+    if (urlStr.includes('/api/_jst_action')) {
+      const body = JSON.parse(init?.body as string || '{}');
+      const { actionName, args, clientSnapshot } = body;
+      
+      const tempStore = createAppStore();
+      applySnapshot(tempStore, clientSnapshot);
+      
+      const patches: any[] = [];
+      const dispose = onPatch(tempStore, (patch) => {
+        patches.push(patch);
+      });
+      
+      let result: any = { success: true };
+      if (actionName === 'toggleTask') {
+        const task = tempStore.tasks.items.find((t: any) => t.id === args.id);
+        if (task) {
+          task.toggle();
+        } else {
+          result = { success: false, error: 'Task not found' };
+        }
+      } else if (actionName === 'addTask') {
+        tempStore.tasks.addTask(args.title, args.category);
+      } else if (actionName === 'deleteTask') {
+        tempStore.tasks.deleteTask(args.id);
+      }
+      
+      dispose();
+      
+      return {
+        ok: true,
+        json: async () => ({
+          result,
+          patches,
+        }),
+      } as Response;
+    }
+    
+    return {
+      ok: true,
+      json: async () => ({}),
+    } as Response;
+  });
 });
 
 afterEach(() => {
   cleanup();
   clearAllRegistries();
   resetGlobalStore();
+  vi.restoreAllMocks();
 });
 
 describe('Project Starter Example App', () => {
@@ -67,7 +115,9 @@ describe('Project Starter Example App', () => {
     });
 
     // Verify the task was deleted from the UI list
-    expect(screen.queryByText('Scaffold the new template')).toBeNull();
+    await waitFor(() => {
+      expect(screen.queryByText('Scaffold the new template')).toBeNull();
+    });
 
     // Click the "Actions Timeline" tab in the devtools
     const actionsTab = screen.getByText('Actions Timeline');
@@ -101,6 +151,8 @@ describe('Project Starter Example App', () => {
     });
 
     // Verify it is gone again
-    expect(screen.queryByText('Scaffold the new template')).toBeNull();
+    await waitFor(() => {
+      expect(screen.queryByText('Scaffold the new template')).toBeNull();
+    });
   });
 });

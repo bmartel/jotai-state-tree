@@ -67,7 +67,7 @@ async function createServer() {
       toggleTask: async (store, { id }) => {
         const task = store.tasks.items.find(t => t.id === id);
         if (task) {
-          task.toggleCompleted();
+          task.toggle();
           return { success: true };
         }
         return { success: false, error: 'Task not found' };

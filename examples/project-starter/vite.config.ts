@@ -17,9 +17,8 @@ export default defineConfig({
     tailwindcss(),
   ],
   resolve: {
+    dedupe: ['react', 'react-dom'],
     alias: {
-      'react': path.resolve(__dirname, './node_modules/react'),
-      'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
       ...(isLocal ? {
         'jotai-state-tree/react': path.resolve(__dirname, '../../src/react.ts'),
         'jotai-state-tree/devtools': path.resolve(__dirname, '../../src/devtools.tsx'),

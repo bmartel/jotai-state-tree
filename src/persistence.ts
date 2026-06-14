@@ -7,6 +7,7 @@ import {
   getStateTreeNode,
   getGlobalStore,
   applyPatch,
+  onLifecycleChange,
 } from "./tree";
 
 // ============================================================================
@@ -407,6 +408,15 @@ export class PersistenceManager {
   private focusListener: (() => void) | null = null;
   private onlineListener: (() => void) | null = null;
   private offlineListener: (() => void) | null = null;
+  private lifecycleDisposer: IDisposer | null = null;
+
+  private get isTargetAlive(): boolean {
+    try {
+      return getStateTreeNode(this.target).$isAlive;
+    } catch {
+      return false;
+    }
+  }
 
   constructor(target: any, options: PersistenceOptions = {}) {
     this.target = target;
@@ -436,6 +446,14 @@ export class PersistenceManager {
     const dbName = options.dbName ?? "jotai-state-tree-persistence";
     this.storage = new IndexedDBStorage(dbName);
 
+    // Subscribe to lifecycle changes to auto-dispose
+    const node = getStateTreeNode(target);
+    this.lifecycleDisposer = onLifecycleChange(node, (isAlive) => {
+      if (!isAlive) {
+        this.dispose();
+      }
+    });
+
     // Initialize Jotai Atom representing status
     const initialOffline =
       typeof navigator !== "undefined" ? !navigator.onLine : false;
@@ -454,7 +472,9 @@ export class PersistenceManager {
 
     // Errors here will bubble up loudly
     const cachedSnapshot = await this.storage.getSnapshot(this.key);
+    if (!this.isTargetAlive) return;
     let queue = await this.storage.getQueue(this.key);
+    if (!this.isTargetAlive) return;
 
     if (cachedSnapshot !== undefined && cachedSnapshot !== null) {
       this.skipSyncing = true;
@@ -562,6 +582,7 @@ export class PersistenceManager {
 
     try {
       const data = await query.queryFn();
+      if (!this.isTargetAlive) return;
       if (data !== undefined && data !== null) {
         this.skipSyncing = true;
         try {
@@ -700,6 +721,10 @@ export class PersistenceManager {
               reject(new Error(e.data.error));
             } else {
               const queue = await this.storage.getQueue(this.key);
+              if (!this.isTargetAlive) {
+                resolve();
+                return;
+              }
               store.set(this.statusAtom, (prev) => ({
                 ...prev,
                 pendingSyncCount: queue.length,
@@ -726,6 +751,7 @@ export class PersistenceManager {
     } else {
       // Main-thread fallback compaction
       const queue = await this.storage.getQueue(this.key);
+      if (!this.isTargetAlive) return;
       if (queue.length <= 1) return;
 
       // Reconstruct initial snapshot by applying inverse patches in reverse order
@@ -797,6 +823,7 @@ export class PersistenceManager {
             currentSnapshot,
             item.patches,
           );
+          if (!this.isTargetAlive) return;
 
           // Remove mutation from queue on success
           if (item.id !== undefined) {
@@ -848,6 +875,7 @@ export class PersistenceManager {
 
         // Fetch remaining queue items
         queue = await this.storage.getQueue(this.key);
+        if (!this.isTargetAlive) return;
         store.set(this.statusAtom, (prev) => ({
           ...prev,
           pendingSyncCount: queue.length,
@@ -855,6 +883,7 @@ export class PersistenceManager {
       }
 
       const finalQueue = await this.storage.getQueue(this.key);
+      if (!this.isTargetAlive) return;
       store.set(this.statusAtom, (prev) => ({
         ...prev,
         isSyncing: false,
@@ -886,6 +915,10 @@ export class PersistenceManager {
 
   dispose(): void {
     activePersistenceManagers.delete(this.target);
+    if (this.lifecycleDisposer) {
+      this.lifecycleDisposer();
+      this.lifecycleDisposer = null;
+    }
     if (this.fetchTimeout) {
       clearTimeout(this.fetchTimeout);
       this.fetchTimeout = null;

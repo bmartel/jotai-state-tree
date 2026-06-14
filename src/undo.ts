@@ -15,6 +15,7 @@ import {
   isActionRunning,
   getCurrentAction,
   getGlobalStore,
+  onLifecycleChange,
 } from './tree';
 
 // ============================================================================
@@ -128,6 +129,7 @@ export class HistoryTracker {
 
   disposer: IDisposer | null = null;
   actionDisposer: IDisposer | null = null;
+  lifecycleDisposer: IDisposer | null = null;
 
   constructor(
     target: unknown,
@@ -158,6 +160,14 @@ export class HistoryTracker {
         if (this.actionGrouping) {
           this.endGroup();
         }
+      }
+    });
+
+    // Subscribe to lifecycle changes to auto-dispose
+    const node = getStateTreeNode(target);
+    this.lifecycleDisposer = onLifecycleChange(node, (isAlive) => {
+      if (!isAlive) {
+        this.dispose();
       }
     });
   }
@@ -476,6 +486,10 @@ export class HistoryTracker {
     if (this.actionDisposer) {
       this.actionDisposer();
       this.actionDisposer = null;
+    }
+    if (this.lifecycleDisposer) {
+      this.lifecycleDisposer();
+      this.lifecycleDisposer = null;
     }
   }
 }

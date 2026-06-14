@@ -12,7 +12,7 @@ import {
   isAlive,
 } from "./index";
 import { activePersistenceManagers } from "./persistence";
-import { nodeRegistry, identifierRegistry, getStateTreeNode } from "./tree";
+import { nodeRegistry, identifierRegistry, getStateTreeNode, onLifecycleChange } from "./tree";
 import { observer } from "./react";
 
 export interface DevtoolsProps {
@@ -716,6 +716,15 @@ const DevtoolsModel = types
         self.patchesLog = [];
         return;
       }
+
+      // Subscribe to active store's lifecycle changes to auto-update/cleanup on destroy
+      const node = getStateTreeNode(store);
+      const disposeLifecycle = onLifecycleChange(node, (isAlive) => {
+        if (!isAlive) {
+          (self as any).updateRoots();
+        }
+      });
+      self.storeDisposers.push(disposeLifecycle);
 
       // Initialize snapshots and actions for this store
       const snap = getSnapshot(store);

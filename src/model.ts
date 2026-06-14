@@ -220,17 +220,10 @@ class ModelType<
           propertyAtoms.set(key, childNode.valueAtom);
         } else {
           // Simple/primitive types use direct atoms
-          const propAtom = atom(value);
-          propertyAtoms.set(key, propAtom);
-
           // Create a "virtual" child node for the property
           const childNode = new StateTreeNode(type, value, env, node, key);
-          childNode.valueAtom = propAtom as unknown as WritableAtom<
-            unknown,
-            [unknown],
-            void
-          >;
           node.addChild(key, childNode);
+          propertyAtoms.set(key, childNode.valueAtom);
         }
       }
     }
@@ -467,15 +460,9 @@ class ModelType<
               node,
               propStr,
             );
-            const propAtom = atom(newValue);
-            newChildNode.valueAtom = propAtom as unknown as WritableAtom<
-              unknown,
-              [unknown],
-              void
-            >;
             node.addChild(propStr, newChildNode);
-            propertyAtoms.set(propStr, propAtom);
-            store.set(propAtom, newValue);
+            propertyAtoms.set(propStr, newChildNode.valueAtom);
+            store.set(newChildNode.valueAtom, newValue);
           }
 
           // Notify about the change - use node's notification methods

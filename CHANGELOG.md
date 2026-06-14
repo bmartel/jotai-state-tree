@@ -1,3 +1,10 @@
+# [1.15.0](https://github.com/bmartel/jotai-state-tree/compare/v1.14.15...v1.15.0) (2026-06-14)
+
+
+### Features
+
+* **react:** add activeReactRoots filtering and lifecycle Provider/RouterProvider props with recreation warnings ([723d5e9](https://github.com/bmartel/jotai-state-tree/commit/723d5e92b3190a5a05797bce41b0bfc2edc76bb3))
+
 ## [1.14.15](https://github.com/bmartel/jotai-state-tree/compare/v1.14.14...v1.14.15) (2026-06-14)
 
 

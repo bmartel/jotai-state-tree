@@ -752,7 +752,7 @@ const DevtoolsModel = types
       // 1. Subscribe to Snapshots
       const disposeSnap = onSnapshot(store, (nextSnap) => {
         if (!self.isTimeTraveling) {
-          self.activeSnapshot = nextSnap;
+          (self as any).setActiveSnapshot(nextSnap);
         }
       });
 
@@ -767,28 +767,7 @@ const DevtoolsModel = types
           reversePatch
         };
 
-        self.patchesLog = [logEntry, ...self.patchesLog].slice(0, 100);
-
-        const currentCtx = getCurrentAction();
-        if (currentCtx) {
-          if (!self.actionPatches.has(currentCtx)) {
-            self.actionPatches.set(currentCtx, []);
-          }
-          self.actionPatches.get(currentCtx)!.push(patch);
-        } else {
-          // Aggregate patches into the latest action
-          if (self.actions.length > 1) {
-            const lastIdx = self.actions.length - 1;
-            const updatedAction = {
-              ...self.actions[lastIdx],
-              patches: [...(self.actions[lastIdx].patches || []), patch],
-              snapshot: getSnapshot(store)
-            };
-            const nextActions = [...self.actions];
-            nextActions[lastIdx] = updatedAction;
-            self.actions = nextActions;
-          }
-        }
+        (self as any).logPatch(logEntry, patch, store);
       });
 
       // 3. Subscribe to Actions
@@ -799,37 +778,70 @@ const DevtoolsModel = types
         if (call.name === "logPatch" || call.name === "clearPatchLogs") {
           const currentCtx = getCurrentAction();
           if (currentCtx) {
-            self.actionPatches.delete(currentCtx);
+            (self as any).deleteActionPatch(currentCtx);
           }
           return;
         }
 
-        const currentCtx = getCurrentAction();
-        const patches = currentCtx ? (self.actionPatches.get(currentCtx) || []) : [];
-        if (currentCtx) {
-          self.actionPatches.delete(currentCtx);
-        }
-
-        // --- LINEAR HISTORY TRUNCATION FIX ---
-        // Instead of appending to the end, truncate the future actions at the current time-travel position!
-        const truncated = self.actions.slice(0, self.selectedActionIndex + 1);
-        const nextIndex = truncated.length;
-
-        const newAction = {
-          id: Math.random().toString(36).substring(7),
-          name: call.name,
-          path: call.path,
-          args: call.args,
-          timestamp: Date.now(),
-          snapshot: getSnapshot(store),
-          patches: patches
-        };
-
-        self.actions = [...truncated, newAction];
-        self.selectedActionIndex = nextIndex;
+        (self as any).logAction(call.name, call.path, call.args, store);
       });
 
       self.storeDisposers.push(disposeSnap, disposePatches, disposeActions);
+    },
+    setActiveSnapshot(snap: any) {
+      self.activeSnapshot = snap;
+    },
+    deleteActionPatch(currentCtx: any) {
+      self.actionPatches.delete(currentCtx);
+    },
+    logPatch(logEntry: any, patch: any, storeInstance: any) {
+      self.patchesLog = [logEntry, ...self.patchesLog].slice(0, 100);
+
+      const currentCtx = getCurrentAction();
+      if (currentCtx) {
+        if (!self.actionPatches.has(currentCtx)) {
+          self.actionPatches.set(currentCtx, []);
+        }
+        self.actionPatches.get(currentCtx)!.push(patch);
+      } else {
+        // Aggregate patches into the latest action
+        if (self.actions.length > 1) {
+          const lastIdx = self.actions.length - 1;
+          const updatedAction = {
+            ...self.actions[lastIdx],
+            patches: [...(self.actions[lastIdx].patches || []), patch],
+            snapshot: getSnapshot(storeInstance)
+          };
+          const nextActions = [...self.actions];
+          nextActions[lastIdx] = updatedAction;
+          self.actions = nextActions;
+        }
+      }
+    },
+    logAction(name: string, path: string, args: any[], storeInstance: any) {
+      const currentCtx = getCurrentAction();
+      const patches = currentCtx ? (self.actionPatches.get(currentCtx) || []) : [];
+      if (currentCtx) {
+        self.actionPatches.delete(currentCtx);
+      }
+
+      // --- LINEAR HISTORY TRUNCATION FIX ---
+      // Instead of appending to the end, truncate the future actions at the current time-travel position!
+      const truncated = self.actions.slice(0, self.selectedActionIndex + 1);
+      const nextIndex = truncated.length;
+
+      const newAction = {
+        id: Math.random().toString(36).substring(7),
+        name,
+        path,
+        args,
+        timestamp: Date.now(),
+        snapshot: getSnapshot(storeInstance),
+        patches: patches
+      };
+
+      self.actions = [...truncated, newAction];
+      self.selectedActionIndex = nextIndex;
     },
     jumpToStateIndex(index: number) {
       if (!self.activeStore || index < 0 || index >= self.actions.length) return;
@@ -1032,8 +1044,10 @@ const JotaiStateTreeDevtoolsImpl: React.ComponentType<DevtoolsProps> = observer(
     setMounted(true);
   }, []);
 
-  // Sync props to devtoolsStore
-  devtoolsStore.syncProps(propStore, initialOpen);
+  // Sync props to devtoolsStore on mount/update (client-only)
+  React.useEffect(() => {
+    devtoolsStore.syncProps(propStore, initialOpen);
+  }, [propStore, initialOpen]);
 
   // Register propStore in activeReactRoots on mount/update
   React.useEffect(() => {

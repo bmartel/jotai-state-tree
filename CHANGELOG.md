@@ -1,3 +1,10 @@
+## [1.16.3](https://github.com/bmartel/jotai-state-tree/compare/v1.16.2...v1.16.3) (2026-06-14)
+
+
+### Bug Fixes
+
+* resolve react hooks warnings and devtools ssr hydration mismatch ([700ef89](https://github.com/bmartel/jotai-state-tree/commit/700ef897860e0a6e86677346a2693046da38de88))
+
 ## [1.16.2](https://github.com/bmartel/jotai-state-tree/compare/v1.16.1...v1.16.2) (2026-06-14)
 
 

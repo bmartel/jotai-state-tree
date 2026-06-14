@@ -1,3 +1,5 @@
+## [1.15.1](https://github.com/bmartel/jotai-state-tree/compare/v1.15.0...v1.15.1) (2026-06-14)
+
 # [1.15.0](https://github.com/bmartel/jotai-state-tree/compare/v1.14.15...v1.15.0) (2026-06-14)
 
 

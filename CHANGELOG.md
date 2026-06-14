@@ -1,3 +1,25 @@
+# [1.16.0](https://github.com/bmartel/jotai-state-tree/compare/v1.15.2...v1.16.0) (2026-06-14)
+
+
+### Bug Fixes
+
+* **devtools:** guard window and document references in DevtoolsModel.afterCreate for SSR safety ([f462205](https://github.com/bmartel/jotai-state-tree/commit/f462205df229ede03157f06ffa1dd379d172a9a7))
+* **ssr:** add jotai-state-tree to ssr.noExternal to enforce deduplication of React on the server ([37e684f](https://github.com/bmartel/jotai-state-tree/commit/37e684f1d9d0b0d8f3a17f6ceae2ff69f8afa4bb))
+* **ssr:** clean up config and rely on package manager flat resolution for React deduplication ([ba9bc30](https://github.com/bmartel/jotai-state-tree/commit/ba9bc30ddb3afcb7ff3dcc1737c2c74bce45067a))
+* **ssr:** configure ssr.optimizeDeps.include for react/react-dom to support bundling CJS packages in SSR evaluation ([160b6da](https://github.com/bmartel/jotai-state-tree/commit/160b6da40d1c4c47161c101d09ce4c3ec6cd36f4))
+* **ssr:** fix client server action tracing and test suite issues ([b43724f](https://github.com/bmartel/jotai-state-tree/commit/b43724f3182c6d9556345af7ad1c91df809b4ea3))
+* **ssr:** include react and react-dom in ssr.noExternal to prevent Node's native module loader from resolving nested copies on the server ([78ec476](https://github.com/bmartel/jotai-state-tree/commit/78ec476c288e161332fe5749c76a4a8f82bc869e))
+* **ssr:** include react-dom/server in ssr.optimizeDeps.include to avoid require is not defined during SSR ([a53fec0](https://github.com/bmartel/jotai-state-tree/commit/a53fec0628bc17506cb4021b366e5a319162db7d))
+* **ssr:** include react/jsx-runtime and react/jsx-dev-runtime in ssr.optimizeDeps.include to support bundling JSX runtimes in SSR evaluation ([59f9ba3](https://github.com/bmartel/jotai-state-tree/commit/59f9ba3dbb7483ccd798609c73ede76af38b21bc))
+* **ssr:** pull react aliases outside of isLocal block to prevent duplicate react issues ([a8c305c](https://github.com/bmartel/jotai-state-tree/commit/a8c305c01cf422f725291a976e1f7a141fe56f4d))
+* **ssr:** resolve ssr module via package name in dev server for standalone projects ([d8bc419](https://github.com/bmartel/jotai-state-tree/commit/d8bc41981d93bb46ca0a0cd5042a0674576a5dec))
+* **ssr:** use resolve.dedupe instead of react aliases to prevent duplicate React while keeping it externalized on the server ([c57c309](https://github.com/bmartel/jotai-state-tree/commit/c57c30906dbff054dc464d9536f92776c004b1f9))
+
+
+### Features
+
+* add optional SSR support, request isolation, and remote Server Actions with patch-sync ([3edacf6](https://github.com/bmartel/jotai-state-tree/commit/3edacf683d4c4d5bfcf9f658c33abea6c82bc741))
+
 ## [1.15.2](https://github.com/bmartel/jotai-state-tree/compare/v1.15.1...v1.15.2) (2026-06-14)
 
 

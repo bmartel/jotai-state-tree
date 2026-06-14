@@ -637,7 +637,7 @@ export class StateTreeNode implements IStateTreeNode {
       current.invalidateSnapshot();
       if (notificationBatchDepth > 0) {
         pendingSnapshotNotifications.add(current);
-      } else {
+      } else if (current.snapshotListeners.size > 0) {
         const snapshot = getSnapshotFromNode(current);
         current.snapshotListeners.forEach((listener) => listener(snapshot));
       }

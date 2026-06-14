@@ -75,8 +75,8 @@ describe("Phase 2 Performance: Collection Syncing", () => {
     const duration = performance.now() - start;
 
     expect(instance.list.length).toBe(11000);
-    // Pushing 1000 items individually to a 10k-item array should be very fast (typically < 50ms, relaxed to < 20000ms for slow CI)
-    expect(duration).toBeLessThan(20000);
+    // Pushing 1000 items individually to a 10k-item array should be very fast (typically < 50ms, strictly verified to be < 150ms)
+    expect(duration).toBeLessThan(150);
   });
 
   it("should correctly manage rootNodesRegistry during node lifecycle", () => {

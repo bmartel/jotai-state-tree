@@ -239,8 +239,18 @@ class MSTArray<T> extends Array<T> implements IMSTArray<T> {
     }
   }
 
+  private toArray(): T[] {
+    const raw = (this as any).__rawTarget || this;
+    const len = raw.length;
+    const arr = new Array<T>(len);
+    for (let i = 0; i < len; i++) {
+      arr[i] = raw[i];
+    }
+    return arr;
+  }
+
   toJSON(): T[] {
-    return [...this];
+    return this.toArray();
   }
 
   private syncToNode(op?: { type: "push"; items: T[] } | { type: "pop" }): void {
@@ -316,7 +326,7 @@ class MSTArray<T> extends Array<T> implements IMSTArray<T> {
         });
 
         const store = getGlobalStore();
-        store.set(this.node.valueAtom, [...this]);
+        store.set(this.node.valueAtom, this.toArray());
         this.node.notifySnapshotChange();
 
         patches.forEach((patch, idx) => {
@@ -342,7 +352,7 @@ class MSTArray<T> extends Array<T> implements IMSTArray<T> {
           }
 
           const store = getGlobalStore();
-          store.set(this.node.valueAtom, [...this]);
+          store.set(this.node.valueAtom, this.toArray());
           this.node.notifySnapshotChange();
 
           this.node.notifyPatch(
@@ -363,7 +373,7 @@ class MSTArray<T> extends Array<T> implements IMSTArray<T> {
       }
 
       const oldArray = (this.node.getValue() as unknown[]) || [];
-      const newArray = [...this];
+      const newArray = this.toArray();
 
       const isSimplePush = newArray.length > oldArray.length && oldArray.every((val, idx) => val === newArray[idx]);
       const isSimplePop = newArray.length < oldArray.length && newArray.every((val, idx) => val === oldArray[idx]);
@@ -697,11 +707,17 @@ class ArrayType<T extends IAnyType> implements IArrayType<T> {
         if (prop === $treenode) {
           return node;
         }
+        if (prop === "__rawTarget") {
+          return target;
+        }
         if (!node.$isAlive) {
           if (prop === "then" || prop === "toJSON" || typeof prop === "symbol") {
             return undefined;
           }
           throw new Error("[jotai-state-tree] Cannot access array - the node is dead.");
+        }
+        if (typeof prop === "string") {
+          return target[prop as any];
         }
         return Reflect.get(target, prop, receiver);
       },

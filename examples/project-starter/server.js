@@ -61,7 +61,15 @@ async function createServer() {
     renderApp,
     routes,
     apiRoutes,
-    template: templateHtml,
+    template: async ({ html, state, req }) => {
+      let template = templateHtml;
+      if (!isProd && vite) {
+        template = await vite.transformIndexHtml(req.url, template);
+      }
+      return template
+        .replace('<!--app-html-->', html)
+        .replace('<!--app-state-->', state);
+    },
     // Register actions for client-server RPC sync
     actions: {
       toggleTask: async (store, { id }) => {

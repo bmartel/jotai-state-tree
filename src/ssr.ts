@@ -91,7 +91,7 @@ export interface SSROptions<TStore> {
   renderApp: (store: TStore) => Promise<string> | string;
   routes?: SSRRoute<TStore>[];
   actions?: Record<string, (store: TStore, args: any) => Promise<any> | any>;
-  template: string | ((args: { html: string; state: string }) => string);
+  template: string | ((args: { html: string; state: string; req?: any }) => Promise<string> | string);
   apiRoutes?: Record<string, (req: any, res: any) => Promise<void> | void>;
 }
 
@@ -185,7 +185,7 @@ export function createSSRHandler<TStore>(options: SSROptions<TStore>) {
         const injectedScript = `<script id="__JST_DATA__">window.__JST_DATA__ = ${serializedState};</script>`;
 
         if (typeof options.template === "function") {
-          outputHtml = options.template({ html, state: injectedScript });
+          outputHtml = await options.template({ html, state: injectedScript, req });
         } else {
           outputHtml = options.template
             .replace("<!--app-html-->", html)

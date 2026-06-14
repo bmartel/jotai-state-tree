@@ -1,3 +1,10 @@
+## [1.16.2](https://github.com/bmartel/jotai-state-tree/compare/v1.16.1...v1.16.2) (2026-06-14)
+
+
+### Bug Fixes
+
+* **ssr:** support async template callbacks and transform index HTML via Vite in development mode ([23a8029](https://github.com/bmartel/jotai-state-tree/commit/23a8029b9e9584ffd4cbfc58652b7a023ff24c48))
+
 ## [1.16.1](https://github.com/bmartel/jotai-state-tree/compare/v1.16.0...v1.16.1) (2026-06-14)
 
 

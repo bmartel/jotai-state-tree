@@ -33,7 +33,7 @@ export default defineConfig({
   ssr: {
     noExternal: ['jotai-state-tree', 'react', 'react-dom'],
     optimizeDeps: {
-      include: ['react', 'react-dom'],
+      include: ['react', 'react-dom', 'react-dom/server'],
     },
   },
 });

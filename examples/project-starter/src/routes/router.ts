@@ -8,9 +8,10 @@ export const routes = [
   { path: '/login', name: 'login' },
 ];
 
-export function configureRouter(store: IRootStore) {
+export function configureRouter(store: IRootStore, initialUrl?: string) {
   const router = createRouter({
     routes,
+    initialUrl,
     beforeNavigate: (from, to) => {
       // Find target route config
       const targetRoute = routes.find((r) => r.name === to.currentRouteName);

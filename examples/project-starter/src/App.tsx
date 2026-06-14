@@ -120,22 +120,22 @@ const AppContent = observer(function AppContent() {
   );
 });
 
-export const App = observer(function App() {
+export const App = observer(function App({ store, url }: { store?: IRootStore; url?: string }) {
   return (
-    <Provider createStore={() => createAppStore()}>
-      <AppWithRouter />
+    <Provider store={store} createStore={store ? undefined : () => createAppStore()}>
+      <AppWithRouter url={url} />
     </Provider>
   );
 });
 
-const AppWithRouter = observer(function AppWithRouter() {
+const AppWithRouter = observer(function AppWithRouter({ url }: { url?: string }) {
   const store = useAppStore();
   
   // Hydrate store on the client using the injected __JST_DATA__ snapshot
   useAutoHydrate(store);
 
   return (
-    <RouterProvider createRouter={() => configureRouter(store)}>
+    <RouterProvider createRouter={() => configureRouter(store, url)}>
       <AppContent />
     </RouterProvider>
   );

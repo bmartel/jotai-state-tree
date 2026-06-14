@@ -45,14 +45,13 @@ async function createServer() {
     createAppStore = storeModule.createAppStore;
   }
 
-  // Define the renderApp function
-  const renderApp = async (store) => {
+  const renderApp = async (store, url) => {
     if (!isProd) {
       const { render } = await vite.ssrLoadModule('/src/entry-server.tsx');
-      return render();
+      return render(store, url);
     } else {
       const { render } = await import('./dist/server/entry-server.js');
-      return render();
+      return render(store, url);
     }
   };
 

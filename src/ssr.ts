@@ -88,7 +88,7 @@ export function matchRoute<TStore>(
 
 export interface SSROptions<TStore> {
   createStore: () => TStore;
-  renderApp: (store: TStore) => Promise<string> | string;
+  renderApp: (store: TStore, url: string) => Promise<string> | string;
   routes?: SSRRoute<TStore>[];
   actions?: Record<string, (store: TStore, args: any) => Promise<any> | any>;
   template: string | ((args: { html: string; state: string; req?: any }) => Promise<string> | string);
@@ -175,8 +175,7 @@ export function createSSRHandler<TStore>(options: SSROptions<TStore>) {
           }
         }
 
-        // Render to string
-        const html = await options.renderApp(storeInstance);
+        const html = await options.renderApp(storeInstance, req.url || "/");
         const snapshot = getSnapshot(storeInstance);
         const serializedState = JSON.stringify(snapshot);
 

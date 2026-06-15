@@ -900,6 +900,23 @@
         display: block;
       }
     }
+
+    /* Mermaid Diagram Styling */
+    .mermaid {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      margin: 24px 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow-x: auto;
+    }
+    .mermaid svg {
+      max-width: 100%;
+      height: auto;
+    }
   </style>
 </head>
 <body>
@@ -1116,6 +1133,23 @@
 
   <!-- Markdown Parser (Marked) -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- Mermaid Diagram Renderer -->
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    window.mermaid = mermaid;
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'dark',
+      themeVariables: {
+        background: '#10140e',
+        primaryColor: '#3baf6a',
+        primaryTextColor: '#eff1ec',
+        lineColor: '#858d81',
+        secondaryColor: '#e28f24',
+        tertiaryColor: '#10140e'
+      }
+    });
+  </script>
   <!-- Prism Syntax Highlighter -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
@@ -1152,6 +1186,20 @@
     
     let activeObserver = null;
     let scrollTimeout = null;
+
+    // Custom renderer for marked to handle mermaid code blocks
+    marked.use({
+      renderer: {
+        code(code, infostring, escaped) {
+          const lang = (infostring || '').match(/\S*/)[0];
+          if (lang === 'mermaid') {
+            const codeText = typeof code === 'object' ? code.text : code;
+            return `<div class="mermaid">${codeText}</div>`;
+          }
+          return false; // Use default code renderer for other languages
+        }
+      }
+    });
 
     // Mobile navigation toggle
     function toggleSidebar() {
@@ -1398,6 +1446,17 @@
 
           // Highlight syntax with Prism
           Prism.highlightAllUnder(docContent);
+
+          // Render Mermaid diagrams
+          if (window.mermaid) {
+            try {
+              await window.mermaid.run({
+                nodes: docContent.querySelectorAll('.mermaid')
+              });
+            } catch (mermaidError) {
+              console.error('Mermaid render error:', mermaidError);
+            }
+          }
 
           // Add copy buttons and build TOC
           addCopyButtons();

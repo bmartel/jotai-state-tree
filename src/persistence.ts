@@ -1,4 +1,4 @@
-import { atom, type WritableAtom } from "jotai";
+import { atom, type WritableAtom, type PrimitiveAtom } from "jotai";
 import type { IDisposer, IJsonPatch, IReversibleJsonPatch } from "./types";
 import {
   getSnapshot,
@@ -379,16 +379,7 @@ export const activePersistenceManagers = new WeakMap<any, PersistenceManager>();
 export class PersistenceManager {
   readonly target: any;
   readonly options: PersistenceOptions;
-  readonly statusAtom: WritableAtom<
-    PersistenceStatus,
-    [
-      (
-        | PersistenceStatus
-        | ((prev: PersistenceStatus) => PersistenceStatus)
-      ),
-    ],
-    void
-  >;
+  readonly statusAtom: PrimitiveAtom<PersistenceStatus>;
 
   private key: string = "root";
   private storage: IStorage;
@@ -416,6 +407,14 @@ export class PersistenceManager {
     } catch {
       return false;
     }
+  }
+
+  private updateStatus(fn: (prev: PersistenceStatus) => Partial<PersistenceStatus>): void {
+    const store = getGlobalStore();
+    store.set(this.statusAtom, (prev: PersistenceStatus) => ({
+      ...prev,
+      ...fn(prev),
+    }));
   }
 
   constructor(target: any, options: PersistenceOptions = {}) {
@@ -483,14 +482,12 @@ export class PersistenceManager {
       } finally {
         this.skipSyncing = false;
       }
-      store.set(this.statusAtom, (prev) => ({
-        ...prev,
+      this.updateStatus((prev) => ({
         isLoading: false,
       }));
     } else {
       // No cache available, will load on fetch
-      store.set(this.statusAtom, (prev) => ({
-        ...prev,
+      this.updateStatus((prev) => ({
         isLoading: !!this.options.query?.queryFn,
       }));
     }
@@ -507,8 +504,7 @@ export class PersistenceManager {
     }
 
     // Check current sync queue length
-    store.set(this.statusAtom, (prev) => ({
-      ...prev,
+    this.updateStatus((prev) => ({
       pendingSyncCount: queue.length,
     }));
 
@@ -523,7 +519,7 @@ export class PersistenceManager {
     // Set up network listeners
     if (typeof window !== "undefined") {
       this.onlineListener = () => {
-        store.set(this.statusAtom, (prev) => ({ ...prev, isOffline: false }));
+        this.updateStatus((prev) => ({ isOffline: false }));
         this.sync();
         if (this.options.query?.refetchOnReconnect !== false) {
           this.fetch();
@@ -531,7 +527,7 @@ export class PersistenceManager {
       };
 
       this.offlineListener = () => {
-        store.set(this.statusAtom, (prev) => ({ ...prev, isOffline: true }));
+        this.updateStatus((prev) => ({ isOffline: true }));
       };
 
       window.addEventListener("online", this.onlineListener);
@@ -575,8 +571,7 @@ export class PersistenceManager {
       }
     }
 
-    store.set(this.statusAtom, (prev) => ({
-      ...prev,
+    this.updateStatus((prev) => ({
       isFetching: true,
     }));
 
@@ -595,16 +590,14 @@ export class PersistenceManager {
       }
 
       this.lastFetchedTime = Date.now();
-      store.set(this.statusAtom, (prev) => ({
-        ...prev,
+      this.updateStatus((prev) => ({
         isFetching: false,
         isLoading: false,
         error: null,
       }));
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
-      store.set(this.statusAtom, (prev) => ({
-        ...prev,
+      this.updateStatus((prev) => ({
         isFetching: false,
         isLoading: false,
         error,
@@ -676,8 +669,7 @@ export class PersistenceManager {
         }
       }
 
-      store.set(this.statusAtom, (prev) => ({
-        ...prev,
+      this.updateStatus((prev) => ({
         pendingSyncCount: queue.length,
       }));
 
@@ -725,8 +717,7 @@ export class PersistenceManager {
                 resolve();
                 return;
               }
-              store.set(this.statusAtom, (prev) => ({
-                ...prev,
+              this.updateStatus((prev) => ({
                 pendingSyncCount: queue.length,
               }));
               resolve();
@@ -787,8 +778,7 @@ export class PersistenceManager {
       });
 
       const newQueue = await this.storage.getQueue(this.key);
-      store.set(this.statusAtom, (prev) => ({
-        ...prev,
+      this.updateStatus((prev) => ({
         pendingSyncCount: newQueue.length,
       }));
     }
@@ -804,7 +794,7 @@ export class PersistenceManager {
     // Skip if already syncing or offline
     if (status.isSyncing || status.isOffline) return;
 
-    store.set(this.statusAtom, (prev) => ({ ...prev, isSyncing: true }));
+    this.updateStatus((prev) => ({ isSyncing: true }));
 
     try {
       let queue = await this.storage.getQueue(this.key);
@@ -812,7 +802,7 @@ export class PersistenceManager {
       while (queue.length > 0) {
         // Double check network state
         if (typeof navigator !== "undefined" && !navigator.onLine) {
-          store.set(this.statusAtom, (prev) => ({ ...prev, isOffline: true }));
+          this.updateStatus((prev) => ({ isOffline: true }));
           break;
         }
 
@@ -865,7 +855,7 @@ export class PersistenceManager {
             throw error; // Raise error loudly
           } else {
             // Temporary network/timeout error: Keep in queue, set sync error and stop processing
-            store.set(this.statusAtom, (prev) => ({ ...prev, error }));
+            this.updateStatus((prev) => ({ error }));
             if (mutation.onError) {
               mutation.onError(error);
             }
@@ -876,24 +866,21 @@ export class PersistenceManager {
         // Fetch remaining queue items
         queue = await this.storage.getQueue(this.key);
         if (!this.isTargetAlive) return;
-        store.set(this.statusAtom, (prev) => ({
-          ...prev,
+        this.updateStatus((prev) => ({
           pendingSyncCount: queue.length,
         }));
       }
 
       const finalQueue = await this.storage.getQueue(this.key);
       if (!this.isTargetAlive) return;
-      store.set(this.statusAtom, (prev) => ({
-        ...prev,
+      this.updateStatus((prev) => ({
         isSyncing: false,
         pendingSyncCount: finalQueue.length,
         error: finalQueue.length === 0 ? null : prev.error,
       }));
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
-      store.set(this.statusAtom, (prev) => ({
-        ...prev,
+      this.updateStatus((prev) => ({
         isSyncing: false,
         error,
       }));
@@ -906,8 +893,7 @@ export class PersistenceManager {
     await this.storage.clearQueue(this.key);
 
     const store = getGlobalStore();
-    store.set(this.statusAtom, (prev) => ({
-      ...prev,
+    this.updateStatus((prev) => ({
       pendingSyncCount: 0,
       error: null,
     }));

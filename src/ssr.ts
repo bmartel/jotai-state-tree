@@ -119,16 +119,18 @@ export function createSSRHandler<TStore>(options: SSROptions<TStore>) {
       await runWithStore(jotaiStore, async () => {
         const storeInstance = options.createStore();
 
-        if (clientSnapshot) {
-          applySnapshot(storeInstance, clientSnapshot);
-        }
-
         const patches: IJsonPatch[] = [];
-        const disposePatch = onPatch(storeInstance, (patch) => {
-          patches.push(patch);
-        });
+        let disposePatch = () => {};
 
         try {
+          if (clientSnapshot) {
+            applySnapshot(storeInstance, clientSnapshot);
+          }
+
+          disposePatch = onPatch(storeInstance, (patch) => {
+            patches.push(patch);
+          });
+
           const result = await action(storeInstance, args);
           res.statusCode = 200;
           res.setHeader("Content-Type", "application/json");

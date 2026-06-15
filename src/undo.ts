@@ -3,7 +3,7 @@
  * Provides time-travel debugging capabilities using Jotai atoms
  */
 
-import { atom, type WritableAtom } from 'jotai';
+import { atom, type WritableAtom, type PrimitiveAtom } from 'jotai';
 import type { IDisposer, IJsonPatch, IReversibleJsonPatch } from './types';
 import {
   getStateTreeNode,
@@ -110,7 +110,7 @@ export const historyTrackersRegistry = new WeakMap<any, HistoryTracker>();
 
 export class HistoryTracker {
   readonly target: unknown;
-  readonly historyAtom: WritableAtom<IHistoryState, [IHistoryState | ((prev: IHistoryState) => IHistoryState)], void>;
+  readonly historyAtom: PrimitiveAtom<IHistoryState>;
 
   // Settings
   maxHistoryLength: number;
@@ -205,7 +205,7 @@ export class HistoryTracker {
       return;
     }
 
-    store.set(this.historyAtom, (prev) => {
+    store.set(this.historyAtom, (prev: IHistoryState) => {
       // Truncate future entries if we were in the middle of history
       let entries = prev.currentIndex < prev.entries.length - 1
         ? prev.entries.slice(0, prev.currentIndex + 1)
@@ -278,7 +278,7 @@ export class HistoryTracker {
         applyPatch(this.target, entry.patches[i]);
       }
 
-      store.set(this.historyAtom, (prev) => ({
+      store.set(this.historyAtom, (prev: IHistoryState) => ({
         ...prev,
         currentIndex: prev.currentIndex - 1,
       }));
@@ -309,7 +309,7 @@ export class HistoryTracker {
         applyPatch(this.target, patch);
       }
 
-      store.set(this.historyAtom, (prev) => ({
+      store.set(this.historyAtom, (prev: IHistoryState) => ({
         ...prev,
         currentIndex: nextIndex,
       }));
@@ -337,7 +337,7 @@ export class HistoryTracker {
       const targetSnapshot = index === 0 ? state.initialSnapshot : state.entries[index - 1].snapshot;
       applySnapshot(this.target, targetSnapshot);
 
-      store.set(this.historyAtom, (prev) => ({
+      store.set(this.historyAtom, (prev: IHistoryState) => ({
         ...prev,
         currentIndex: index - 1,
       }));
@@ -436,7 +436,7 @@ export class HistoryTracker {
 
     if (this.currentGroup.length > 0) {
       const store = getGlobalStore();
-      store.set(this.historyAtom, (prev) => {
+      store.set(this.historyAtom, (prev: IHistoryState) => {
         let entries = prev.currentIndex < prev.entries.length - 1
           ? prev.entries.slice(0, prev.currentIndex + 1)
           : [...prev.entries];

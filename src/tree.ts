@@ -19,25 +19,36 @@ import type {
   IReversibleJsonPatch,
   IDisposer,
 } from "./types";
-// Lifecycle hook handlers set by lifecycle.ts to avoid circular imports
-let lifecycleHookHandlers: {
-  runAfterAttach?: (node: any) => void;
-  runBeforeDetach?: (node: any) => void;
-  runBeforeDestroy?: (node: any) => void;
-} = {};
-
-export function setLifecycleHookHandlers(handlers: typeof lifecycleHookHandlers) {
-  lifecycleHookHandlers = handlers;
+// Define global registries on globalThis to ensure request/module safety across bundler & module loader boundaries
+const _global = globalThis as any;
+if (!_global.__JST_GLOBALS__) {
+  _global.__JST_GLOBALS__ = {
+    lifecycleHookHandlers: {},
+    isApplyingSnapshotOrPatch: false,
+    globalStore: createStore(),
+    activeStoreResolver: null,
+    activeTrackingFn: null,
+    activeAtomTrackingFn: null,
+    nodeRegistry: new Map(),
+    rootNodesRegistry: new Map(),
+    activeReactRoots: new Set(),
+    activeReactRootsCounts: new Map(),
+    identifierRegistry: new Map(),
+  };
 }
 
-let isApplyingSnapshotOrPatch = false;
+const jstGlobals = _global.__JST_GLOBALS__;
+
+export function setLifecycleHookHandlers(handlers: any) {
+  jstGlobals.lifecycleHookHandlers = handlers;
+}
 
 export function getIsApplyingSnapshotOrPatch(): boolean {
-  return isApplyingSnapshotOrPatch;
+  return jstGlobals.isApplyingSnapshotOrPatch;
 }
 
 export function setIsApplyingSnapshotOrPatch(value: boolean): void {
-  isApplyingSnapshotOrPatch = value;
+  jstGlobals.isApplyingSnapshotOrPatch = value;
 }
 
 // Re-export IDisposer for convenience
@@ -47,75 +58,63 @@ export type { IDisposer };
 // Global Store & Registry
 // ============================================================================
 
-/** Global Jotai store instance */
-let globalStore = createStore();
-
-/** Store resolver hook to intercept getGlobalStore (useful for SSR context-specific isolation) */
-let activeStoreResolver: (() => ReturnType<typeof createStore> | null) | null = null;
-
 /** Get the global store */
 export function getGlobalStore() {
-  if (activeStoreResolver) {
-    const resolved = activeStoreResolver();
+  if (jstGlobals.activeStoreResolver) {
+    const resolved = jstGlobals.activeStoreResolver();
     if (resolved) {
       return resolved;
     }
   }
-  return globalStore;
+  return jstGlobals.globalStore;
 }
 
 /** Set a custom global store (useful for testing) */
 export function setGlobalStore(store: ReturnType<typeof createStore>) {
-  globalStore = store;
+  jstGlobals.globalStore = store;
 }
 
 /** Reset the global store (useful for testing) */
 export function resetGlobalStore() {
-  globalStore = createStore();
+  jstGlobals.globalStore = createStore();
 }
 
 /** Set the active store resolver function */
 export function setActiveStoreResolver(resolver: (() => ReturnType<typeof createStore> | null) | null) {
-  activeStoreResolver = resolver;
+  jstGlobals.activeStoreResolver = resolver;
 }
-
-/** Active tracking function for reactive observation */
-let activeTrackingFn: ((node: StateTreeNode) => void) | null = null;
 
 /** Get the active tracking function */
 export function getActiveTrackingFn(): ((node: StateTreeNode) => void) | null {
-  return activeTrackingFn;
+  return jstGlobals.activeTrackingFn;
 }
 
 /** Set the active tracking function */
 export function setActiveTrackingFn(fn: ((node: StateTreeNode) => void) | null) {
-  activeTrackingFn = fn;
+  jstGlobals.activeTrackingFn = fn;
 }
 
 /** Track access to a state tree node */
 export function trackNodeAccess(node: StateTreeNode) {
-  if (activeTrackingFn) {
-    activeTrackingFn(node);
+  if (jstGlobals.activeTrackingFn) {
+    jstGlobals.activeTrackingFn(node);
   }
 }
 
-/** Active atom tracking function for reactive observation */
-let activeAtomTrackingFn: ((atom: any) => void) | null = null;
-
 /** Get the active atom tracking function */
 export function getActiveAtomTrackingFn(): ((atom: any) => void) | null {
-  return activeAtomTrackingFn;
+  return jstGlobals.activeAtomTrackingFn;
 }
 
 /** Set the active atom tracking function */
 export function setActiveAtomTrackingFn(fn: ((atom: any) => void) | null) {
-  activeAtomTrackingFn = fn;
+  jstGlobals.activeAtomTrackingFn = fn;
 }
 
 /** Track access to a Jotai atom */
 export function trackAtomAccess(atomVal: any) {
-  if (activeAtomTrackingFn) {
-    activeAtomTrackingFn(atomVal);
+  if (jstGlobals.activeAtomTrackingFn) {
+    jstGlobals.activeAtomTrackingFn(atomVal);
   }
 }
 
@@ -132,20 +131,20 @@ interface NodeEntry {
  * Registry mapping node IDs to their entries using WeakRef
  * This allows nodes to be garbage collected when no longer referenced
  */
-export const nodeRegistry = new Map<string, NodeEntry>();
+export const nodeRegistry: Map<string, NodeEntry> = jstGlobals.nodeRegistry;
 
 /**
  * Registry mapping root node IDs to their WeakRefs.
  * Maintains only root nodes for efficient lookup in DevTools.
  */
-export const rootNodesRegistry = new Map<string, WeakRef<StateTreeNode>>();
+export const rootNodesRegistry: Map<string, WeakRef<StateTreeNode>> = jstGlobals.rootNodesRegistry;
 
 /**
  * Registry of root store instances that are currently mounted/active in React.
  * This is used to filter out dangling root stores (e.g. from React StrictMode's discarded first render pass) in DevTools.
  */
-export const activeReactRoots = new Set<unknown>();
-const activeReactRootsCounts = new Map<unknown, number>();
+export const activeReactRoots: Set<unknown> = jstGlobals.activeReactRoots;
+const activeReactRootsCounts: Map<unknown, number> = jstGlobals.activeReactRootsCounts;
 
 export function incrementRootRef(root: unknown): void {
   if (!root) return;
@@ -494,7 +493,7 @@ export class StateTreeNode implements IStateTreeNode {
     child.$env = child.$env ?? this.$env;
     this.children.set(key, child);
     rootNodesRegistry.delete(child.$id);
-    lifecycleHookHandlers.runAfterAttach?.(child);
+    jstGlobals.lifecycleHookHandlers.runAfterAttach?.(child);
     this.invalidateSnapshot();
     this.incrementStructureVersion();
   }
@@ -677,7 +676,7 @@ export class StateTreeNode implements IStateTreeNode {
     this.instance = null;
 
     // Run beforeDestroy hook
-    lifecycleHookHandlers.runBeforeDestroy?.(this);
+    jstGlobals.lifecycleHookHandlers.runBeforeDestroy?.(this);
 
     // Destroy children first
     this.children.forEach((child) => child.destroy());
@@ -733,7 +732,7 @@ export class StateTreeNode implements IStateTreeNode {
   detach() {
     if (this.$parent) {
       // Run beforeDetach hook
-      lifecycleHookHandlers.runBeforeDetach?.(this);
+      jstGlobals.lifecycleHookHandlers.runBeforeDetach?.(this);
 
       const parent = this.$parent;
       // Find our key in parent's children

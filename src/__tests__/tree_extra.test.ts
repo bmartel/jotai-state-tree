@@ -323,6 +323,7 @@ describe('Tree Finalization registry simulation', () => {
       }
     }
     vi.stubGlobal('WeakRef', MockWeakRef);
+    clearAllRegistries();
     vi.resetModules();
 
     const { types: localTypes, cleanupStaleEntries: localCleanup, getRegistryStats: localStats } = await import('../index');

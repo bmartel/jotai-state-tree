@@ -1190,11 +1190,21 @@
     // Custom renderer for marked to handle mermaid code blocks
     marked.use({
       renderer: {
-        code(code, infostring, escaped) {
-          const lang = (infostring || '').match(/\S*/)[0];
-          if (lang === 'mermaid') {
-            const codeText = typeof code === 'object' ? code.text : code;
-            return `<div class="mermaid">${codeText}</div>`;
+        code(codeOrObj, infostring, escaped) {
+          let text = '';
+          let lang = '';
+          
+          if (typeof codeOrObj === 'object' && codeOrObj !== null) {
+            text = codeOrObj.text || '';
+            lang = codeOrObj.lang || '';
+          } else {
+            text = codeOrObj || '';
+            lang = infostring || '';
+          }
+          
+          const cleanLang = (lang || '').match(/\S*/)[0];
+          if (cleanLang === 'mermaid') {
+            return `<div class="mermaid">${text}</div>`;
           }
           return false; // Use default code renderer for other languages
         }

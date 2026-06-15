@@ -189,6 +189,8 @@ function HydratedComponent({ initialSnapshot }) {
 
 You can optionally pass a custom Jotai store option in `options?: { store?: ReturnType<typeof getGlobalStore> }` if you are using scoped Jotai stores.
 
+For a comprehensive guide on setting up Server-Side Rendering, request context isolation, and Server Actions (RPC), see the dedicated [Server-Side Rendering](server-side-rendering.md) guide.
+
 ---
 
 ## Batching Updates

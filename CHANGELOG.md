@@ -1,3 +1,10 @@
+## [1.16.7](https://github.com/bmartel/jotai-state-tree/compare/v1.16.6...v1.16.7) (2026-06-15)
+
+
+### Bug Fixes
+
+* **project-starter:** resolve flash of unstyled content (FOUC) in dev mode ([aae2414](https://github.com/bmartel/jotai-state-tree/commit/aae241424b9f0d92c1767c68b54335018bece8dc))
+
 ## [1.16.6](https://github.com/bmartel/jotai-state-tree/compare/v1.16.5...v1.16.6) (2026-06-15)
 
 

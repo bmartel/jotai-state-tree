@@ -3,7 +3,7 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { types } from "../index";
 import { createPersistenceManager, PersistenceManager } from "../persistence";
 
-import { getSnapshot } from "../tree";
+import { getSnapshot, getGlobalStore } from "../tree";
 
 // ============================================================================
 // IndexedDB Mock
@@ -621,4 +621,136 @@ describe("IndexedDB Model Persistence & Sync", () => {
 
     vi.unstubAllGlobals();
   });
+
+  test("should clear persistence queue and snapshots", async () => {
+    vi.stubGlobal("navigator", { onLine: false });
+
+    const store = TodoList.create({ todos: [] });
+    const manager = createPersistenceManager(store, {
+      key: "todo-list-clear-key",
+      mutation: {
+        syncFn: vi.fn(),
+      },
+    });
+
+    await manager.initialize();
+    store.addTodo("1", "Clear Task 1");
+    await sleep(20);
+
+    const queueStore = dbMock.stores.get("sync_queue")!;
+    expect(queueStore.size).toBe(1);
+
+    await manager.clear();
+
+    const globalStore = getGlobalStore();
+    const status = globalStore.get(manager.statusAtom);
+    expect(queueStore.size).toBe(0);
+    expect(status.pendingSyncCount).toBe(0);
+    expect(status.error).toBeNull();
+
+    vi.unstubAllGlobals();
+  });
+
+  test("should handle refetchOnWindowFocus and cleanup focusListener on dispose", async () => {
+    const store = TodoList.create({ todos: [] });
+    const fetchSpy = vi.fn();
+    const manager = createPersistenceManager(store, {
+      key: "todo-list-focus-key",
+      query: {
+        queryFn: fetchSpy,
+        refetchOnWindowFocus: true,
+      },
+    });
+
+    // Mock window event listeners
+    const addListenerSpy = vi.spyOn(window, "addEventListener");
+    const removeListenerSpy = vi.spyOn(window, "removeEventListener");
+
+    await manager.initialize();
+
+    // Verify focus listener was added
+    expect(addListenerSpy).toHaveBeenCalledWith("focus", expect.any(Function));
+
+    // Simulate focus event
+    const focusCall = addListenerSpy.mock.calls.find(call => call[0] === "focus");
+    if (focusCall && typeof focusCall[1] === "function") {
+      focusCall[1]();
+    }
+    expect(fetchSpy).toHaveBeenCalled();
+
+    // Dispose
+    manager.dispose();
+
+    // Verify focus listener was removed
+    expect(removeListenerSpy).toHaveBeenCalledWith("focus", expect.any(Function));
+
+    addListenerSpy.mockRestore();
+    removeListenerSpy.mockRestore();
+  });
+
+  test("should set isOffline status if offline when processing queue", async () => {
+    let onlineStatus = true;
+    vi.stubGlobal("navigator", {
+      get onLine() {
+        return onlineStatus;
+      }
+    });
+
+    const store = TodoList.create({ todos: [] });
+    const syncFn = vi.fn().mockImplementation(() => {
+      onlineStatus = false;
+      return {};
+    });
+
+    const manager = createPersistenceManager(store, {
+      key: "todo-list-offline-loop",
+      mutation: {
+        syncFn,
+      },
+    });
+
+    await manager.initialize();
+    
+    store.addTodo("1", "Task A");
+    await sleep(20);
+    store.addTodo("2", "Task B");
+    await sleep(20);
+
+    await manager.sync();
+
+    const globalStore = getGlobalStore();
+    const status = globalStore.get(manager.statusAtom);
+    expect(status.isOffline).toBe(true);
+    
+    vi.unstubAllGlobals();
+  });
+
+  test("should handle temporary connection error (no rollback) during sync", async () => {
+    const store = TodoList.create({ todos: [] });
+    
+    const syncFn = vi.fn().mockRejectedValue(new Error("Connection Timeout"));
+    const onErrorSpy = vi.fn();
+
+    const manager = createPersistenceManager(store, {
+      key: "todo-list-temp-err",
+      mutation: {
+        syncFn,
+        shouldRollback: () => false,
+        onError: onErrorSpy,
+      },
+    });
+
+    await manager.initialize();
+    store.addTodo("1", "Temp Err Task");
+    await sleep(20);
+
+    await manager.sync();
+
+    const globalStore = getGlobalStore();
+    const status = globalStore.get(manager.statusAtom);
+    expect(status.error).toBeDefined();
+    expect(status.error?.message).toBe("Connection Timeout");
+    expect(onErrorSpy).toHaveBeenCalled();
+  });
 });
+

@@ -29,6 +29,8 @@ import {
   unfreeze,
   unprotect,
   onPatch,
+  onSnapshot,
+  onAction,
   destroy,
   applySnapshot,
   applyPatch,
@@ -859,6 +861,73 @@ describe('Tree Utilities Additional Coverage', () => {
     applyPatch(stringWrapper, { op: 'add', path: '/foo', value: 123 });
     applyPatch(stringWrapper, { op: 'remove', path: '/foo' });
     expect(mockStringNode.setValue).not.toHaveBeenCalled();
+
+    // 26. actionRecorderHooks error catch
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const unregister = registerActionRecorderHook(() => {
+      throw new Error('Action recorder hook error');
+    });
+
+    const ActionModel = types.model({}).actions((self) => ({
+      run() {}
+    }));
+    const actionInst = ActionModel.create({});
+    actionInst.run();
+
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+    unregister();
+
+    // 27. snapshot, patch, and action listener error catch blocks in tree.ts (lines 827, 844, 864)
+    const errConsoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const ErrModel = types.model('ErrModel', {
+      name: types.string,
+    }).actions((self) => ({
+      setName(val: string) {
+        self.name = val;
+      }
+    }));
+    const errInst = ErrModel.create({ name: 'alice' });
+    unprotect(errInst);
+    const errNode = getStateTreeNode(errInst);
+    const snapUnsub = onSnapshot(errInst, () => {
+      throw new Error('Snapshot listener throw');
+    });
+    const patchUnsub = onPatch(errInst, () => {
+      throw new Error('Patch listener throw');
+    });
+    const actionUnsub = onAction(errInst, () => {
+      throw new Error('Action listener throw');
+    });
+    errInst.setName('bob');
+    expect(errConsoleSpy).toHaveBeenCalledTimes(3);
+    errConsoleSpy.mockRestore();
+    snapUnsub();
+    patchUnsub();
+    actionUnsub();
+
+    // 28. tree.ts final coverage boundary cases (preprocessor, missing key, cachedPath)
+    const PreprocessedModel = types.model('PreprocessedModel', {
+      name: types.string,
+    }).preProcessSnapshot((snapshot: any) => {
+      return { name: snapshot.name.toLowerCase() };
+    });
+    const ppInst = PreprocessedModel.create({ name: 'ALICE' });
+    unprotect(ppInst);
+    applySnapshot(ppInst, { name: 'BOB' });
+    expect(ppInst.name).toBe('bob');
+
+    const NestedModel = types.model('NestedModel', {
+      child: types.model({ age: types.number }),
+    });
+    const nestedInst = NestedModel.create({ child: { age: 10 } });
+    unprotect(nestedInst);
+    applySnapshot(nestedInst, {}); // missing child key triggers lines 984-985
+
+    const simpleInst = ErrModel.create({ name: 'test' });
+    const simpleNode = getStateTreeNode(simpleInst);
+    simpleNode.cachedPath = undefined;
+    expect(getPath(simpleInst)).toBe(''); // triggers line 1210 node.cachedPath ?? node.$path fallback
   });
 });
 

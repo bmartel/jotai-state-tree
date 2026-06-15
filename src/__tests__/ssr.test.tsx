@@ -7,6 +7,7 @@ import {
   createSSRHandler,
   createServerAction,
   matchRoute,
+  startSSRServer,
 } from "../ssr";
 
 // Define a simple test model
@@ -202,4 +203,142 @@ describe("SSR Module", () => {
       value: "Updated Text",
     });
   });
+
+  it("should handle custom api routes, template function, unknown action, action error, loader error, and body parse error", async () => {
+    const handler = createSSRHandler({
+      createStore: () => RootStore.create({ todos: [] }),
+      apiRoutes: {
+        "/foo": async (req, res) => {
+          res.statusCode = 200;
+          res.end("api-foo");
+        }
+      },
+      routes: [
+        {
+          path: "/fail-loader",
+          loader: async (store) => {
+            throw new Error("Loader Error");
+          }
+        }
+      ],
+      actions: {
+        failingAction: async () => {
+          throw new Error("Action failed");
+        }
+      },
+      renderApp: () => "<div>App</div>",
+      template: async ({ html, state }) => `<html>${html}-${state}</html>`
+    });
+
+    const mockRes = () => ({
+      statusCode: 0,
+      headers: {} as Record<string, string>,
+      setHeader(name: string, value: string) {
+        this.headers[name] = value;
+      },
+      end: vi.fn(),
+    });
+
+    // 1. Custom API Route
+    const resApi = mockRes();
+    const handledApi = await handler({ url: "/api/foo", method: "GET", headers: {} }, resApi);
+    expect(handledApi).toBe(true);
+    expect(resApi.end).toHaveBeenCalledWith("api-foo");
+
+    // 2. Action Not Found (404)
+    const res404 = mockRes();
+    const req404 = {
+      url: "/api/_jst_action",
+      method: "POST",
+      headers: {},
+      on: (event: string, callback: any) => {
+        if (event === "data") callback(Buffer.from(JSON.stringify({ actionName: "unknownAction" })));
+        if (event === "end") callback();
+      }
+    };
+    const handled404 = await handler(req404, res404);
+    expect(handled404).toBe(true);
+    expect(res404.statusCode).toBe(404);
+
+    // 3. Action Error (500)
+    const res500 = mockRes();
+    const req500 = {
+      url: "/api/_jst_action",
+      method: "POST",
+      headers: {},
+      on: (event: string, callback: any) => {
+        if (event === "data") callback(Buffer.from(JSON.stringify({ actionName: "failingAction" })));
+        if (event === "end") callback();
+      }
+    };
+    const handled500 = await handler(req500, res500);
+    expect(handled500).toBe(true);
+    expect(res500.statusCode).toBe(500);
+
+    // 4. Request Body Parse/Stream Error (rejection)
+    const resErr = mockRes();
+    const reqErr = {
+      url: "/api/_jst_action",
+      method: "POST",
+      headers: {},
+      on: (event: string, callback: any) => {
+        if (event === "error") callback(new Error("Stream Error"));
+      }
+    };
+    await expect(handler(reqErr, resErr)).rejects.toThrow("Stream Error");
+
+    // 5. Template as a function and Page Loader Error
+    const resLoad = mockRes();
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const handledLoad = await handler({ url: "/fail-loader", method: "GET", headers: {} }, resLoad);
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+    expect(handledLoad).toBe(true);
+    expect(resLoad.statusCode).toBe(200);
+    expect(resLoad.end.mock.calls[0][0]).toContain("<div>App</div>");
+
+    // 6. Non-matching request returns false
+    const resNone = mockRes();
+    const handledNone = await handler({ url: "/static/asset.js", method: "GET", headers: {} }, resNone);
+    expect(handledNone).toBe(false);
+  });
+
+  it("should start and close standalone SSR server", async () => {
+    const server = startSSRServer({
+      createStore: () => RootStore.create({ todos: [] }),
+      renderApp: () => "<div>Server App</div>",
+      template: "<html><!--app-html--></html>",
+      port: 9888,
+    });
+    expect(server).toBeDefined();
+
+    // Verify it handles request (port 9888)
+    const res = await fetch("http://localhost:9888/");
+    const text = await res.text();
+    expect(text).toContain("<div>Server App</div>");
+
+    // Verify it handles 404 for unmatched paths
+    const res404 = await fetch("http://localhost:9888/static/not-found");
+    expect(res404.status).toBe(404);
+
+    await new Promise<void>((resolve) => {
+      server.close(() => resolve());
+    });
+
+    // Verify it handles 500 errors when createStore throws
+    const serverErr = startSSRServer({
+      createStore: () => { throw new Error("Database offline"); },
+      renderApp: () => "<div>Server App</div>",
+      template: "<html><!--app-html--></html>",
+      port: 9889,
+    });
+    const resErr = await fetch("http://localhost:9889/");
+    expect(resErr.status).toBe(500);
+    const textErr = await resErr.text();
+    expect(textErr).toBe("Database offline");
+    await new Promise<void>((resolve) => {
+      serverErr.close(() => resolve());
+    });
+  });
 });
+

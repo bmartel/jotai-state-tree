@@ -471,6 +471,19 @@ class ModelType<
           return true;
         }
 
+        // Check if it's a view with setter
+        if (propStr in allViews) {
+          const desc = allViews[propStr];
+          if (desc.set) {
+            if (!node.$isAlive) {
+              throw new Error(`[jotai-state-tree] Cannot modify view '${propStr}' - the node is dead.`);
+            }
+            desc.set(value);
+            return true;
+          }
+          return false;
+        }
+
         // Check if it's volatile state
         if (propStr in node.volatileState) {
           if (!node.$isAlive) {
@@ -550,7 +563,9 @@ class ModelType<
               trackAtomAccess(viewAtom);
               return activeJotaiGet ? activeJotaiGet(viewAtom) : store.get(viewAtom);
             },
-            set: descriptor.set ? (val) => descriptor.set!.call(proxy, val) : undefined,
+            set: descriptor.set ? (val) => {
+              descriptor.set!.call(proxy, val);
+            } : undefined,
             enumerable: true,
             configurable: true,
           };

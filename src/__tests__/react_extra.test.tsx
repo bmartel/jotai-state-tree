@@ -4,7 +4,7 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, act, cleanup } from '@testing-library/react';
-import { types, clearAllRegistries, resetGlobalStore, isAlive } from '../index';
+import { types, clearAllRegistries, resetGlobalStore, isAlive, unprotect } from '../index';
 import {
   usePatches,
   useCleanup,
@@ -29,6 +29,7 @@ import {
   useObserverTracking,
   createStoreContext,
   RouterProvider,
+  useFineSnapshot,
 } from '../react';
 import { $treenode } from '../tree';
 
@@ -574,6 +575,60 @@ describe('React Extra Hooks & Bindings', () => {
     consoleWarnSpy.mockRestore();
     cleanup();
   });
+
+  it('useFineSnapshot extra tracking scenarios', () => {
+    // 14. useFineSnapshot accessing non-existent property/view/action
+    const FineModel = types.model('FineModel', {
+      a: types.string,
+      b: types.string,
+    }).views((self) => ({
+      get customView() {
+        return self.a + self.b;
+      }
+    }));
+    const fineStore = FineModel.create({ a: 'foo', b: 'bar' });
+
+    let accessedValue: any = null;
+    const FineComponent = observer(() => {
+      const snap = useFineSnapshot(fineStore);
+      // Accessing a view (non-child node, hits Reflect.get)
+      accessedValue = (snap as any).customView;
+      return <div data-testid="fine-text">{snap.a}</div>;
+    });
+
+    render(<FineComponent />);
+    expect(accessedValue).toBe('foobar');
+    cleanup();
+
+    // 15. useFineSnapshot with changing set of accessed atoms
+    const ConditionModel = types.model('ConditionModel', {
+      showA: types.boolean,
+      a: types.string,
+      b: types.string,
+    });
+    const condStore = ConditionModel.create({ showA: true, a: 'aaa', b: 'bbb' });
+
+    const CondComponent = observer(() => {
+      const snap = useFineSnapshot(condStore);
+      if (snap.showA) {
+        return <div data-testid="cond-text">{snap.a}</div>;
+      } else {
+        return <div data-testid="cond-text">{snap.b}</div>;
+      }
+    });
+
+    render(<CondComponent />);
+    expect(screen.getByTestId('cond-text').textContent).toBe('aaa');
+
+    act(() => {
+      unprotect(condStore);
+      condStore.showA = false;
+    });
+
+    expect(screen.getByTestId('cond-text').textContent).toBe('bbb');
+    cleanup();
+  });
 });
+
 
 

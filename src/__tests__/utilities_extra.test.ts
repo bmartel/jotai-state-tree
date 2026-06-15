@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { types, getSnapshot, unprotect } from '../index';
 import { createRouter } from '../router';
+import { getStateTreeNode } from '../tree';
 
 describe('Utility Types Extra', () => {
   it('maybe and maybeNull type validations', () => {
@@ -370,5 +371,74 @@ describe('Utility Types Extra', () => {
       }
     }
   });
+
+  it('reference isInstanceAlive catch block coverage', () => {
+    const User = types.model('User', {
+      id: types.identifier,
+      name: types.string,
+    });
+    const Group = types.model('Group', {
+      admin: types.reference(User),
+    });
+
+    const user = User.create({ id: 'u1', name: 'Alice' });
+    const group = Group.create({ admin: 'u1' });
+    unprotect(group);
+    unprotect(user);
+    
+    const userNode = getStateTreeNode(user);
+    const adminProxy = group.admin; // normal access, resolves proxy to user
+    const originalGetInstance = userNode.getInstance;
+
+    // 1. Trigger the catch block in the reference proxy's GET trap
+    // Step A: Force resolution to a plain object by stubbing getInstance and marking node dead
+    userNode.getInstance = () => ({ name: 'Bob' });
+    userNode.$isAlive = false;
+    expect(adminProxy.name).toBe('Bob'); // re-resolves to the plain object { name: 'Bob' }
+
+    // Step B: Restore node, keep resolved = plain object. Next access will throw & catch!
+    userNode.$isAlive = true;
+    userNode.getInstance = originalGetInstance;
+    expect(adminProxy.name).toBe('Alice'); // throws (get catch block) -> re-resolves to user -> returns 'Alice'
+
+    // 2. Trigger the catch block in the reference proxy's SET trap
+    // Step A: Force resolution to a plain object
+    userNode.getInstance = () => ({ name: 'Bob' });
+    userNode.$isAlive = false;
+    expect(adminProxy.name).toBe('Bob');
+
+    // Step B: Restore and test SET trap
+    userNode.$isAlive = true;
+    userNode.getInstance = originalGetInstance;
+    adminProxy.name = 'Charlie'; // throws (set catch block) -> re-resolves to user -> sets name to 'Charlie'
+    expect(user.name).toBe('Charlie');
+
+    // 3. Trigger the catch block in the reference proxy's HAS trap
+    // Step A: Force resolution to a plain object
+    userNode.getInstance = () => ({ name: 'Bob' });
+    userNode.$isAlive = false;
+    expect(adminProxy.name).toBe('Bob');
+
+    // Step B: Restore and test HAS trap
+    userNode.$isAlive = true;
+    userNode.getInstance = originalGetInstance;
+    expect('name' in adminProxy).toBe(true); // throws (has catch block) -> re-resolves to user -> returns true
+  });
+
+  it('server syncLocation REPLACE with historyIndex = -1', () => {
+    const routes = [
+      { path: '/', name: 'home' },
+      { path: '/about', name: 'about' },
+    ];
+    const rServer = createRouter({ routes, initialUrl: '/' });
+    unprotect(rServer);
+    (rServer as any)._historyIndex = -1;
+    
+    (rServer as any).syncLocation('/about', '', '', 'REPLACE');
+    
+    expect((rServer as any)._historyStack).toEqual(['/about']);
+    expect((rServer as any)._historyIndex).toBe(0);
+  });
 });
+
 

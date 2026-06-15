@@ -385,11 +385,41 @@ describe('MST Array Operations Extra', () => {
     expect(NullableStore.items[1].id).toBeNull();
 
     // 11. Union array triggering primitive node reuse on index shift
-    const UnionArray = types.array(types.union(types.number, types.string));
-    const sUnion = types.model({ arr: UnionArray }).create({ arr: [2] });
+    const ItemModel = types.model('ItemModel', { id: types.identifier });
+    const UnionArray = types.array(types.union(ItemModel, types.number));
+    const sUnion = types.model({ arr: UnionArray }).create({ arr: [1, 2] });
     unprotect(sUnion);
-    sUnion.arr.replace(['3', 2]);
-    expect(sUnion.arr.toJSON()).toEqual(['3', 2]);
+    sUnion.arr.replace([{ id: 'm1' }, 3, 1]);
+    expect(sUnion.arr[2]).toBe(1);
+    // 12. Primitive array rearrangement to trigger primitive node reuse fast path
+    const RearrangeStore = types.model({
+      numbers: types.array(types.number),
+    });
+    const sRearrange = RearrangeStore.create({ numbers: [1, 2] });
+    unprotect(sRearrange);
+    const nodeRearrange = getStateTreeNode(sRearrange.numbers);
+    const node0 = nodeRearrange.getChild('0')!;
+    node0.$type = types.string;
+    sRearrange.numbers.replace([3, 4, 1]);
+    expect(sRearrange.numbers.toJSON()).toEqual([3, 4, 1]);
+
+    // 13. Symbol, then, toJSON on dead array proxy
+    const storeToDestroy2 = RearrangeStore.create({ numbers: [1, 2] });
+    const numbersToDestroy2 = storeToDestroy2.numbers;
+    destroy(storeToDestroy2);
+    expect(numbersToDestroy2.then).toBeUndefined();
+    expect(numbersToDestroy2.toJSON).toBeUndefined();
+    expect(numbersToDestroy2[Symbol.iterator]).toBeUndefined();
+
+    // 14. Array of optional/maybe wrapper type splice resolving (line 272)
+    const OptionalArrayStore = types.model({
+      arr: types.array(types.optional(types.number, 0)),
+    });
+    const sOpt = OptionalArrayStore.create({ arr: [] });
+    unprotect(sOpt);
+    sOpt.arr.push(42);
+    expect(sOpt.arr.toJSON()).toEqual([42]);
   });
 });
+
 

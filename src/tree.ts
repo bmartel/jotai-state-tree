@@ -1476,22 +1476,11 @@ export function trackAction<T>(
         path: node.$path,
         args,
       };
-      if (notificationBatchDepth > 0) {
-        pendingActions.push({
-          node,
-          call,
-          actionContext: currentAction,
-        });
-      } else {
-        let current: StateTreeNode | null = node;
-        while (current) {
-          if (current.$isAlive) {
-            current.actionListeners.forEach((listener) => listener(call));
-          }
-          current = current.$parent;
-        }
-        actionRecorderHooks.forEach((hook) => hook(node, call));
-      }
+      pendingActions.push({
+        node,
+        call,
+        actionContext: currentAction,
+      });
 
       return result;
     } finally {

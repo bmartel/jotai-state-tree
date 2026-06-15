@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { types, unprotect, compose } from '../index';
+import { types, unprotect, compose, destroy } from '../index';
 import { LRUCache } from '../model';
 import { getStateTreeNode, $treenode } from '../tree';
 
@@ -292,4 +292,51 @@ describe('Model Extra Coverage Boundaries', () => {
     inst.child = { name: 'bob' };
     expect(inst.child.name).toBe('bob');
   });
+
+  // 24. model views with a setter
+  it('model views with a setter', () => {
+    const Model = types.model({
+      firstName: types.string,
+      lastName: types.string
+    }).views((self) => ({
+      get fullName() {
+        return `${self.firstName} ${self.lastName}`;
+      },
+      set fullName(val: string) {
+        const parts = val.split(" ");
+        self.firstName = parts[0];
+        self.lastName = parts[1];
+      }
+    }));
+    const inst = Model.create({ firstName: "John", lastName: "Doe" });
+    expect(inst.fullName).toBe("John Doe");
+    
+    // Test set via action
+    const ActionModel = Model.actions((self) => ({
+      setName(val: string) {
+        self.fullName = val;
+      }
+    }));
+    const inst2 = ActionModel.create({ firstName: "John", lastName: "Doe" });
+    inst2.setName("Jane Smith");
+    expect(inst2.firstName).toBe("Jane");
+    expect(inst2.lastName).toBe("Smith");
+
+    // Dead node view setter throw (line 479)
+    destroy(inst2);
+    expect(() => { (inst2 as any).fullName = "Jane Smith"; }).toThrow("[jotai-state-tree] Cannot modify view 'fullName' - the node is dead.");
+
+    // Set a read-only view (without setter) (line 484)
+    const ReadOnlyModel = types.model({
+      name: types.string,
+    }).views((self) => ({
+      get upperName() {
+        return self.name.toUpperCase();
+      },
+    }));
+    const roInst = ReadOnlyModel.create({ name: "alice" });
+    unprotect(roInst);
+    expect(() => { (roInst as any).upperName = "BOB"; }).toThrow();
+  });
 });
+

@@ -691,5 +691,12 @@ describe('State Router', () => {
       </RouterContext.Provider>
     );
     expect(screen.getByTestId('router-ok').textContent).toBe('ok');
+
+    // 5. _setPopStateRef
+    const rSetRef = createRouter({ routes, initialUrl: '/' });
+    const dummyRef = { current: null };
+    (rSetRef as any)._setPopStateRef(dummyRef);
+    expect((rSetRef as any)._popStateRef).toBe(dummyRef);
   });
 });
+

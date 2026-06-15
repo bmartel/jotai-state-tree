@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { types, unprotect } from '../index';
-import { createUndoManager, createTimeTravelManager, createActionRecorder } from '../undo';
+import { types, unprotect, destroy } from '../index';
+import { createUndoManager, createTimeTravelManager, createActionRecorder, historyTrackersRegistry } from '../undo';
 import * as treeModule from '../tree';
 
 describe('UndoManager & TimeTravel Extra', () => {
@@ -360,6 +360,13 @@ describe('UndoManager & TimeTravel Extra', () => {
     userMut.name = 'David'; // direct mutation outside action!
     expect(um.canRedo).toBe(false);
     expect(um.undoLevels).toBe(2);
+
+    // 8. history tracker auto-disposal when the target node is destroyed (line 169 of undo.ts)
+    const userDispose = User.create({ name: 'Alice' });
+    createUndoManager(userDispose);
+    expect(historyTrackersRegistry.has(userDispose)).toBe(true);
+    destroy(userDispose);
+    expect(historyTrackersRegistry.has(userDispose)).toBe(false);
   });
 });
 

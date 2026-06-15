@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { types, clearAllRegistries, resetGlobalStore } from '../index';
+import { types, clearAllRegistries, resetGlobalStore, destroy } from '../index';
 import {
   isType,
   isPrimitiveType,
@@ -249,5 +249,19 @@ describe('Compatibility Utilities', () => {
     // Passing null/undefined getter returns undefined
     expect(tryReference(() => null)).toBeUndefined();
     expect(tryReference(() => undefined)).toBeUndefined();
+
+    // tryReference with checkIfAlive = false on a dead node
+    const deadNode = Target.create({ id: 'dead', name: 'dead' });
+    destroy(deadNode);
+    expect(tryReference(() => deadNode, false)).toBe(deadNode);
+
+    // tryReference when resolved is a plain object (not a state tree node)
+    const plain = { id: 'plain', name: 'plain' };
+    expect(tryReference(() => plain)).toBeUndefined();
+
+    // tryReference when getter throws a non-reference error
+    const getterThrow = () => { throw new Error('Some random error'); };
+    expect(() => tryReference(getterThrow)).toThrow('Some random error');
   });
 });
+

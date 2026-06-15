@@ -1,3 +1,10 @@
+## [1.16.6](https://github.com/bmartel/jotai-state-tree/compare/v1.16.5...v1.16.6) (2026-06-15)
+
+
+### Bug Fixes
+
+* resolve SSR Server Action write protection error and compiler DTS typings ([879873d](https://github.com/bmartel/jotai-state-tree/commit/879873d8a1545ef460c0e89019cf56898aad9266))
+
 ## [1.16.5](https://github.com/bmartel/jotai-state-tree/compare/v1.16.4...v1.16.5) (2026-06-14)
 
 

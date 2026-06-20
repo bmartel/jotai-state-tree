@@ -25,9 +25,11 @@ pnpm add jotai-state-tree jotai
 
 ---
 
-## Core Concepts
+## Core Architecture
 
-If you are coming from MobX-State-Tree, the concepts are identical. If you are new to state tree models:
+For developers coming from MobX-State-Tree, the structural mechanics and APIs are fully compatible, enabling immediate productivity. Under the hood, `jotai-state-tree` delivers identical state-tree mechanics with significantly better performance, zero memory leaks, and native atomic state benefits.
+
+If you are new to state-tree models, the architecture is based on the following key operational pillars:
 
 1. **The State Tree**: Your application state is organized in a tree of models. Every node in the tree is typed and knows its path from the root.
 2. **Models**: Models are definitions of state nodes. They specify:

@@ -80,7 +80,7 @@ console.log(getSnapshot(store)); // { id: '1', title: 'Learn jotai-state-tree', 
 
 Explore our detailed, exhaustive guides to master `jotai-state-tree`:
 
-1. **[Getting Started](docs/getting-started.md)** - Installation, core architecture concepts, and a complete quickstart application.
+1. **[Getting Started](docs/getting-started.md)** - Installation, core architecture, and a complete quickstart application.
 2. **[Models & State](docs/models-and-state.md)** - Defining models, views, actions, protection rules, volatile states, lifecycle hooks, and snapshot processing.
 3. **[Types & Composition](docs/types-and-composition.md)** - Exhaustive list of primitives, identifiers, collections, union types, recursive structures (`types.late`), references, composition, and mixins.
 4. **[Tree Utilities](docs/tree-utilities.md)** - Serialization (snapshots & patches), hierarchy navigation, traversal (`walk`, `find`), and relative path resolution.

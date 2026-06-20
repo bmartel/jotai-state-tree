@@ -18,9 +18,9 @@ Server-Side Rendering (SSR) presents unique challenges for client-side state man
 
 ---
 
-## Conceptual Architecture
+## Request Lifecycle Architecture
 
-The diagram below shows the lifecycle of a request in a `jotai-state-tree` SSR environment:
+The diagram below maps the precise execution lifecycle of a request inside a `jotai-state-tree` SSR environment:
 
 ```mermaid
 sequenceDiagram

@@ -1,3 +1,10 @@
+# [1.17.0](https://github.com/bmartel/jotai-state-tree/compare/v1.16.8...v1.17.0) (2026-06-20)
+
+
+### Features
+
+* **templates:** split starter project into separate SPA and SSR templates ([080b243](https://github.com/bmartel/jotai-state-tree/commit/080b243f0d9706e10f7345e470f71082613a2636))
+
 ## [1.16.8](https://github.com/bmartel/jotai-state-tree/compare/v1.16.7...v1.16.8) (2026-06-20)
 
 ## [1.16.7](https://github.com/bmartel/jotai-state-tree/compare/v1.16.6...v1.16.7) (2026-06-15)

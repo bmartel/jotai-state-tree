@@ -213,3 +213,51 @@ export const App = observer(() => {
   );
 });
 ```
+
+---
+
+## 8. Feature Scaffolding Recipe (SPA)
+
+When asked to add a new feature to the SPA starter project, follow this exact step-by-step checklist:
+
+1. **Define the Model**: Create or update the model file under `src/models/` using `types.model` and declare its types, views, and actions.
+2. **Register in RootStore**: Open [RootStore.ts](file:///src/models/RootStore.ts) and add the new model as a property of the `RootStore`. Update `createAppStore()` to pass the initial state for the new store property.
+3. **Configure the Route**: Open [router.ts](file:///src/routes/router.ts) and add a new route entry (path, name, and any meta requirements like authentication).
+4. **Create the View Component**: Add a new view component file in `src/routes/` (e.g. `MyFeatureView.tsx`), wrapping it with `observer`. Connect it to state via `useAppStore()`.
+5. **Map pages in App.tsx**: Open [App.tsx](file:///src/App.tsx) and import your view component. Add it to the `pages` map.
+6. **Add to Navigation**: Open [Sidebar.tsx](file:///src/components/Sidebar.tsx) and add a new link to the sidebar using `router.push("/your-route")` to make it accessible to users.
+7. **Write Tests**: Create a unit test file in `src/__tests__/` to verify the state transitions and components.
+
+---
+
+## 9. Performance Best Practices
+
+To ensure maximum performance and avoid rendering bottlenecks:
+* **Fine-Grained Subscriptions**: Prefer creating smaller, focused components wrapped in `observer` rather than one large observer component. Smaller components will re-render in isolation when only their specific models change.
+* **Observe dereferenced values**: Inside an `observer` component, reading a property from a model is what registers that component to re-render when that property changes.
+* **Keep Views Clean**: Views should be pure derivations of state. Avoid side effects, calculations with high algorithmic complexity, or instantiating new objects inside view getters.
+* **Avoid unnecessary array recreation**: Do not call `.map()` or `.filter()` inside React render functions if they can be cached in store `.views()`.
+
+---
+
+## 10. Common Traps & Antipatterns
+
+* ❌ **Direct state mutation inside React components**:
+  ```typescript
+  // WRONG: Will trigger write protection error in development
+  store.tasks.items[0].completed = true;
+  ```
+  ```typescript
+  // CORRECT: Call an action
+  store.tasks.items[0].toggle();
+  ```
+* ❌ **Forgetting the `observer` wrapper**: If you forget to wrap your component in `observer`, it will not re-render when the state tree changes.
+* ❌ **SafeReference dereference crash**: Always check if a safe reference is defined before accessing its nested properties:
+  ```typescript
+  // WRONG: May crash if the lead is deleted (since safeReference becomes undefined)
+  const leadName = project.lead.name;
+  ```
+  ```typescript
+  // CORRECT
+  const leadName = project.lead ? project.lead.name : 'No Lead';
+  ```

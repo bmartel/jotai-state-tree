@@ -4,19 +4,32 @@ description: |
   Instructions and examples for testing jotai-state-tree models, actions, views, patches, and observer components.
 ---
 
-# Testing Guide
+# Testing Guide (Client SPA)
 
 Use this skill when writing unit and integration tests for state models and React components.
 
 ---
 
-## 1. Testing Models
+## 1. Running Tests
 
-Testing `jotai-state-tree` models is straightforward. You instantiate a store instance using `Model.create()`, call actions, and assert the state changes.
+The project is preconfigured with Vitest. Run the following commands to execute tests:
+```bash
+# Run tests once
+npm run test
+
+# Run tests in watch mode
+npm run test:watch
+```
+
+---
+
+## 2. Testing Models
+
+To test models, instantiate a store using `Model.create()`, call actions, and assert state changes or view output.
 
 ```typescript
 import { expect, test, describe } from 'vitest';
-import { TaskStore } from './TaskStore';
+import { TaskStore } from '../models/TaskStore';
 
 describe('TaskStore Model', () => {
   test('adds and toggles tasks', () => {
@@ -37,38 +50,8 @@ describe('TaskStore Model', () => {
     store.items[0].toggle();
     expect(store.items[0].completed).toBe(true);
 
-    // Computed views
+    // Assert computed views
     expect(store.completedCount).toBe(1);
-  });
-});
-```
-
----
-
-## 2. Testing Patches & Undo History
-
-You can test that state history is tracked correctly using undo/redo managers.
-
-```typescript
-import { expect, test, describe } from 'vitest';
-import { createUndoManager } from 'jotai-state-tree';
-import { TaskStore } from './TaskStore';
-
-describe('Undo History', () => {
-  test('can undo and redo task additions', () => {
-    const store = TaskStore.create({ items: [] });
-    const undoManager = createUndoManager(store);
-
-    store.addTask('Laundry');
-    expect(store.items.length).toBe(1);
-
-    // Undo the action
-    undoManager.undo();
-    expect(store.items.length).toBe(0);
-
-    // Redo the action
-    undoManager.redo();
-    expect(store.items.length).toBe(1);
   });
 });
 ```
@@ -77,19 +60,19 @@ describe('Undo History', () => {
 
 ## 3. Testing React Components
 
-When testing React components that connect to the state tree, wrap the rendering context inside the store provider. Ensure that component observers trigger updates correctly.
+When testing React components, wrap them in the store provider and verify they reactively update on store state changes.
 
 ```typescript
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { expect, test, describe } from 'vitest';
-import { observer } from 'jotai-state-tree/react';
+import { observer, createStoreContext } from 'jotai-state-tree/react';
 import { TaskStore } from '../models/TaskStore';
-import { StoreContext } from '../App';
 
-// Simple observer component
+const { Provider, useStore } = createStoreContext<any>();
+
 const TodoList = observer(() => {
-  const store = React.useContext(StoreContext);
+  const store = useStore();
   return (
     <div>
       <h1 data-testid="count">Count: {store.completedCount}</h1>
@@ -103,9 +86,9 @@ describe('TodoList Component', () => {
     const store = TaskStore.create({ items: [] });
 
     render(
-      <StoreContext.Provider value={store}>
+      <Provider store={store}>
         <TodoList />
-      </StoreContext.Provider>
+      </Provider>
     );
 
     expect(screen.getByTestId('count').textContent).toBe('Count: 0');
@@ -114,7 +97,8 @@ describe('TodoList Component', () => {
     fireEvent.click(screen.getByText('Add'));
 
     // Assert that the observer component re-rendered with new state
-    expect(screen.getByTestId('count').textContent).toBe('Count: 0'); // (or 1 depending on completion status)
+    // Note: Since new tasks are active by default, completedCount is still 0
+    expect(screen.getByTestId('count').textContent).toBe('Count: 0');
   });
 });
 ```
@@ -123,22 +107,31 @@ describe('TodoList Component', () => {
 
 ## 4. Testing Routing Guards
 
-Test that navigation guards block routes or redirect to authentication screens appropriately.
+Verify navigation guards block routes or redirect to authentication screens appropriately.
 
 ```typescript
 import { expect, test, describe } from 'vitest';
-import { createAppStore } from './RootStore';
+import { createAppStore } from '../models/RootStore';
+import { configureRouter } from '../routes/router';
 
 describe('Routing Guards', () => {
   test('redirects to login when unauthenticated page is accessed', () => {
-    const { store, router } = createAppStore({ isAuthenticated: false });
+    const store = createAppStore({ isAuthenticated: false });
+    const router = configureRouter(store, '/tasks');
 
-    // Try to navigate to protected settings
-    router.push('/settings');
-
-    // Assert redirect occurred
+    // Assert router automatically redirected to login with redirect param
     expect(router.pathname).toBe('/login');
-    expect(router.query.redirect).toBe(encodeURIComponent('/settings'));
+    expect(router.query.redirect).toBe('/tasks');
   });
 });
 ```
+
+---
+
+## 5. Feature Testing Recipe
+
+When creating a test file for a new feature, follow this checklist:
+1. **Create the test file**: Put the file in `src/__tests__/MyFeature.test.ts` (or `.tsx`).
+2. **Write model unit tests**: Test the new model's initial state, actions, and computed views.
+3. **Write component integration tests**: Render the React component, wrap it in `<Provider store={store}>`, trigger events using `fireEvent`, and assert the UI updates.
+4. **Run and verify**: Run `npm run test` to verify all assertions pass.

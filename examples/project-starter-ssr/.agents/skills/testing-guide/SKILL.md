@@ -4,141 +4,156 @@ description: |
   Instructions and examples for testing jotai-state-tree models, actions, views, patches, and observer components.
 ---
 
-# Testing Guide
+# Testing Guide (Server-Side Rendered SSR)
 
-Use this skill when writing unit and integration tests for state models and React components.
+Use this skill when writing unit and integration tests for state models and React components in the SSR starter.
 
 ---
 
-## 1. Testing Models
+## 1. Running Tests
 
-Testing `jotai-state-tree` models is straightforward. You instantiate a store instance using `Model.create()`, call actions, and assert the state changes.
+The project is preconfigured with Vitest. Run the following commands to execute tests:
+```bash
+# Run tests once
+npm run test
+
+# Run tests in watch mode
+npm run test:watch
+```
+
+---
+
+## 2. Testing Request-Isolated Models
+
+To test model logic without side effects, instantiate a store using `Model.create()` inside test blocks.
 
 ```typescript
 import { expect, test, describe } from 'vitest';
-import { TaskStore } from './TaskStore';
+import { TaskStore } from '../models/TaskStore';
 
-describe('TaskStore Model', () => {
-  test('adds and toggles tasks', () => {
-    const store = TaskStore.create({
-      items: [],
-      filter: 'All',
-    });
-
-    expect(store.items.length).toBe(0);
-
-    // Call actions
-    store.addTask('Buy groceries');
+describe('TaskStore Model (SSR)', () => {
+  test('adds and deletes tasks locally', () => {
+    const store = TaskStore.create();
+    
+    store.addTask('Local SSR Task', 'QA');
     expect(store.items.length).toBe(1);
-    expect(store.items[0].text).toBe('Buy groceries');
-    expect(store.items[0].completed).toBe(false);
+    expect(store.items[0].text).toBe('Local SSR Task');
+    expect(store.items[0].category).toBe('QA');
 
-    // Toggle completion
-    store.items[0].toggle();
-    expect(store.items[0].completed).toBe(true);
-
-    // Computed views
-    expect(store.completedCount).toBe(1);
+    store.deleteTask(store.items[0].id);
+    expect(store.items.length).toBe(0);
   });
 });
 ```
 
 ---
 
-## 2. Testing Patches & Undo History
+## 3. Testing Server Actions & Hydration
 
-You can test that state history is tracked correctly using undo/redo managers.
-
-```typescript
-import { expect, test, describe } from 'vitest';
-import { createUndoManager } from 'jotai-state-tree';
-import { TaskStore } from './TaskStore';
-
-describe('Undo History', () => {
-  test('can undo and redo task additions', () => {
-    const store = TaskStore.create({ items: [] });
-    const undoManager = createUndoManager(store);
-
-    store.addTask('Laundry');
-    expect(store.items.length).toBe(1);
-
-    // Undo the action
-    undoManager.undo();
-    expect(store.items.length).toBe(0);
-
-    // Redo the action
-    undoManager.redo();
-    expect(store.items.length).toBe(1);
-  });
-});
-```
-
----
-
-## 3. Testing React Components
-
-When testing React components that connect to the state tree, wrap the rendering context inside the store provider. Ensure that component observers trigger updates correctly.
+When testing components that call `createServerAction`, you must mock the global `fetch` handler to simulate server responses (including JSON Patches representing mutations).
 
 ```typescript
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { expect, test, describe } from 'vitest';
-import { observer } from 'jotai-state-tree/react';
-import { TaskStore } from '../models/TaskStore';
-import { StoreContext } from '../App';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { expect, test, vi, describe, beforeEach } from 'vitest';
+import { createStoreContext } from 'jotai-state-tree/react';
+import { createAppStore } from '../models/RootStore';
+import { useStore } from '../App'; // or context useStore
+import { addTaskAction } from '../App';
 
-// Simple observer component
-const TodoList = observer(() => {
-  const store = React.useContext(StoreContext);
-  return (
-    <div>
-      <h1 data-testid="count">Count: {store.completedCount}</h1>
-      <button onClick={() => store.addTask('New Todo')}>Add</button>
-    </div>
-  );
-});
+const { Provider } = createStoreContext<any>();
 
-describe('TodoList Component', () => {
-  test('updates UI when store changes', () => {
-    const store = TaskStore.create({ items: [] });
+// Mock component triggering Server Action
+const AddTaskComponent = () => {
+  const store = useStore();
+  const handleAdd = async () => {
+    // Calling the server action
+    await addTaskAction(store, { title: 'Fetch Milk', category: 'Dev' });
+  };
+  return <button onClick={handleAdd}>Add Task via Server</button>;
+};
+
+describe('Server Actions Integration', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  test('calls remote Server Action and applies returned JSON patches', async () => {
+    const store = createAppStore();
+    
+    // Simulate server returning action result and mutations (patches)
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        result: { success: true },
+        patches: [
+          {
+            op: 'add',
+            path: '/tasks/items/0',
+            value: { id: 'srv-1', text: 'Fetch Milk', completed: false, category: 'Dev', createdAt: new Date().toISOString() }
+          }
+        ]
+      })
+    } as any);
 
     render(
-      <StoreContext.Provider value={store}>
-        <TodoList />
-      </StoreContext.Provider>
+      <Provider store={store}>
+        <AddTaskComponent />
+      </Provider>
     );
 
-    expect(screen.getByTestId('count').textContent).toBe('Count: 0');
+    const button = screen.getByText('Add Task via Server');
+    fireEvent.click(button);
 
-    // Click button to add todo
-    fireEvent.click(screen.getByText('Add'));
+    // Verify fetch endpoint called with snapshot and action name
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith('/api/_jst_action', expect.any(Object));
+    });
 
-    // Assert that the observer component re-rendered with new state
-    expect(screen.getByTestId('count').textContent).toBe('Count: 0'); // (or 1 depending on completion status)
+    // Verify that the server action applied returned patches to client store
+    expect(store.tasks.items.length).toBe(6); // 5 initial mock tasks + 1 new task
+    expect(store.tasks.items[5].id).toBe('srv-1');
+    expect(store.tasks.items[5].text).toBe('Fetch Milk');
   });
 });
 ```
 
 ---
 
-## 4. Testing Routing Guards
+## 4. Testing Hydration Flow
 
-Test that navigation guards block routes or redirect to authentication screens appropriately.
-
+Verify that the store hydrates correctly from window snapshots on startup:
 ```typescript
 import { expect, test, describe } from 'vitest';
-import { createAppStore } from './RootStore';
+import { applySnapshot } from 'jotai-state-tree';
+import { createAppStore } from '../models/RootStore';
 
-describe('Routing Guards', () => {
-  test('redirects to login when unauthenticated page is accessed', () => {
-    const { store, router } = createAppStore({ isAuthenticated: false });
+describe('SSR Hydration Flow', () => {
+  test('hydrates client store state from snapshot', () => {
+    const store = createAppStore();
+    const serverSnapshot = {
+      theme: 'dark',
+      persistenceEnabled: false,
+      auth: { isAuthenticated: true, currentUser: { id: 'u1', name: 'Alice' } },
+      tasks: { items: [], filter: 'All', searchQuery: '', categoryFilter: 'All' }
+    };
 
-    // Try to navigate to protected settings
-    router.push('/settings');
+    applySnapshot(store, serverSnapshot);
 
-    // Assert redirect occurred
-    expect(router.pathname).toBe('/login');
-    expect(router.query.redirect).toBe(encodeURIComponent('/settings'));
+    expect(store.theme).toBe('dark');
+    expect(store.auth.isAuthenticated).toBe(true);
+    expect(store.tasks.items.length).toBe(0);
   });
 });
 ```
+
+---
+
+## 5. SSR Feature Testing Recipe
+
+When creating a test file for a new SSR feature, follow this checklist:
+1. **Create the test file**: Put the file in `src/__tests__/MyFeature.test.tsx`.
+2. **Write model unit tests**: Assert local store properties, actions, and views.
+3. **Mock fetch**: Stub global `fetch` to return success results and patches.
+4. **Render component & fire action**: Wrap with `<Provider store={store}>`, trigger the action, await completion, and assert that client state tree reflects patches returned by the server.
+5. **Run tests**: Run `npm run test`.

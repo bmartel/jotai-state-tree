@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -20,6 +21,9 @@ export default defineConfig({
     dedupe: ['react', 'react-dom'],
     alias: {
       ...(isLocal ? {
+        'react': path.resolve(__dirname, './node_modules/react'),
+        'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
+        'jotai': path.resolve(__dirname, './node_modules/jotai'),
         'jotai-state-tree/react': path.resolve(__dirname, '../../src/react.ts'),
         'jotai-state-tree/devtools': path.resolve(__dirname, '../../src/devtools.tsx'),
         'jotai-state-tree/ssr': path.resolve(__dirname, '../../src/ssr.ts'),
@@ -29,5 +33,10 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    include: ['src/__tests__/**/*.{test,spec}.{ts,tsx}'],
   },
 });

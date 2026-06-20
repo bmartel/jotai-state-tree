@@ -1,43 +1,56 @@
-# Agentic Instructions: Developer Co-Pilot Guide
+# Agentic Instructions: Developer Co-Pilot Guide (Client SPA)
 
-Welcome! This document outlines guidelines and project architectures for AI coding assistants working on this repository.
+Welcome! This document outlines strict architectural guidelines, design systems, and coding conventions for AI assistants working on this client-side Single Page Application (SPA) codebase.
 
 ---
 
 ## 🎯 Tech Stack Overview
-* **Front-end**: React 18, TypeScript, Vite.
-* **Styling**: Tailwind CSS (class-based dark mode, custom Inter/Outfit font pairings, glassmorphism overlays).
-* **State Management**: `jotai-state-tree` (API compatible with MobX-State-Tree).
-* **Routing**: Built-in `createRouter` and `RouteView` from `jotai-state-tree/react`.
+* **UI & Rendering**: React 19, TypeScript, Vite.
+* **Styling**: Tailwind CSS v4 (native theme colors, Outfit/Inter fonts, custom scrollbars, and glassmorphism).
+* **State Management**: `jotai-state-tree` (API compatible with MobX-State-Tree, powered by Jotai).
+* **Client Routing**: Built-in `createRouter`, `RouterProvider`, and `RouteView` from `jotai-state-tree/react`.
+* **Testing Framework**: Vitest & React Testing Library (configured for jsdom).
 
 ---
 
 ## 📂 Key Folders
-* `/src/components`: UI elements (pure presentational, or connected via `useAppStore`).
-* `/src/models`: State models (AuthStore, TaskStore, RootStore). Define types, views, actions, and references.
-* `/src/routes`: Route definitions and views mapping path matching to page elements.
-* `/.agents/skills`: Local agent skills for codebase expansion.
+* `/.agents/skills`: Local agentic skills (guide references).
+* `/src/components`: Reusable presentational or connected components.
+* `/src/models`: State models (AuthStore, TaskStore, RootStore). Definitive definitions of actions, views, and schemas.
+* `/src/routes`: View components and page controllers corresponding to path names.
+* `/src/__tests__`: Automated test files for stores, routing, and React rendering.
 
 ---
 
-## 🛠️ Code Conventions
+## 🛠️ Code Conventions & Guardrails
 
 ### 1. State Mutation Rule
-* **DO NOT** mutate store properties directly from React components. All state modifications must be performed by defining an action in the model's `.actions()` block.
-* React components must be wrapped in `observer` from `jotai-state-tree/react` to react to state tree changes.
+> [!IMPORTANT]
+> **DO NOT** mutate store properties directly inside React components or hooks.
+> All modifications to state tree properties (e.g., toggles, pushes, updates) **MUST** be performed by invoking a dedicated action defined inside the model's `.actions()` block.
 
-### 2. Styling System
-* Use standard Tailwind CSS utility classes.
-* For complex card grids or glassmorphism, refer to CSS variables declared in `src/index.css`.
-* Implement responsive designs (mobile-first `sm:`, `md:`, `lg:`, `xl:` prefixes).
+### 2. React Reactivity (`observer`)
+* Every React component that reads/observes properties or computed views from a `jotai-state-tree` model **MUST** be wrapped in `observer` from `jotai-state-tree/react`.
+* Failure to do so will result in static UI rendering that does not react to underlying state changes.
 
-### 3. Type-Safety
-* Always declare TypeScript Interfaces using `Instance<typeof ModelName>` for store instances.
-* Keep models strictly typed; use `types.optional` and `types.maybeNull` where appropriate.
+### 3. Client Routing Integration
+* Navigation transitions should use the `useRouter()` hook's `.push(path)` or `.replace(path)` methods.
+* Route views are rendered reactively by mapping route names to components via `<RouteView pages={pages} />`.
+* Route authorization/guards are defined centrally in `src/routes/router.ts` inside the `beforeNavigate` callback.
+
+### 4. Type Safety
+* Always export the type definition for model instances:
+  ```typescript
+  export type IMyModel = Instance<typeof MyModel>;
+  ```
+* Leverage strict TypeScript annotations on all model properties. Use `types.optional` and `types.maybeNull` to prevent null-pointer exceptions.
+
+### 5. Styling System
+* Adhere strictly to the preconfigured Tailwind styling. Use CSS variables defined in `src/index.css` for custom transitions, gradients, and backdrop-filters.
 
 ---
 
 ## 🧠 Local Agent Skills
-Refer to the following skills before making edits:
-1. **[Jotai State Tree Guide](file:///.agents/skills/jotai-state-tree-guide/SKILL.md)**: Syntax reference for models, views, actions, references, persistence, and routing.
-2. **[Testing Guide](file:///.agents/skills/testing-guide/SKILL.md)**: Instructions and examples for writing unit/integration tests.
+Always read these instruction files before generating new features or tests:
+1. **[Jotai State Tree Guide](file:///.agents/skills/jotai-state-tree-guide/SKILL.md)**: Model, view, action, reference, persistence, and routing API definitions.
+2. **[Testing Guide](file:///.agents/skills/testing-guide/SKILL.md)**: Detailed recipes for writing unit and component tests.

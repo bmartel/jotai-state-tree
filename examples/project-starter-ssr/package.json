@@ -8,7 +8,9 @@
     "build:client": "vite build --outDir dist/client",
     "build:server": "vite build --ssr src/entry-server.tsx --outDir dist/server",
     "build": "npm run build:client && npm run build:server",
-    "preview": "node server.js --prod"
+    "preview": "node server.js --prod",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "jotai": "^2.11.0",
@@ -18,12 +20,17 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.2.0",
     "@types/node": "^22.15.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.0.2",
+    "jsdom": "^26.0.0",
     "tailwindcss": "^4.0.0",
     "typescript": "^6.0.3",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "vitest": "^3.0.5"
   }
 }

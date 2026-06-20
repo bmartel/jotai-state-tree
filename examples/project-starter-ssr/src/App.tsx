@@ -24,7 +24,7 @@ import { TasksView } from './routes/TasksView';
 import { SettingsView } from './routes/SettingsView';
 import { LoginView } from './routes/LoginView';
 
-const { Provider, useStore } = createStoreContext<IRootStore>();
+export const { Provider: StoreProvider, useStore } = createStoreContext<IRootStore>();
 
 // Export useAppStore so other files don't break
 export function useAppStore() {
@@ -122,9 +122,9 @@ const AppContent = observer(function AppContent() {
 
 export const App = observer(function App({ store, url }: { store?: IRootStore; url?: string }) {
   return (
-    <Provider store={store} createStore={store ? undefined : () => createAppStore()}>
+    <StoreProvider store={store} createStore={store ? undefined : () => createAppStore()}>
       <AppWithRouter url={url} />
-    </Provider>
+    </StoreProvider>
   );
 });
 

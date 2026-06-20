@@ -49,6 +49,7 @@
     "example:router": "npm --prefix examples/multipage-router run dev",
     "example:persistence": "npm --prefix examples/offline-sync-persistence run dev",
     "example:starter": "npm --prefix examples/project-starter run dev",
+    "example:starter-ssr": "npm --prefix examples/project-starter-ssr run dev",
     "examples:install": "for dir in examples/*; do [ -d \"$dir\" ] && npm install --prefix \"$dir\"; done"
   },
   "keywords": [

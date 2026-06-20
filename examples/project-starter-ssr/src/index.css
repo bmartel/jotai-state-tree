@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Inter', sans-serif;
+  --font-display: 'Outfit', sans-serif;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    font-weight: 600;
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(226, 232, 240);
+  border-radius: 9999px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgb(39, 39, 42);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(203, 213, 225);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgb(63, 63, 70);
+}
+
+/* Custom Utilities */
+.glass-panel {
+  @apply backdrop-blur-md bg-white/70 border border-slate-200/50 dark:bg-zinc-900/70 dark:border-zinc-800/50;
+}
+
+.text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500;
+}
+
+.glow-card {
+  position: relative;
+}
+.glow-card::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  background: linear-gradient(to right, rgb(99, 102, 241), rgb(168, 85, 247));
+  border-radius: inherit;
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.glow-card:hover::after {
+  opacity: 0.15;
+}
+.dark .glow-card:hover::after {
+  opacity: 0.3;
+}

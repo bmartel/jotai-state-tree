@@ -1,13 +1,15 @@
 # Examples & Templates
 
-`jotai-state-tree` comes with a comprehensive, production-ready **Project Starter Template** (pre-configured with routing, Tailwind CSS, local storage persistence, and developer tools) along with 8 specialized, type-safe, and minimalist examples to jump-start your application development.
+`jotai-state-tree` comes with two comprehensive, production-ready **Project Starter Templates** (one for client-side SPA, and one for Server-Side Rendering (SSR)) along with 8 specialized, type-safe, and minimalist examples to jump-start your application development.
 
 ---
 
 ## Scaffolding a New Project from the Starter (Recommended)
 
-You can instantly scaffold a new Vite application from our starter template using `degit`. It downloads a copy of the template folder without its git history, instantly preparing a clean project.
+You can instantly scaffold a new Vite application from either of our starter templates using `degit`. It downloads a copy of the template folder without its git history, instantly preparing a clean project.
 
+### Option A: Pure Client SPA Starter (Default)
+Recommended for standard React Single Page Applications:
 ```bash
 # 1. Scaffold a project from the Project Starter template
 npx degit bmartel/jotai-state-tree/examples/project-starter my-new-app
@@ -17,6 +19,25 @@ cd my-new-app
 
 # 3. Update the package.json dependency (see note below)
 # Change "jotai-state-tree": "file:../.." to "jotai-state-tree": "^1.16.8"
+
+# 4. Install dependencies
+npm install
+
+# 5. Start the development server
+npm run dev
+```
+
+### Option B: Server-Side Rendering (SSR) Starter
+Recommended for SSR apps requiring hydration and remote server actions:
+```bash
+# 1. Scaffold a project from the SSR Project Starter template
+npx degit bmartel/jotai-state-tree/examples/project-starter-ssr my-new-app-ssr
+
+# 2. Enter the project folder
+cd my-new-app-ssr
+
+# 3. Update the package.json dependency (see note below)
+# Change "jotai-state-tree": "file:../.." to "jotai-state-tree": "^1.16.7"
 
 # 4. Install dependencies
 npm install
@@ -46,7 +67,8 @@ If you prefer not to use `npx degit`, you can clone the main repository and copy
 git clone https://github.com/bmartel/jotai-state-tree.git
 
 # 2. Copy the desired template folder
-cp -r jotai-state-tree/examples/shopping-cart-views my-new-app
+cp -r jotai-state-tree/examples/project-starter my-new-app
+# Or for SSR: cp -r jotai-state-tree/examples/project-starter-ssr my-new-app
 
 # 3. Open my-new-app/package.json and update "jotai-state-tree" to "^1.16.8"
 # 4. Run: cd my-new-app && npm install && npm run dev
@@ -56,10 +78,15 @@ cp -r jotai-state-tree/examples/shopping-cart-views my-new-app
 
 ## Template Directory Index
 
-### ⭐️ Recommended Project Starter (`./examples/project-starter`) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/bmartel/jotai-state-tree/tree/main/examples/project-starter?file=src/App.tsx)
-- **Key APIs**: Full `jotai-state-tree` lifecycle (`types.model`, `volatile`, `views`, `actions`), routing (`createRouter`, `RouteView`), persistence (`onSnapshot`, `applySnapshot`), history (`createUndoManager`), and JSON Patches (`onPatch`).
-- **Focus**: Production-ready skeleton for starting any new application with premium tooling and styling.
-- **Features**: Class-based dark mode, preconfigured Tailwind CSS v3, Outfit and Inter Google font pairings, full-featured workspace routing, state persistence in localStorage, dynamic notifications (Toast system), and a premium sliding DevTools inspector panel showcasing live snapshots, patch feeds, undo/redo buffers, and error validation blocks. Includes pre-configured agent assistant guides (`AGENTS.md` and `.agents/skills`).
+### ⭐️ Project Starter (Client SPA) (`./examples/project-starter`) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/bmartel/jotai-state-tree/tree/main/examples/project-starter?file=src/App.tsx)
+- **Key APIs**: `types.model`, `createRouter`, `RouteView`, `onSnapshot`, `applySnapshot`, `createUndoManager`, `onPatch`.
+- **Focus**: Production-ready client-side SPA skeleton with premium tooling and styling.
+- **Features**: Class-based dark mode, preconfigured Tailwind CSS v3, Outfit and Inter Google font pairings, client-side routing, state persistence in localStorage, dynamic notifications (Toast system), and a premium sliding DevTools inspector panel. Includes pre-configured agent assistant guides (`AGENTS.md` and `.agents/skills`).
+
+### ⭐️ Project Starter (SSR & Server Actions) (`./examples/project-starter-ssr`) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/bmartel/jotai-state-tree/tree/main/examples/project-starter-ssr?file=src/App.tsx)
+- **Key APIs**: Full `jotai-state-tree` lifecycle with `useAutoHydrate` and `createServerAction`.
+- **Focus**: Production-ready server-side rendered (SSR) setup with Express and client hydration.
+- **Features**: Same visual layout as the SPA starter, but runs on an Express SSR dev/production server, performs React hydration, and implements remote Server Actions with patch-sync to execute state mutations on the server. Includes pre-configured agent assistant guides (`AGENTS.md` and `.agents/skills`).
 
 ---
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { observer } from 'jotai-state-tree/react';
-import { useAppStore } from '../App';
+import { useAppStore, addTaskAction, toggleTaskAction, deleteTaskAction } from '../App';
 import { useToast } from '../components/Toast';
 
 export const TasksView = observer(function TasksView() {
@@ -12,26 +12,27 @@ export const TasksView = observer(function TasksView() {
   const tasksList = store.tasks.filteredTasks;
   const categoriesList = store.tasks.categories;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!taskText.trim()) return;
 
-    store.tasks.addTask(taskText, taskCategory);
-    showToast(`Added task: "${taskText.substring(0, 15)}..."`);
+    const currentText = taskText;
     setTaskText('');
+    await addTaskAction(store, { title: currentText, category: taskCategory });
+    showToast(`Added task (via SSR Action): "${currentText.substring(0, 15)}..."`);
   };
 
-  const handleToggle = (id: string, text: string) => {
+  const handleToggle = async (id: string, text: string) => {
     const task = store.tasks.items.find((t) => t.id === id);
     if (task) {
-      task.toggle();
-      showToast(task.completed ? 'Task completed!' : 'Task active again!');
+      await toggleTaskAction(store, { id });
+      showToast(task.completed ? 'Task completed (SSR Action)!' : 'Task active again (SSR Action)!');
     }
   };
 
-  const handleDelete = (id: string, text: string) => {
-    store.tasks.deleteTask(id);
-    showToast(`Deleted task: "${text.substring(0, 15)}..."`, 'info');
+  const handleDelete = async (id: string, text: string) => {
+    await deleteTaskAction(store, { id });
+    showToast(`Deleted task (via SSR Action): "${text.substring(0, 15)}..."`, 'info');
   };
 
   const getCategoryColor = (cat: string) => {

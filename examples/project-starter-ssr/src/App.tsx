@@ -5,12 +5,18 @@ import {
   onSnapshot,
   applySnapshot,
 } from 'jotai-state-tree';
+import { useAutoHydrate, createServerAction } from 'jotai-state-tree/react';
 import { JotaiStateTreeDevtools } from 'jotai-state-tree/devtools';
 import { createAppStore, IRootStore } from './models/RootStore';
 import { configureRouter } from './routes/router';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { ToastProvider } from './components/Toast';
+
+// Define client-callable remote server actions (synced with server.js)
+export const toggleTaskAction = createServerAction<{ id: string }, { success: boolean }>('toggleTask');
+export const addTaskAction = createServerAction<{ title: string, category: string }, { success: boolean }>('addTask');
+export const deleteTaskAction = createServerAction<{ id: string }, { success: boolean }>('deleteTask');
 
 // Views
 import { DashboardView } from './routes/DashboardView';
@@ -114,19 +120,22 @@ const AppContent = observer(function AppContent() {
   );
 });
 
-export const App = observer(function App() {
+export const App = observer(function App({ store, url }: { store?: IRootStore; url?: string }) {
   return (
-    <Provider createStore={() => createAppStore()}>
-      <AppWithRouter />
+    <Provider store={store} createStore={store ? undefined : () => createAppStore()}>
+      <AppWithRouter url={url} />
     </Provider>
   );
 });
 
-const AppWithRouter = observer(function AppWithRouter() {
+const AppWithRouter = observer(function AppWithRouter({ url }: { url?: string }) {
   const store = useAppStore();
+  
+  // Hydrate store on the client using the injected __JST_DATA__ snapshot
+  useAutoHydrate(store);
 
   return (
-    <RouterProvider createRouter={() => configureRouter(store)}>
+    <RouterProvider createRouter={() => configureRouter(store, url)}>
       <AppContent />
     </RouterProvider>
   );

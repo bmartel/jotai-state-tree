@@ -4,6 +4,9 @@ Server-Side Rendering (SSR) presents unique challenges for client-side state man
 
 `jotai-state-tree` features a built-in, first-class SSR engine designed to address these problems. It guarantees complete request isolation via Node.js `AsyncLocalStorage`, facilitates zero-flicker client-side hydration, and integrates an RPC-based Server Actions engine with automatic state patch synchronization.
 
+> [!TIP]
+> **Instant Scaffold**: You can instantly scaffold a fully functional, production-ready SSR project pre-configured with routing, dark mode, dynamic devtools, and Server Actions by following the **[SSR Project Starter Guide](examples-and-templates.md#option-b-server-side-rendering-ssr-starter)**.
+
 ---
 
 ## Key Challenges & JST Solutions

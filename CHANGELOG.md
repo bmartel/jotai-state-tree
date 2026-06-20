@@ -1,3 +1,10 @@
+# [1.18.0](https://github.com/bmartel/jotai-state-tree/compare/v1.17.0...v1.18.0) (2026-06-20)
+
+
+### Features
+
+* **starters:** align and harden agentic skills and add vitest suites ([1d640e3](https://github.com/bmartel/jotai-state-tree/commit/1d640e3d7f03c78eca7ddbd844d52506cd6c2ee9))
+
 # [1.17.0](https://github.com/bmartel/jotai-state-tree/compare/v1.16.8...v1.17.0) (2026-06-20)
 
 

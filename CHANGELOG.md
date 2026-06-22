@@ -1,3 +1,10 @@
+## [1.18.2](https://github.com/bmartel/jotai-state-tree/compare/v1.18.1...v1.18.2) (2026-06-22)
+
+
+### Bug Fixes
+
+* safeguard dead node get trap for React DevTools and dev diffing ([0a8ce5b](https://github.com/bmartel/jotai-state-tree/commit/0a8ce5bf7ac63c866c033094ac67327253a91e4e))
+
 ## [1.18.1](https://github.com/bmartel/jotai-state-tree/compare/v1.18.0...v1.18.1) (2026-06-22)
 
 

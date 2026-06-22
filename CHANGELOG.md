@@ -1,3 +1,11 @@
+## [1.18.1](https://github.com/bmartel/jotai-state-tree/compare/v1.18.0...v1.18.1) (2026-06-22)
+
+
+### Bug Fixes
+
+* return undefined on dead node get trap to prevent React 19 / DevTools crashes ([7e0a1c4](https://github.com/bmartel/jotai-state-tree/commit/7e0a1c42aa9644ce2eca0cf5406ba2f01aa82836))
+* safeguard ownKeys and getOwnPropertyDescriptor traps on dead nodes to resolve React 19/DevTools crashes ([ea263f4](https://github.com/bmartel/jotai-state-tree/commit/ea263f4bc71f6b4653ea12fc102c26c91f90c913))
+
 # [1.18.0](https://github.com/bmartel/jotai-state-tree/compare/v1.17.0...v1.18.0) (2026-06-20)
 
 

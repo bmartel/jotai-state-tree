@@ -327,6 +327,15 @@ class ModelType<
           if (prop === "then" || prop === "toJSON" || typeof prop === "symbol" || prop === "$$typeof" || prop === "constructor") {
             return undefined;
           }
+          const stack = new Error().stack || "";
+          if (
+            stack.includes("addObjectDiffToProperties") ||
+            stack.includes("logComponentRender") ||
+            stack.includes("react-devtools") ||
+            stack.includes("react-dom-client")
+          ) {
+            return undefined;
+          }
           throw new Error(`[jotai-state-tree] Cannot access '${String(prop)}' - the node is dead.`);
         }
 

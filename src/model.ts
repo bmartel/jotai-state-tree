@@ -324,7 +324,10 @@ class ModelType<
         }
 
         if (!node.$isAlive) {
-          return undefined;
+          if (prop === "then" || prop === "toJSON" || typeof prop === "symbol" || prop === "$$typeof" || prop === "constructor") {
+            return undefined;
+          }
+          throw new Error(`[jotai-state-tree] Cannot access '${String(prop)}' - the node is dead.`);
         }
 
         const propStr = String(prop);
@@ -512,6 +515,9 @@ class ModelType<
       },
 
       ownKeys() {
+        if (!node.$isAlive) {
+          return [];
+        }
         return [
           ...propertyAtoms.keys(),
           ...Object.keys(allViews),
@@ -521,6 +527,9 @@ class ModelType<
       },
 
       getOwnPropertyDescriptor(target, prop) {
+        if (!node.$isAlive) {
+          return undefined;
+        }
         const propStr = String(prop);
         if (
           propertyAtoms.has(propStr) ||

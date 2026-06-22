@@ -324,10 +324,7 @@ class ModelType<
         }
 
         if (!node.$isAlive) {
-          if (prop === "then" || prop === "toJSON" || typeof prop === "symbol") {
-            return undefined;
-          }
-          throw new Error(`[jotai-state-tree] Cannot access '${String(prop)}' - the node is dead.`);
+          return undefined;
         }
 
         const propStr = String(prop);

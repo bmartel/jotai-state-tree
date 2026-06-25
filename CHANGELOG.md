@@ -1,3 +1,10 @@
+# [1.19.0](https://github.com/bmartel/jotai-state-tree/compare/v1.18.2...v1.19.0) (2026-06-25)
+
+
+### Features
+
+* add native basePath support and duplicate transition prevention to router ([142ded1](https://github.com/bmartel/jotai-state-tree/commit/142ded13b3c8b769291b0c1df31403cb381a5966))
+
 ## [1.18.2](https://github.com/bmartel/jotai-state-tree/compare/v1.18.1...v1.18.2) (2026-06-22)
 
 

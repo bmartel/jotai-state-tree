@@ -57,7 +57,7 @@ export function normalizePathname(path: string): string {
   return normalized;
 }
 
-export function parseUrl(url: string) {
+export function parseUrl(url: string, basePath = "") {
   let pathname = url;
   let search = "";
   let hash = "";
@@ -84,6 +84,10 @@ export function parseUrl(url: string) {
       search = pathname.slice(queryIndex);
       pathname = pathname.slice(0, queryIndex);
     }
+  }
+
+  if (basePath && pathname.startsWith(basePath)) {
+    pathname = pathname.slice(basePath.length) || "/";
   }
 
   // Parse query params
@@ -173,6 +177,7 @@ export const RouterModel = model("RouterModel", {
   query: optional(frozen<Record<string, string>>(), {}),
   currentRouteName: optional(maybeNull(string), null),
   routes: array(RouteDefinition),
+  basePath: optional(string, ""),
 })
 .views((self) => ({
   get currentRoute() {
@@ -213,12 +218,12 @@ export const RouterModel = model("RouterModel", {
     },
 
     syncLocation(pathname: string, search: string, hash: string, action: "PUSH" | "REPLACE" | "POP" | "INITIAL", state?: any) {
-      self.pathname = pathname;
-      self.search = search;
-      self.hash = hash;
+      const parsed = parseUrl(pathname + search + hash, self.basePath);
+      self.pathname = parsed.pathname;
+      self.search = parsed.search;
+      self.hash = parsed.hash;
       self.action = action;
       
-      const parsed = parseUrl(pathname + search + hash);
       const matched = matchRoutes(self.routes, parsed.pathname);
       
       self.params = matched ? matched.params : {};
@@ -226,14 +231,18 @@ export const RouterModel = model("RouterModel", {
       self.currentRouteName = matched ? matched.route.name : null;
       
       if (isBrowser) {
-        const fullPath = pathname + search + hash;
+        let browserPath = parsed.pathname;
+        if (self.basePath && !browserPath.startsWith(self.basePath)) {
+          browserPath = self.basePath + (browserPath.startsWith("/") ? "" : "/") + browserPath;
+        }
+        const fullPath = browserPath + parsed.search + parsed.hash;
         if (action === "PUSH") {
           window.history.pushState(state, "", fullPath);
         } else if (action === "REPLACE") {
           window.history.replaceState(state, "", fullPath);
         }
       } else {
-        const fullPath = pathname + search + hash;
+        const fullPath = parsed.pathname + parsed.search + parsed.hash;
         if (action === "PUSH") {
           self._historyStack = self._historyStack.slice(0, self._historyIndex + 1);
           self._historyStack.push(fullPath);
@@ -253,7 +262,10 @@ export const RouterModel = model("RouterModel", {
     },
 
     push: flow(function* (path: string, state?: any) {
-      const parsed = parseUrl(path);
+      const parsed = parseUrl(path, self.basePath);
+      if (parsed.pathname === self.pathname && parsed.search === self.search && parsed.hash === self.hash) {
+        return;
+      }
       const matched = matchRoutes(self.routes, parsed.pathname);
       
       const from = {
@@ -294,7 +306,10 @@ export const RouterModel = model("RouterModel", {
     }),
 
     replace: flow(function* (path: string, state?: any) {
-      const parsed = parseUrl(path);
+      const parsed = parseUrl(path, self.basePath);
+      if (parsed.pathname === self.pathname && parsed.search === self.search && parsed.hash === self.hash) {
+        return;
+      }
       const matched = matchRoutes(self.routes, parsed.pathname);
       
       const from = {
@@ -364,7 +379,7 @@ export const RouterModel = model("RouterModel", {
     },
 
     _handlePopState(event: PopStateEvent) {
-      const parsed = parseUrl(window.location.pathname + window.location.search + window.location.hash);
+      const parsed = parseUrl(window.location.pathname + window.location.search + window.location.hash, self.basePath);
       const matched = matchRoutes(self.routes, parsed.pathname);
       
       const from = {
@@ -456,23 +471,27 @@ export const RouterModel = model("RouterModel", {
 
 export function createRouter(config: {
   routes: Array<{ path: string; name: string; meta?: any }>;
+  basePath?: string;
   initialUrl?: string;
   beforeNavigate?: (from: any, to: any) => boolean | string | Promise<boolean | string> | undefined;
   afterNavigate?: (to: any) => void;
+  runInitialGuards?: boolean;
 }) {
   let initialPathname = "/";
   let initialSearch = "";
   let initialHash = "";
+  const basePath = config.basePath || "";
   
   if (config.initialUrl) {
-    const parsed = parseUrl(config.initialUrl);
+    const parsed = parseUrl(config.initialUrl, basePath);
     initialPathname = parsed.pathname;
     initialSearch = parsed.search;
     initialHash = parsed.hash;
   } else if (isBrowser) {
-    initialPathname = window.location.pathname;
-    initialSearch = window.location.search;
-    initialHash = window.location.hash;
+    const parsed = parseUrl(window.location.pathname + window.location.search + window.location.hash, basePath);
+    initialPathname = parsed.pathname;
+    initialSearch = parsed.search;
+    initialHash = parsed.hash;
   }
 
   const router = RouterModel.create({
@@ -486,10 +505,52 @@ export function createRouter(config: {
       name: r.name,
       meta: r.meta || {},
     })),
+    basePath,
   });
 
   router.setGuards(config.beforeNavigate, config.afterNavigate);
   router.syncLocation(initialPathname, initialSearch, initialHash, "INITIAL");
+
+  // Run transition guards on initial mount if opted in
+  if (config.runInitialGuards && (config.beforeNavigate || config.afterNavigate)) {
+    Promise.resolve().then(() => {
+      const from = null;
+      const to = {
+        pathname: router.pathname,
+        search: router.search,
+        hash: router.hash,
+        params: router.params,
+        query: router.query,
+        currentRouteName: router.currentRouteName,
+        state: null,
+      };
+
+      if (config.beforeNavigate) {
+        const res = config.beforeNavigate(from, to);
+        if (res instanceof Promise) {
+          res.then((val) => {
+            if (val === false) {
+              // Revert or do nothing
+            } else if (typeof val === "string") {
+              router.replace(val);
+            } else {
+              if (config.afterNavigate) config.afterNavigate(to);
+            }
+          }).catch(() => {});
+        } else {
+          if (res === false) {
+            // Revert or do nothing
+          } else if (typeof res === "string") {
+            router.replace(res);
+          } else {
+            if (config.afterNavigate) config.afterNavigate(to);
+          }
+        }
+      } else {
+        if (config.afterNavigate) config.afterNavigate(to);
+      }
+    });
+  }
 
   return router;
 }

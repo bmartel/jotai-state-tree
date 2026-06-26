@@ -422,37 +422,40 @@ export class StateTreeNode implements IStateTreeNode {
 
     this.structureVersionAtom = atom(0);
 
+    const selfRef = new WeakRef(this);
     this.snapshotAtom = atom((get) => {
-      const value = get(this.valueAtom);
+      const self = selfRef.deref();
+      if (!self) return undefined;
+      const value = get(self.valueAtom);
 
-      if (this.$type._kind === "model") {
+      if (self.$type._kind === "model") {
         const res: Record<string, unknown> = {};
-        for (const [key, childNode] of this.children.entries()) {
+        for (const [key, childNode] of self.children.entries()) {
           res[key] = get(childNode.snapshotAtom);
         }
         if (value && typeof value === "object") {
           for (const key of Object.keys(value)) {
-            if (!this.children.has(key)) {
+            if (!self.children.has(key)) {
               res[key] = (value as Record<string, unknown>)[key];
             }
           }
         }
-        return this.postProcessor ? this.postProcessor(res) : res;
+        return self.postProcessor ? self.postProcessor(res) : res;
       }
 
-      if (this.$type._kind === "array") {
+      if (self.$type._kind === "array") {
         const res: unknown[] = [];
-        const childrenKeys = Array.from(this.children.keys()).sort((a, b) => Number(a) - Number(b));
+        const childrenKeys = Array.from(self.children.keys()).sort((a, b) => Number(a) - Number(b));
         for (const key of childrenKeys) {
-          const childNode = this.children.get(key)!;
+          const childNode = self.children.get(key)!;
           res.push(get(childNode.snapshotAtom));
         }
         return res;
       }
 
-      if (this.$type._kind === "map") {
+      if (self.$type._kind === "map") {
         const res: Record<string, unknown> = {};
-        for (const [key, childNode] of this.children.entries()) {
+        for (const [key, childNode] of self.children.entries()) {
           res[key] = get(childNode.snapshotAtom);
         }
         return res;

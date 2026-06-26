@@ -62,7 +62,9 @@ describe('System Telemetry Dashboard Example App', () => {
 
     // 3. Pause Telemetry
     const pauseBtn = screen.getByRole('button', { name: 'Pause Monitor' });
-    fireEvent.click(pauseBtn);
+    await act(async () => {
+      fireEvent.click(pauseBtn);
+    });
 
     // Text should change to Resume Monitor
     expect(screen.getByRole('button', { name: 'Resume Monitor' })).toBeDefined();
@@ -79,7 +81,9 @@ describe('System Telemetry Dashboard Example App', () => {
 
     // 4. Resume Telemetry
     const resumeBtn = screen.getByRole('button', { name: 'Resume Monitor' });
-    fireEvent.click(resumeBtn);
+    await act(async () => {
+      fireEvent.click(resumeBtn);
+    });
 
     expect(screen.getByRole('button', { name: 'Pause Monitor' })).toBeDefined();
 
@@ -89,7 +93,9 @@ describe('System Telemetry Dashboard Example App', () => {
     const cpuSlider = within(cpuControlField).getByRole('slider');
 
     // Adjust threshold down to 1% (which CPU value will definitely exceed on next tick)
-    fireEvent.change(cpuSlider, { target: { value: '1' } });
+    await act(async () => {
+      fireEvent.change(cpuSlider, { target: { value: '1' } });
+    });
 
     // Verify threshold is displayed as 1% in settings and CPU card
     expect(within(cpuControlField).getByText('1%')).toBeDefined();

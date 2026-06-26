@@ -276,8 +276,11 @@ class ModelType<
     function getOrCreateStablePropertyAtom(key: string): Atom<unknown> {
       let propAtom = stablePropertyAtoms.get(key);
       if (!propAtom) {
+        const nodeRef = new WeakRef(node);
         propAtom = atom((get) => {
-          get(node.structureVersionAtom);
+          const n = nodeRef.deref();
+          if (!n) return undefined;
+          get(n.structureVersionAtom);
           const currentAtom = propertyAtoms.get(key);
           return currentAtom ? get(currentAtom) : undefined;
         });
@@ -290,9 +293,12 @@ class ModelType<
     function getOrCreateStableVolatileAtom(key: string): Atom<unknown> {
       let valAtom = stableVolatileAtoms.get(key);
       if (!valAtom) {
+        const nodeRef = new WeakRef(node);
         valAtom = atom((get) => {
-          get(node.structureVersionAtom);
-          return node.volatileState[key];
+          const n = nodeRef.deref();
+          if (!n) return undefined;
+          get(n.structureVersionAtom);
+          return n.volatileState[key];
         });
         stableVolatileAtoms.set(key, valAtom);
       }
@@ -564,11 +570,14 @@ class ModelType<
       )) {
         if (descriptor.get) {
           const getter = descriptor.get;
+          const proxyRef = new WeakRef(proxy);
           const viewAtom = atom((get) => {
+            const prx = proxyRef.deref();
+            if (!prx) return undefined;
             const prevGet = activeJotaiGet;
             activeJotaiGet = get;
             try {
-              return getter.call(proxy);
+              return getter.call(prx);
             } finally {
               activeJotaiGet = prevGet;
             }

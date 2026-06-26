@@ -589,9 +589,12 @@ export function useWatchPath<T>(
     return defaultValue as T;
   }
   const node = getStateTreeNode(target);
+  const nodeRef = new WeakRef(node);
   const pathAtom = useMemo(() => {
     return atom((get) => {
-      const snapshot = get(node.snapshotAtom) as Record<string, unknown>;
+      const n = nodeRef.deref();
+      if (!n) return defaultValue as T;
+      const snapshot = get(n.snapshotAtom) as Record<string, unknown>;
       const parts = path.split(".");
       let current: unknown = snapshot;
       for (const part of parts) {

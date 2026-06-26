@@ -7,7 +7,7 @@ import { optional, maybeNull } from "./utilities";
 import { flow } from "./lifecycle";
 import { getStateTreeNode, hasStateTreeNode, getGlobalStore } from "./tree";
 
-const isBrowser =
+const isBrowser = () =>
   typeof window !== "undefined" &&
   typeof window.document !== "undefined" &&
   typeof window.location !== "undefined" &&
@@ -230,7 +230,7 @@ export const RouterModel = model("RouterModel", {
       self.query = parsed.query;
       self.currentRouteName = matched ? matched.route.name : null;
       
-      if (isBrowser) {
+      if (isBrowser()) {
         let browserPath = parsed.pathname;
         if (self.basePath && !browserPath.startsWith(self.basePath)) {
           browserPath = self.basePath + (browserPath.startsWith("/") ? "" : "/") + browserPath;
@@ -350,7 +350,7 @@ export const RouterModel = model("RouterModel", {
     }),
 
     go(delta: number) {
-      if (isBrowser) {
+      if (isBrowser()) {
         window.history.go(delta);
       } else {
         const nextIndex = self._historyIndex + delta;
@@ -363,7 +363,7 @@ export const RouterModel = model("RouterModel", {
     },
 
     goBack() {
-      if (isBrowser) {
+      if (isBrowser()) {
         window.history.back();
       } else {
         (self as any).go(-1);
@@ -371,7 +371,7 @@ export const RouterModel = model("RouterModel", {
     },
 
     goForward() {
-      if (isBrowser) {
+      if (isBrowser()) {
         window.history.forward();
       } else {
         (self as any).go(1);
@@ -443,7 +443,7 @@ export const RouterModel = model("RouterModel", {
   };
 })
 .afterCreate((self) => {
-  if (isBrowser) {
+  if (isBrowser()) {
     const routerRef = new WeakRef(self);
     const listener = createPopStateListener(routerRef);
     window.addEventListener("popstate", listener);
@@ -456,7 +456,7 @@ export const RouterModel = model("RouterModel", {
   }
 })
 .beforeDestroy((self) => {
-  if (isBrowser) {
+  if (isBrowser()) {
     routerFinalizationRegistry.unregister(self);
     if (self._popStateListener) {
       window.removeEventListener("popstate", self._popStateListener);
@@ -487,7 +487,7 @@ export function createRouter(config: {
     initialPathname = parsed.pathname;
     initialSearch = parsed.search;
     initialHash = parsed.hash;
-  } else if (isBrowser) {
+  } else if (isBrowser()) {
     const parsed = parseUrl(window.location.pathname + window.location.search + window.location.hash, basePath);
     initialPathname = parsed.pathname;
     initialSearch = parsed.search;

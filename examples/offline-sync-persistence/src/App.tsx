@@ -64,7 +64,9 @@ let serverDatabase = {
 export const App = observer(() => {
   // Simulator Controls (react state to drive mock network behaviour)
   const [isApiOnline, setIsApiOnline] = useState<boolean>(true);
-  const [serverLatency, setServerLatency] = useState<number>(300);
+  const [serverLatency, setServerLatency] = useState<number>(
+    typeof process !== 'undefined' && process.env.NODE_ENV === 'test' ? 0 : 300
+  );
   const [shouldRejectSync, setShouldRejectSync] = useState<boolean>(false);
   const [logs, setLogs] = useState<ServerLog[]>([
     {

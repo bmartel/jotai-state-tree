@@ -34,23 +34,23 @@
   "scripts": {
     "build": "tsup src/index.ts src/react.ts src/devtools.tsx src/ssr.ts --format cjs,esm --dts --clean",
     "dev": "tsup src/index.ts src/react.ts src/devtools.tsx src/ssr.ts --format cjs,esm --dts --watch",
-    "test": "vitest",
-    "test:run": "vitest run",
+    "test": "bun test",
+    "test:run": "bun test",
     "lint": "eslint src --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
     "docs": "typedoc",
     "docs:watch": "typedoc --watch",
-    "example:todo": "npm --prefix examples/todo-list-time-travel run dev",
-    "example:kanban": "npm --prefix examples/kanban-board-references run dev",
-    "example:cart": "npm --prefix examples/shopping-cart-views run dev",
-    "example:telemetry": "npm --prefix examples/dashboard-live-telemetry run dev",
-    "example:form": "npm --prefix examples/form-builder-dynamic run dev",
-    "example:notes": "npm --prefix examples/note-taking-ssr run dev",
-    "example:router": "npm --prefix examples/multipage-router run dev",
-    "example:persistence": "npm --prefix examples/offline-sync-persistence run dev",
-    "example:starter": "npm --prefix examples/project-starter run dev",
-    "example:starter-ssr": "npm --prefix examples/project-starter-ssr run dev",
-    "examples:install": "for dir in examples/*; do [ -d \"$dir\" ] && npm install --prefix \"$dir\"; done"
+    "example:todo": "bun --prefix examples/todo-list-time-travel run dev",
+    "example:kanban": "bun --prefix examples/kanban-board-references run dev",
+    "example:cart": "bun --prefix examples/shopping-cart-views run dev",
+    "example:telemetry": "bun --prefix examples/dashboard-live-telemetry run dev",
+    "example:form": "bun --prefix examples/form-builder-dynamic run dev",
+    "example:notes": "bun --prefix examples/note-taking-ssr run dev",
+    "example:router": "bun --prefix examples/multipage-router run dev",
+    "example:persistence": "bun --prefix examples/offline-sync-persistence run dev",
+    "example:starter": "bun --prefix examples/project-starter run dev",
+    "example:starter-ssr": "bun --prefix examples/project-starter-ssr run dev",
+    "examples:install": "bun run scripts/install-examples.ts"
   },
   "keywords": [
     "jotai",
@@ -81,7 +81,6 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^22.15.1",
     "@types/react": "^18.2.0",
-    "@vitest/coverage-v8": "^4.1.8",
     "eslint": "^10.4.1",
     "jotai": "^2.6.0",
     "jsdom": "^29.1.1",
@@ -90,9 +89,11 @@
     "semantic-release": "^25.0.2",
     "tsup": "^8.0.0",
     "typedoc": "^0.28.15",
-    "typescript": "^6.0.3",
-    "vitest": "^4.0.16"
+    "typescript": "^6.0.3"
   },
+  "workspaces": [
+    "examples/*"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/bmartel/jotai-state-tree"

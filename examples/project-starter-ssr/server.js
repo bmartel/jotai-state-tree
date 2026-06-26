@@ -12,42 +12,106 @@ async function createServer() {
     'utf-8'
   );
 
-  let vite;
+  // Setup Dev Mode Compilation & Live Reload
+  const sockets = new Set();
   if (!isProd) {
-    const { createServer: createViteServer } = await import('vite');
-    vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'custom',
+    // Start dev bundle builder
+    const projectRoot = path.resolve(__dirname, '../..');
+    const jotaiStateTreePlugin = {
+      name: 'jotai-state-tree-plugin',
+      setup(build) {
+        build.onResolve({ filter: /^jotai-state-tree($|\/)/ }, (args) => {
+          const pkgName = args.path;
+          let targetPath = '';
+          if (pkgName === 'jotai-state-tree') {
+            targetPath = path.resolve(projectRoot, 'src/index.ts');
+          } else if (pkgName === 'jotai-state-tree/react') {
+            targetPath = path.resolve(projectRoot, 'src/react.ts');
+          } else if (pkgName === 'jotai-state-tree/devtools') {
+            targetPath = path.resolve(projectRoot, 'src/devtools.tsx');
+          } else if (pkgName === 'jotai-state-tree/ssr') {
+            targetPath = path.resolve(projectRoot, 'src/ssr.ts');
+          }
+          return { path: targetPath };
+        });
+      }
+    };
+
+    const buildClient = async () => {
+      const res = await Bun.build({
+        entrypoints: ['src/entry-client.tsx'],
+        outdir: '.dev',
+        sourcemap: 'inline',
+        plugins: [jotaiStateTreePlugin],
+      });
+      if (!res.success) {
+        console.error('[jotai-state-tree] Dev client build failed:', res.logs);
+      }
+    };
+
+    await buildClient();
+
+    // Compile Tailwind in watch mode
+    Bun.spawn([
+      'bunx',
+      'tailwindcss',
+      '-i',
+      'src/index.css',
+      '-o',
+      '.dev/index.css',
+      '--watch'
+    ]);
+
+    // WebSocket server for live reloading on port 3001
+    Bun.serve({
+      port: 3001,
+      fetch(req, server) {
+        if (server.upgrade(req)) return;
+        return new Response("Upgrade failed", { status: 400 });
+      },
+      websocket: {
+        open(ws) {
+          sockets.add(ws);
+        },
+        close(ws) {
+          sockets.delete(ws);
+        },
+        message() {}
+      }
+    });
+
+    // Watch src folder for changes to rebuild client bundle and notify browser
+    const { watch } = await import('fs');
+    let debounceTimeout = null;
+    watch(path.resolve(__dirname, 'src'), { recursive: true }, () => {
+      if (debounceTimeout) clearTimeout(debounceTimeout);
+      debounceTimeout = setTimeout(async () => {
+        console.log('[jotai-state-tree] Rebuilding client bundle...');
+        await buildClient();
+        for (const socket of sockets) {
+          socket.send('reload');
+        }
+      }, 100);
     });
   }
 
-  // Dynamically load the SSR helpers from jotai-state-tree.
-  // In development, we load the TypeScript source file directly via Vite's load module.
+  // Load the SSR handler from jotai-state-tree.
+  // In Bun, we load our local source ssr file directly in dev.
   const { createSSRHandler } = isProd
     ? await import('jotai-state-tree/ssr')
-    : await vite.ssrLoadModule('jotai-state-tree/ssr');
+    : await import('../../src/ssr.ts');
 
-  // Load Route Config, API routes, and Store creators
-  let routes, apiRoutes, createAppStore;
-  if (!isProd) {
-    const routeModule = await vite.ssrLoadModule('/src/routes/router.ts');
-    routes = routeModule.routes;
-    const apiModule = await vite.ssrLoadModule('/src/routes/api.ts');
-    apiRoutes = apiModule.apiRoutes;
-    const storeModule = await vite.ssrLoadModule('/src/models/RootStore.ts');
-    createAppStore = storeModule.createAppStore;
-  } else {
-    const routeModule = await import('./src/routes/router.js');
-    routes = routeModule.routes;
-    const apiModule = await import('./src/routes/api.js');
-    apiRoutes = apiModule.apiRoutes;
-    const storeModule = await import('./src/models/RootStore.js');
-    createAppStore = storeModule.createAppStore;
-  }
+  // Load Route Config, API routes, and Store creators directly via Bun's TypeScript execution
+  const routeModule = await import('./src/routes/router.ts');
+  const routes = routeModule.routes;
+  const apiModule = await import('./src/routes/api.ts');
+  const apiRoutes = apiModule.apiRoutes;
+  const storeModule = await import('./src/models/RootStore.ts');
+  const createAppStore = storeModule.createAppStore;
 
   const renderApp = async (store, url) => {
     if (!isProd) {
-      const { render } = await vite.ssrLoadModule('/src/entry-server.tsx');
+      const { render } = await import('./src/entry-server.tsx');
       return render(store, url);
     } else {
       const { render } = await import('./dist/server/entry-server.js');
@@ -62,8 +126,21 @@ async function createServer() {
     apiRoutes,
     template: async ({ html, state, req }) => {
       let template = templateHtml;
-      if (!isProd && vite) {
-        template = await vite.transformIndexHtml(req.url, template);
+      if (!isProd) {
+        const reloadScript = `
+        <script>
+          (function() {
+            const ws = new WebSocket("ws://" + location.hostname + ":3001");
+            ws.onmessage = (event) => {
+              if (event.data === "reload") {
+                console.log("[jotai-state-tree] Reloading...");
+                location.reload();
+              }
+            };
+          })();
+        </script>
+        `;
+        template = template.replace('</body>', `${reloadScript}</body>`);
       }
       return template
         .replace('<!--app-html-->', html)
@@ -92,22 +169,46 @@ async function createServer() {
 
   const server = http.createServer((req, res) => {
     const url = req.url || '/';
+    const pathname = new URL(url, `http://${req.headers.host || 'localhost'}`).pathname;
 
-    // Serve static files in production
-    if (isProd) {
-      const pathname = new URL(url, `http://${req.headers.host}`).pathname;
-      const filePath = path.join(__dirname, 'dist/client', pathname);
+    // Serve dev-compiled client assets in dev mode
+    if (!isProd) {
+      if (pathname === '/src/entry-client.tsx') {
+        const filePath = path.join(__dirname, '.dev/entry-client.js');
+        if (fs.existsSync(filePath)) {
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/javascript');
+          fs.createReadStream(filePath).pipe(res);
+          return;
+        }
+      }
+      if (pathname === '/src/index.css') {
+        const filePath = path.join(__dirname, '.dev/index.css');
+        if (fs.existsSync(filePath)) {
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'text/css');
+          fs.createReadStream(filePath).pipe(res);
+          return;
+        }
+      }
+    }
+
+    // Serve static files in production or development
+    if (!pathname.startsWith('/api/')) {
+      const baseDir = isProd ? 'dist/client' : '.';
+      const filePath = path.join(__dirname, baseDir, pathname);
       
-      if (!pathname.startsWith('/api/') && fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
         const ext = path.extname(filePath);
         const mimeTypes = {
           '.html': 'text/html',
           '.css': 'text/css',
-          '.js': 'text/javascript',
+          '.js': 'application/javascript',
           '.svg': 'image/svg+xml',
           '.png': 'image/png',
           '.jpg': 'image/jpeg',
           '.json': 'application/json',
+          '.ico': 'image/x-icon',
         };
         res.statusCode = 200;
         res.setHeader('Content-Type', mimeTypes[ext] || 'application/octet-stream');
@@ -129,11 +230,7 @@ async function createServer() {
       }
     };
 
-    if (!isProd) {
-      vite.middlewares(req, res, runHandler);
-    } else {
-      runHandler();
-    }
+    runHandler();
   });
 
   const port = 3000;

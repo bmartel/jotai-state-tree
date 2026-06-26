@@ -231,8 +231,13 @@ describe('Model Registry & Dynamic References Extra', () => {
     clearModelRegistry();
     const p1 = resolveModelAsync('DelayedModelMultiple', 10);
     const p2 = resolveModelAsync('DelayedModelMultiple', 10);
-    await expect(p1).rejects.toThrow();
-    await expect(p2).rejects.toThrow();
+    let err1: any;
+    let err2: any;
+    const c1 = p1.catch(e => { err1 = e; });
+    const c2 = p2.catch(e => { err2 = e; });
+    await Promise.all([c1, c2]);
+    expect(err1).toBeDefined();
+    expect(err2).toBeDefined();
 
     // 2. DynamicReference tryResolve when resolveIdentifier throws
     const Target = types.model('TargetModelReg', {
@@ -328,6 +333,7 @@ describe('Model Registry & Dynamic References Extra', () => {
     
     // Add a new pending to recreate the name entry in Map
     const p3 = resolveModelAsync('IndexNegativeTest', 200);
+    p3.catch(() => {});
     
     // Trigger p2's timeout (which was not cleared because of mock)
     vi.advanceTimersByTime(100);

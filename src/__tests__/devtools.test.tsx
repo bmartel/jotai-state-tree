@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { types } from "../index";
-import { JotaiStateTreeDevtools } from "../devtools";
+import { JotaiStateTreeDevtools, resetDevtoolsStore } from "../devtools";
 import { nodeRegistry } from "../tree";
 
 const TestModel = types
@@ -30,11 +30,13 @@ describe("Jotai State Tree DevTools Panel", () => {
   beforeEach(() => {
     // Make sure we are in non-production for the main test cases
     process.env.NODE_ENV = "development";
+    resetDevtoolsStore();
     store = TestModel.create({ count: 10, text: "hello" });
   });
 
   afterEach(() => {
     process.env.NODE_ENV = originalEnv;
+    resetDevtoolsStore();
     vi.restoreAllMocks();
   });
 

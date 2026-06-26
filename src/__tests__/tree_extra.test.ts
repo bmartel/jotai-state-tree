@@ -642,6 +642,7 @@ describe('Tree Utilities Additional Coverage', () => {
     
     // Re-import tree module to capture callback
     const treeMock = await import('../tree');
+    (treeMock as any).getIdentifierFinalizationRegistry();
     global.FinalizationRegistry = OriginalFinalizationRegistry;
 
     // Now test callback logic
@@ -808,6 +809,7 @@ describe('Tree Utilities Additional Coverage', () => {
       unregister() {}
     } as any;
     const treeMock2 = await import('../tree');
+    (treeMock2 as any).getIdentifierFinalizationRegistry();
     global.FinalizationRegistry = OriginalFinalizationRegistry2;
     
     const mockMap3 = new Map();

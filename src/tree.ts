@@ -168,10 +168,19 @@ export function decrementRootRef(root: unknown): void {
  * FinalizationRegistry for automatic cleanup when nodes are garbage collected
  * This ensures the registries don't accumulate stale entries
  */
-const nodeFinalizationRegistry = new FinalizationRegistry((nodeId: string) => {
-  nodeRegistry.delete(nodeId);
-  rootNodesRegistry.delete(nodeId);
-});
+let lastNodeRegistryConstructor: any = typeof FinalizationRegistry !== 'undefined' ? FinalizationRegistry : null;
+let _nodeFinalizationRegistry: FinalizationRegistry<any> | null = null;
+export const getNodeFinalizationRegistry = () => {
+  const currentConstructor = typeof FinalizationRegistry !== 'undefined' ? FinalizationRegistry : null;
+  if (!_nodeFinalizationRegistry || lastNodeRegistryConstructor !== currentConstructor) {
+    lastNodeRegistryConstructor = currentConstructor;
+    _nodeFinalizationRegistry = new FinalizationRegistry((nodeId: string) => {
+      nodeRegistry.delete(nodeId);
+      rootNodesRegistry.delete(nodeId);
+    });
+  }
+  return _nodeFinalizationRegistry;
+};
 
 /**
  * Registry for identifier lookups (type -> identifier -> WeakRef<node>)
@@ -185,21 +194,29 @@ export const identifierRegistry = new Map<
 /**
  * FinalizationRegistry for identifier cleanup
  */
-const identifierFinalizationRegistry = new FinalizationRegistry(
-  (info: { typeName: string; identifier: string | number }) => {
-    const typeMap = identifierRegistry.get(info.typeName);
-    if (typeMap) {
-      const ref = typeMap.get(info.identifier);
-      if (!ref || ref.deref() === undefined) {
-        typeMap.delete(info.identifier);
-        // Clean up empty type maps
-        if (typeMap.size === 0) {
-          identifierRegistry.delete(info.typeName);
+let lastIdentifierRegistryConstructor: any = typeof FinalizationRegistry !== 'undefined' ? FinalizationRegistry : null;
+let _identifierFinalizationRegistry: FinalizationRegistry<any> | null = null;
+export const getIdentifierFinalizationRegistry = () => {
+  const currentConstructor = typeof FinalizationRegistry !== 'undefined' ? FinalizationRegistry : null;
+  if (!_identifierFinalizationRegistry || lastIdentifierRegistryConstructor !== currentConstructor) {
+    lastIdentifierRegistryConstructor = currentConstructor;
+    _identifierFinalizationRegistry = new FinalizationRegistry(
+      (info: { typeName: string; identifier: string | number }) => {
+        const typeMap = identifierRegistry.get(info.typeName);
+        if (typeMap) {
+          const ref = typeMap.get(info.identifier);
+          if (!ref || ref.deref() === undefined) {
+            typeMap.delete(info.identifier);
+            if (typeMap.size === 0) {
+              identifierRegistry.delete(info.typeName);
+            }
+          }
         }
       }
-    }
-  },
-);
+    );
+  }
+  return _identifierFinalizationRegistry;
+};
 
 /** Counter for generating unique node IDs */
 let nodeIdCounter = 0;
@@ -436,7 +453,7 @@ export class StateTreeNode implements IStateTreeNode {
     }
 
     // Register for automatic cleanup on GC
-    nodeFinalizationRegistry.register(this, this.$id, this);
+    getNodeFinalizationRegistry().register(this, this.$id, this);
   }
 
   /** Set the instance reference */
@@ -544,7 +561,7 @@ export class StateTreeNode implements IStateTreeNode {
     typeMap.set(identifier, new WeakRef(this));
 
     // Register for automatic cleanup on GC
-    identifierFinalizationRegistry.register(
+    getIdentifierFinalizationRegistry().register(
       this,
       { typeName, identifier },
       this,
@@ -566,7 +583,7 @@ export class StateTreeNode implements IStateTreeNode {
         }
       }
       // Unregister from finalization registry
-      identifierFinalizationRegistry.unregister(this);
+      getIdentifierFinalizationRegistry().unregister(this);
     }
   }
 
@@ -701,7 +718,7 @@ export class StateTreeNode implements IStateTreeNode {
     rootNodesRegistry.delete(this.$id);
 
     // Unregister from finalization registry (already destroyed, don't need GC cleanup)
-    nodeFinalizationRegistry.unregister(this);
+    getNodeFinalizationRegistry().unregister(this);
 
     // Clear lifecycle listeners WeakMap entry
     lifecycleListeners.delete(this);

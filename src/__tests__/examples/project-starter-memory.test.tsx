@@ -10,22 +10,27 @@ import {
   getRegistryStats,
   cleanupStaleEntries,
 } from '../../index';
-import { nodeRegistry } from '../../tree';
+import { resetDevtoolsStore } from '../../devtools';
+import { nodeRegistry, activeReactRoots } from '../../tree';
 import { App } from '../../../examples/project-starter/src/App';
 
-vi.mock('jotai-state-tree/devtools', () => ({
-  JotaiStateTreeDevtools: () => null,
-}));
+
+let originalEnv: string | undefined;
 
 beforeEach(() => {
+  originalEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'production';
+  resetDevtoolsStore();
   clearAllRegistries();
   resetGlobalStore();
 });
 
 afterEach(() => {
   cleanup();
+  resetDevtoolsStore();
   clearAllRegistries();
   resetGlobalStore();
+  process.env.NODE_ENV = originalEnv;
 });
 
 describe('Project Starter Memory Leak Audit', () => {
@@ -41,33 +46,46 @@ describe('Project Starter Memory Leak Audit', () => {
     expect(initialStats.liveNodeCount).toBe(0);
 
     // 2. Render the project starter App (which instantiates the stores)
-    const { unmount } = render(<App />);
+    const runRenderBlock = async () => {
+      const { unmount } = render(<App />);
 
-    // Allow render effects and state trees to instantiate
-    await new Promise((resolve) => setTimeout(resolve, 50));
+      // Allow render effects and state trees to instantiate
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
-    // Verify nodes have been registered
-    const activeStats = getRegistryStats();
-    expect(activeStats.liveNodeCount).toBeGreaterThan(0);
+      // Verify nodes have been registered
+      const activeStats = getRegistryStats();
+      expect(activeStats.liveNodeCount).toBeGreaterThan(0);
 
-    // 3. Unmount the App to release all references to the stores
-    unmount();
+      // 3. Unmount the App to release all references to the stores
+      unmount();
 
-    // Clear React's DOM / testing library cache
-    cleanup();
+      // Clear React's DOM / testing library cache
+      cleanup();
+    };
+
+    await runRenderBlock();
+
 
     // 4. Force V8 Garbage Collection to collect dereferenced stores
-    await new Promise((resolve) => setTimeout(resolve, 0));
     if (global.gc) {
-      global.gc();
-      cleanupStaleEntries();
+      for (let i = 0; i < 5; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        global.gc();
+        cleanupStaleEntries();
+        if (getRegistryStats().liveNodeCount === 0) {
+          break;
+        }
+      }
     }
+
+
 
     // 5. Verify that all nodes are garbage collected and cleaned up
     // 5. Verify that all nodes are garbage collected and cleaned up
     const finalStats = getRegistryStats();
     if (finalStats.liveNodeCount > 0) {
       console.log('--- LEAKING NODES IN REGISTRY ---');
+      console.log('Active React Roots:', Array.from(activeReactRoots).map((r: any) => r.$treenode?.$type?.name));
       for (const [id, entry] of nodeRegistry.entries()) {
         const node = entry.node.deref();
         if (node) {

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { types, getSnapshot, unprotect } from '../index';
 import { createRouter } from '../router';
 import { getStateTreeNode } from '../tree';
@@ -279,61 +279,69 @@ describe('Utility Types Extra', () => {
   });
 
   it('router in node environment (in-memory stack routing)', () => {
-    const routes = [
-      { path: '/', name: 'home' },
-      { path: '/about', name: 'about' },
-      { path: '/users/:id', name: 'user-profile' },
-      { path: '/contact', name: 'contact' },
-      { path: '/help', name: 'help' },
-    ];
-    const r = createRouter({
-      routes,
-      initialUrl: '/',
-    });
+    vi.stubGlobal('window', undefined);
+    vi.stubGlobal('document', undefined);
+    vi.stubGlobal('location', undefined);
+    vi.stubGlobal('history', undefined);
+    try {
+      const routes = [
+        { path: '/', name: 'home' },
+        { path: '/about', name: 'about' },
+        { path: '/users/:id', name: 'user-profile' },
+        { path: '/contact', name: 'contact' },
+        { path: '/help', name: 'help' },
+      ];
+      const r = createRouter({
+        routes,
+        initialUrl: '/',
+      });
 
-    expect(r.pathname).toBe('/');
-    expect((r as any)._historyStack).toEqual(['/']);
-    expect((r as any)._historyIndex).toBe(0);
+      expect(r.pathname).toBe('/');
+      expect((r as any)._historyStack).toEqual(['/']);
+      expect((r as any)._historyIndex).toBe(0);
 
-    // Push new path
-    r.syncLocation('/about', '', '', 'PUSH');
-    expect(r.pathname).toBe('/about');
-    expect((r as any)._historyStack).toEqual(['/', '/about']);
-    expect((r as any)._historyIndex).toBe(1);
+      // Push new path
+      r.syncLocation('/about', '', '', 'PUSH');
+      expect(r.pathname).toBe('/about');
+      expect((r as any)._historyStack).toEqual(['/', '/about']);
+      expect((r as any)._historyIndex).toBe(1);
 
-    // Push another path
-    r.syncLocation('/users/123', '', '', 'PUSH');
-    expect(r.pathname).toBe('/users/123');
-    expect(r.params).toEqual({ id: '123' });
-    expect((r as any)._historyStack).toEqual(['/', '/about', '/users/123']);
-    expect((r as any)._historyIndex).toBe(2);
+      // Push another path
+      r.syncLocation('/users/123', '', '', 'PUSH');
+      expect(r.pathname).toBe('/users/123');
+      expect(r.params).toEqual({ id: '123' });
+      expect((r as any)._historyStack).toEqual(['/', '/about', '/users/123']);
+      expect((r as any)._historyIndex).toBe(2);
 
-    // Go back
-    r.goBack();
-    expect(r.pathname).toBe('/about');
-    expect((r as any)._historyIndex).toBe(1);
+      // Go back
+      r.goBack();
+      expect(r.pathname).toBe('/about');
+      expect((r as any)._historyIndex).toBe(1);
 
-    // Go forward
-    r.goForward();
-    expect(r.pathname).toBe('/users/123');
-    expect((r as any)._historyIndex).toBe(2);
+      // Go forward
+      r.goForward();
+      expect(r.pathname).toBe('/users/123');
+      expect((r as any)._historyIndex).toBe(2);
 
-    // Go back 2 steps
-    r.go(-2);
-    expect(r.pathname).toBe('/');
-    expect((r as any)._historyIndex).toBe(0);
+      // Go back 2 steps
+      r.go(-2);
+      expect(r.pathname).toBe('/');
+      expect((r as any)._historyIndex).toBe(0);
 
-    // Push from middle (should truncate forward stack)
-    r.syncLocation('/contact', '', '', 'PUSH');
-    expect(r.pathname).toBe('/contact');
-    expect((r as any)._historyStack).toEqual(['/', '/contact']);
-    expect((r as any)._historyIndex).toBe(1);
+      // Push from middle (should truncate forward stack)
+      r.syncLocation('/contact', '', '', 'PUSH');
+      expect(r.pathname).toBe('/contact');
+      expect((r as any)._historyStack).toEqual(['/', '/contact']);
+      expect((r as any)._historyIndex).toBe(1);
 
-    // Replace current path
-    r.syncLocation('/help', '', '', 'REPLACE');
-    expect(r.pathname).toBe('/help');
-    expect((r as any)._historyStack).toEqual(['/', '/help']);
-    expect((r as any)._historyIndex).toBe(1);
+      // Replace current path
+      r.syncLocation('/help', '', '', 'REPLACE');
+      expect(r.pathname).toBe('/help');
+      expect((r as any)._historyStack).toEqual(['/', '/help']);
+      expect((r as any)._historyIndex).toBe(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('router in environment where window is defined but document is undefined (e.g., React Native remote debugger)', () => {
@@ -426,18 +434,26 @@ describe('Utility Types Extra', () => {
   });
 
   it('server syncLocation REPLACE with historyIndex = -1', () => {
-    const routes = [
-      { path: '/', name: 'home' },
-      { path: '/about', name: 'about' },
-    ];
-    const rServer = createRouter({ routes, initialUrl: '/' });
-    unprotect(rServer);
-    (rServer as any)._historyIndex = -1;
-    
-    (rServer as any).syncLocation('/about', '', '', 'REPLACE');
-    
-    expect((rServer as any)._historyStack).toEqual(['/about']);
-    expect((rServer as any)._historyIndex).toBe(0);
+    vi.stubGlobal('window', undefined);
+    vi.stubGlobal('document', undefined);
+    vi.stubGlobal('location', undefined);
+    vi.stubGlobal('history', undefined);
+    try {
+      const routes = [
+        { path: '/', name: 'home' },
+        { path: '/about', name: 'about' },
+      ];
+      const rServer = createRouter({ routes, initialUrl: '/' });
+      unprotect(rServer);
+      (rServer as any)._historyIndex = -1;
+      
+      (rServer as any).syncLocation('/about', '', '', 'REPLACE');
+      
+      expect((rServer as any)._historyStack).toEqual(['/about']);
+      expect((rServer as any)._historyIndex).toBe(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

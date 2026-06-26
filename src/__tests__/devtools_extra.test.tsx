@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { types, unprotect } from "../index";
-import { JotaiStateTreeDevtools } from "../devtools";
+import { JotaiStateTreeDevtools, resetDevtoolsStore } from "../devtools";
 import { createRouter } from "../react";
 import { createPersistenceManager } from "../persistence";
 
@@ -47,6 +47,7 @@ describe("DevTools Extra Boundaries", () => {
 
   beforeEach(() => {
     process.env.NODE_ENV = "development";
+    resetDevtoolsStore();
     vi.stubGlobal("indexedDB", {} as any);
     store = RootStore.create({
       todos: [],
@@ -73,6 +74,7 @@ describe("DevTools Extra Boundaries", () => {
 
   afterEach(() => {
     if (pm) pm.dispose();
+    resetDevtoolsStore();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });

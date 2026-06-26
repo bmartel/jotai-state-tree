@@ -108,7 +108,10 @@ describe('Multipage Bookstore Router Example App', () => {
     // Click Go Back
     const backBtn = screen.getByRole('button', { name: /Go Back/ });
     
-    // Mock window.history.back to simulate popping location back to catalog
+    console.log("DEBUG window type:", typeof window);
+    if (typeof window !== "undefined") {
+      console.log("DEBUG window.history type:", typeof window.history);
+    }
     window.history.back = vi.fn().mockImplementation(() => {
       act(() => {
         vi.stubGlobal('location', {

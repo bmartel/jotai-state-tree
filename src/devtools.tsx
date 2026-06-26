@@ -601,6 +601,29 @@ const DevtoolsModel = types
   .actions((self) => ({
     setIsOpen(val: boolean) {
       self.isOpen = val;
+      if (val) {
+        (self as any).startPolling();
+      } else {
+        (self as any).stopPolling();
+      }
+    },
+    startPolling() {
+      if (self._cleanupInterval) return;
+      (self as any).updateRoots();
+      if (typeof window !== "undefined") {
+        const interval = setInterval(() => {
+          if (isAlive(self)) {
+            (self as any).updateRoots();
+          }
+        }, 1500);
+        self._cleanupInterval = () => clearInterval(interval);
+      }
+    },
+    stopPolling() {
+      if (self._cleanupInterval) {
+        self._cleanupInterval();
+        self._cleanupInterval = null;
+      }
     },
     setCleanupInterval(fn: any) {
       self._cleanupInterval = fn;
@@ -649,7 +672,12 @@ const DevtoolsModel = types
     },
     updateRoots() {
       const rootsMap = new Set<any>();
-      const hasActiveReactRoots = activeReactRoots.size > 0;
+      const activeRootsFiltered = new Set(
+        Array.from(activeReactRoots).filter(
+          (r: any) => r.$treenode?.$type?.name !== "DevtoolsModel"
+        )
+      );
+      const hasActiveReactRoots = activeRootsFiltered.size > 0;
       for (const weakRef of rootNodesRegistry.values()) {
         const node = weakRef.deref();
         if (node && node.$isAlive) {
@@ -658,7 +686,7 @@ const DevtoolsModel = types
           }
           const inst = node.getInstance();
           if (inst) {
-            if (hasActiveReactRoots && !activeReactRoots.has(inst)) {
+            if (hasActiveReactRoots && !activeRootsFiltered.has(inst)) {
               continue;
             }
             rootsMap.add(inst);
@@ -693,6 +721,11 @@ const DevtoolsModel = types
       if (initialOpen !== undefined && self.initialOpenSynced === false) {
         self.isOpen = initialOpen;
         self.initialOpenSynced = true;
+      }
+      if (self.isOpen) {
+        (self as any).startPolling();
+      } else {
+        (self as any).stopPolling();
       }
       this.updateRoots();
       if (changed) {
@@ -891,17 +924,15 @@ const DevtoolsModel = types
     }
   }))
   .afterCreate((self) => {
-    // 1. Polling root discovery
-    (self as any).updateRoots();
+    // 1. Polling root discovery only if initially open
+    if (self.isOpen) {
+      (self as any).startPolling();
+    }
 
     if (typeof window !== "undefined") {
-      const interval = setInterval(() => {
-        (self as any).updateRoots();
-      }, 1500);
-      (self as any).setCleanupInterval(() => clearInterval(interval));
-
       // 2. Global window resize handlers
       const handleMouseMove = (e: MouseEvent) => {
+        if (!isAlive(self)) return;
         if (!self.isResizing) return;
         if (self.dock === "bottom") {
           const newHeight = window.innerHeight - e.clientY;
@@ -913,6 +944,7 @@ const DevtoolsModel = types
       };
 
       const handleMouseUp = () => {
+        if (!isAlive(self)) return;
         if (self.isResizing) {
           (self as any).setIsResizing(false);
           document.body.style.userSelect = "";
@@ -931,9 +963,7 @@ const DevtoolsModel = types
   })
   .beforeDestroy((self) => {
     self.storeDisposers.forEach((d) => d());
-    if ((self as any)._cleanupInterval) {
-      (self as any)._cleanupInterval();
-    }
+    (self as any).stopPolling();
     if ((self as any)._cleanupResize) {
       (self as any)._cleanupResize();
     }
@@ -1673,8 +1703,35 @@ const JotaiStateTreeDevtoolsImpl: React.ComponentType<DevtoolsProps> = observer(
 });
 
 export const JotaiStateTreeDevtools: React.ComponentType<DevtoolsProps> = observer((props) => {
-  if (isDev) {
+  const isProd = typeof process !== "undefined" && process.env.NODE_ENV === "production";
+  if (isDev && !isProd) {
     return <JotaiStateTreeDevtoolsImpl {...props} />;
   }
   return null;
 });
+
+export function resetDevtoolsStore() {
+  if (_devtoolsStore && isAlive(_devtoolsStore)) {
+    try {
+      (_devtoolsStore as any).stopPolling();
+      if ((_devtoolsStore as any)._cleanupResize) {
+        (_devtoolsStore as any)._cleanupResize();
+      }
+      if ((_devtoolsStore as any).playTimer) {
+        clearInterval((_devtoolsStore as any).playTimer);
+      }
+      if ((_devtoolsStore as any).storeDisposers) {
+        (_devtoolsStore as any).storeDisposers.forEach((d: any) => d());
+      }
+    } catch (e) {
+      // ignore
+    }
+    try {
+      const { destroy } = require("./index");
+      destroy(_devtoolsStore);
+    } catch (e) {
+      // ignore
+    }
+  }
+  _devtoolsStore = DevtoolsModel.create({});
+}

@@ -1,3 +1,12 @@
+## [1.19.1](https://github.com/bmartel/jotai-state-tree/compare/v1.19.0...v1.19.1) (2026-06-26)
+
+
+### Bug Fixes
+
+* **ci:** fix typecheck failures by isolating test files and correcting ssr.test imports ([3659bdf](https://github.com/bmartel/jotai-state-tree/commit/3659bdf35d2a3e5b87e2f6ed27447d66e9edca39))
+* **ci:** resolve dead node error from shopping cart setTimeout and fix weakref cleanup dereference ([f2a9180](https://github.com/bmartel/jotai-state-tree/commit/f2a91809d61e73232e43ad1398f9ea499498d8ba))
+* **memory-leak:** close IndexedDB connections and add session tracking to PersistenceManager to prevent memory leaks ([4693dff](https://github.com/bmartel/jotai-state-tree/commit/4693dffb8d4f7d233b9c28cf3c41b171953d32c1))
+
 # [1.19.0](https://github.com/bmartel/jotai-state-tree/compare/v1.18.2...v1.19.0) (2026-06-25)
 
 

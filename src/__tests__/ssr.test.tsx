@@ -5,10 +5,10 @@ import {
   runWithStore,
   createSSRStore,
   createSSRHandler,
-  createServerAction,
   matchRoute,
   startSSRServer,
 } from "../ssr";
+import { createServerAction } from "../react";
 
 // Define a simple test model
 const Todo = types

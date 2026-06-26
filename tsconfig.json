@@ -23,13 +23,12 @@
     "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
-      "vitest": ["./bun-test-setup.ts"],
       "jotai-state-tree/react": ["./src/react.ts"],
       "jotai-state-tree/devtools": ["./src/devtools.tsx"],
       "jotai-state-tree/ssr": ["./src/ssr.ts"],
       "jotai-state-tree": ["./src/index.ts"]
     }
   },
-  "include": ["src/**/*", "examples/**/*"],
-  "exclude": ["node_modules", "dist"],
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "src/__tests__", "examples"],
 }

@@ -36,7 +36,7 @@
       "version": "0.0.0",
       "dependencies": {
         "jotai": "^2.6.0",
-        "jotai-state-tree": "^1.19.0",
+        "jotai-state-tree": "^1.19.1",
         "react": "^18.2.0",
         "react-dom": "^18.3.1",
       },
@@ -51,7 +51,7 @@
       "version": "0.0.0",
       "dependencies": {
         "jotai": "^2.6.0",
-        "jotai-state-tree": "^1.19.0",
+        "jotai-state-tree": "^1.19.1",
         "react": "^18.2.0",
         "react-dom": "^18.3.1",
       },
@@ -66,7 +66,7 @@
       "version": "0.0.0",
       "dependencies": {
         "jotai": "^2.6.0",
-        "jotai-state-tree": "^1.19.0",
+        "jotai-state-tree": "^1.19.1",
         "react": "^18.2.0",
         "react-dom": "^18.3.1",
       },
@@ -81,7 +81,7 @@
       "version": "0.0.0",
       "dependencies": {
         "jotai": "^2.6.0",
-        "jotai-state-tree": "^1.19.0",
+        "jotai-state-tree": "^1.19.1",
         "react": "^18.2.0",
         "react-dom": "^18.3.1",
       },
@@ -96,7 +96,7 @@
       "version": "0.0.0",
       "dependencies": {
         "jotai": "^2.6.0",
-        "jotai-state-tree": "^1.19.0",
+        "jotai-state-tree": "^1.19.1",
         "react": "^18.2.0",
         "react-dom": "^18.3.1",
       },
@@ -111,7 +111,7 @@
       "version": "0.0.0",
       "dependencies": {
         "jotai": "^2.6.0",
-        "jotai-state-tree": "^1.19.0",
+        "jotai-state-tree": "^1.19.1",
         "react": "^18.2.0",
         "react-dom": "^18.3.1",
       },
@@ -126,7 +126,7 @@
       "version": "0.0.0",
       "dependencies": {
         "jotai": "^2.11.0",
-        "jotai-state-tree": "^1.19.0",
+        "jotai-state-tree": "^1.19.1",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
       },
@@ -146,7 +146,7 @@
       "version": "0.0.0",
       "dependencies": {
         "jotai": "^2.11.0",
-        "jotai-state-tree": "^1.19.0",
+        "jotai-state-tree": "^1.19.1",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
       },
@@ -166,7 +166,7 @@
       "version": "0.0.0",
       "dependencies": {
         "jotai": "^2.6.0",
-        "jotai-state-tree": "^1.19.0",
+        "jotai-state-tree": "^1.19.1",
         "react": "^18.2.0",
         "react-dom": "^18.3.1",
       },
@@ -181,7 +181,7 @@
       "version": "0.0.0",
       "dependencies": {
         "jotai": "^2.6.0",
-        "jotai-state-tree": "^1.19.0",
+        "jotai-state-tree": "^1.19.1",
         "react": "^18.2.0",
         "react-dom": "^18.3.1",
       },
@@ -751,7 +751,7 @@
 
     "jotai": ["jotai@2.20.1", "", { "peerDependencies": { "@babel/core": ">=7.0.0", "@babel/template": ">=7.0.0", "@types/react": ">=17.0.0", "react": ">=17.0.0" }, "optionalPeers": ["@babel/core", "@babel/template"] }, "sha512-dnuKfU/GLi8B28RRMjQ3AfoN7kfzP8o41+AX2FmITZqEMY8PHnjABq+VkEooomLwYaGjda+pgy0yFSjaHX/ZPg=="],
 
-    "jotai-state-tree": ["jotai-state-tree@1.19.0", "", { "peerDependencies": { "jotai": ">=2.0.0", "react": ">=18.0.0" }, "optionalPeers": ["react"] }, "sha512-S99tCkAa//1/Gr1jabXyVhwdWuxg3oq5UkLBmYYmTskoeFeX0Ghg8y6tWtC8swePOwJJHPlAzxty26UgKPTezg=="],
+    "jotai-state-tree": ["jotai-state-tree@1.19.1", "", { "peerDependencies": { "jotai": ">=2.0.0", "react": ">=18.0.0" }, "optionalPeers": ["react"] }, "sha512-zMKHPyqeVJcKWb+D0ycAxD/dvtdT9QXKh5Rf7nZM/rwA5lI5bZ3w0B3gdNf/BER6QTrxpe+BF03OOxlTAFw+ZA=="],
 
     "joycon": ["joycon@3.1.1", "", {}, "sha512-34wB/Y7MW7bzjKRjUKTa46I2Z7eV62Rkhva+KkopW7Qvv/OSWBqvkSY7vusOPrNuZcUG3tApvdVgNB8POj3SPw=="],
 

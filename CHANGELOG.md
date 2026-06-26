@@ -1,3 +1,10 @@
+## [1.19.2](https://github.com/bmartel/jotai-state-tree/compare/v1.19.1...v1.19.2) (2026-06-26)
+
+
+### Bug Fixes
+
+* resolve memory leaks in derived atoms, fix dashboard test flakiness, remove scratch folder, and add template gitignores ([dd902b3](https://github.com/bmartel/jotai-state-tree/commit/dd902b3befd04c42f662aedfba093da40d934a72))
+
 ## [1.19.1](https://github.com/bmartel/jotai-state-tree/compare/v1.19.0...v1.19.1) (2026-06-26)
 
 

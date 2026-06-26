@@ -27,26 +27,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: "22"
-          cache: "npm"
-
-      - name: Update npm (required for min-release-age support)
-        run: npm install -g npm@latest
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Run typecheck
-        run: npm run typecheck
+        run: bun run typecheck
 
       - name: Run tests with coverage
-        run: npm run test:run -- --coverage
+        run: bun test --coverage --coverage-reporter=lcov
 
       - name: Generate coverage badge
-        run: node scripts/generate-coverage-badge.js
+        run: bun scripts/generate-coverage-badge.js
 
       - name: Upload coverage report as artifact
         uses: actions/upload-artifact@v7
@@ -90,17 +86,18 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "22"
-          cache: "npm"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Update npm (required for min-release-age support)
-        run: npm install -g npm@latest
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Build
-        run: npm run build
+        run: bun run build
 
       - name: Verify build output
         run: |
@@ -117,4 +114,4 @@ jobs:
           git fetch origin main
           git checkout main
           git reset --hard origin/main
-          npx semantic-release
+          bunx semantic-release

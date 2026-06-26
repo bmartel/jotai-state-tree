@@ -1,25 +1,36 @@
 const fs = require('fs');
 const path = require('path');
 
-const summaryPath = path.resolve(__dirname, '../coverage/coverage-summary.json');
+const lcovPath = path.resolve(__dirname, '../coverage/lcov.info');
 const badgeDir = path.resolve(__dirname, '../.github/badges');
 const badgePath = path.join(badgeDir, 'coverage.svg');
 
 try {
-  if (!fs.existsSync(summaryPath)) {
-    console.error(`Error: Coverage summary file not found at ${summaryPath}`);
+  if (!fs.existsSync(lcovPath)) {
+    console.error(`Error: Coverage file not found at ${lcovPath}`);
     console.error('Make sure you have run tests with coverage enabled.');
     process.exit(1);
   }
 
-  const summary = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
-  
-  if (!summary.total || !summary.total.statements || typeof summary.total.statements.pct !== 'number') {
-    console.error('Error: Invalid coverage summary format.');
+  const content = fs.readFileSync(lcovPath, 'utf8');
+  let totalLF = 0;
+  let totalLH = 0;
+
+  const lines = content.split('\n');
+  for (const line of lines) {
+    if (line.startsWith('LF:')) {
+      totalLF += parseInt(line.substring(3).trim(), 10);
+    } else if (line.startsWith('LH:')) {
+      totalLH += parseInt(line.substring(3).trim(), 10);
+    }
+  }
+
+  if (totalLF === 0) {
+    console.error('Error: No instrumented lines found in lcov.info.');
     process.exit(1);
   }
 
-  const pct = summary.total.statements.pct;
+  const pct = (totalLH / totalLF) * 100;
   const displayPct = pct.toFixed(1).replace(/\.0$/, '');
 
   // Determine color based on coverage percentage (Shields.io standard)

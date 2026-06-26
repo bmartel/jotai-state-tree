@@ -1,6 +1,30 @@
 import { mock } from "bun:test";
 import { vi } from "vitest";
 
+// ============================================================================
+// Global Timer Tracking & Automatic Cleanup
+// ============================================================================
+const activeIntervals = new Set<any>();
+
+const originalSetInterval = globalThis.setInterval;
+const originalClearInterval = globalThis.clearInterval;
+
+(globalThis as any).setInterval = (cb: any, delay: any, ...args: any[]) => {
+  const timer = originalSetInterval(cb, delay, ...args);
+  activeIntervals.add(timer);
+  return timer;
+};
+
+(globalThis as any).clearInterval = (id: any) => {
+  activeIntervals.delete(id);
+  originalClearInterval(id);
+};
+
+if (typeof window !== "undefined") {
+  (window as any).setInterval = globalThis.setInterval;
+  (window as any).clearInterval = globalThis.clearInterval;
+}
+
 import * as ReactRoot from "./node_modules/react";
 import * as ReactDOMRoot from "./node_modules/react-dom";
 import * as ReactDOMClientRoot from "./node_modules/react-dom/client";
@@ -232,6 +256,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // Clear all pending/leaked intervals
+  for (const id of activeIntervals) {
+    originalClearInterval(id);
+  }
+  activeIntervals.clear();
+
   try {
     const { cleanup } = require("@testing-library/react");
     cleanup();
@@ -257,17 +287,17 @@ afterEach(() => {
     // ignore
   }
   try {
+    JSTDevToolsRoot.resetDevtoolsStore();
+  } catch (e) {
+    // ignore
+  }
+  try {
     JSTRoot.clearAllRegistries();
   } catch (e) {
     // ignore
   }
   try {
     JSTRoot.clearModelRegistry();
-  } catch (e) {
-    // ignore
-  }
-  try {
-    JSTDevToolsRoot.resetDevtoolsStore();
   } catch (e) {
     // ignore
   }

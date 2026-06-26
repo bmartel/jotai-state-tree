@@ -209,6 +209,7 @@ interface IStorage {
   addQueue(item: Omit<QueuedMutation, "id">): Promise<number>;
   deleteQueue(id: number): Promise<void>;
   clearQueue(key: string): Promise<void>;
+  close?(): void;
 }
 
 class IndexedDBStorage implements IStorage {
@@ -350,6 +351,15 @@ class IndexedDBStorage implements IStorage {
       }
     });
   }
+
+  close(): void {
+    if (this.db) {
+      if (typeof this.db.close === "function") {
+        this.db.close();
+      }
+      this.db = null;
+    }
+  }
 }
 
 // Default error rollback checker
@@ -400,6 +410,8 @@ export class PersistenceManager {
   private onlineListener: (() => void) | null = null;
   private offlineListener: (() => void) | null = null;
   private lifecycleDisposer: IDisposer | null = null;
+  private disposed: boolean = false;
+  private session: number = 0;
 
   private get isTargetAlive(): boolean {
     try {
@@ -467,13 +479,15 @@ export class PersistenceManager {
   }
 
   async initialize(): Promise<void> {
+    this.disposed = false;
+    const currentSession = ++this.session;
     const store = getGlobalStore();
 
     // Errors here will bubble up loudly
     const cachedSnapshot = await this.storage.getSnapshot(this.key);
-    if (!this.isTargetAlive) return;
+    if (this.disposed || this.session !== currentSession || !this.isTargetAlive) return;
     let queue = await this.storage.getQueue(this.key);
-    if (!this.isTargetAlive) return;
+    if (this.disposed || this.session !== currentSession || !this.isTargetAlive) return;
 
     if (cachedSnapshot !== undefined && cachedSnapshot !== null) {
       this.skipSyncing = true;
@@ -497,6 +511,7 @@ export class PersistenceManager {
     if (queue.length > maxQueueSize) {
       try {
         await this.compact();
+        if (this.disposed || this.session !== currentSession) return;
         queue = await this.storage.getQueue(this.key);
       } catch (err) {
         console.warn("[jotai-state-tree] Initial compaction failed:", err);
@@ -554,6 +569,7 @@ export class PersistenceManager {
   }
 
   async fetch(force: boolean = false): Promise<void> {
+    const currentSession = this.session;
     const query = this.options.query;
     if (!query?.queryFn) return;
 
@@ -577,7 +593,7 @@ export class PersistenceManager {
 
     try {
       const data = await query.queryFn();
-      if (!this.isTargetAlive) return;
+      if (this.disposed || this.session !== currentSession || !this.isTargetAlive) return;
       if (data !== undefined && data !== null) {
         this.skipSyncing = true;
         try {
@@ -585,10 +601,12 @@ export class PersistenceManager {
         } finally {
           this.skipSyncing = false;
         }
+        if (this.disposed || this.session !== currentSession) return;
         this.lastSnapshotToWrite = data;
         await this.storage.setSnapshot(this.key, data);
       }
 
+      if (this.disposed || this.session !== currentSession) return;
       this.lastFetchedTime = Date.now();
       this.updateStatus((prev) => ({
         isFetching: false,
@@ -596,6 +614,7 @@ export class PersistenceManager {
         error: null,
       }));
     } catch (err) {
+      if (this.disposed || this.session !== currentSession) return;
       const error = err instanceof Error ? err : new Error(String(err));
       this.updateStatus((prev) => ({
         isFetching: false,
@@ -785,6 +804,7 @@ export class PersistenceManager {
   }
 
   async sync(): Promise<void> {
+    const currentSession = this.session;
     const mutation = this.options.mutation;
     if (!mutation?.syncFn) return;
 
@@ -798,10 +818,12 @@ export class PersistenceManager {
 
     try {
       let queue = await this.storage.getQueue(this.key);
+      if (this.disposed || this.session !== currentSession || !this.isTargetAlive) return;
 
       while (queue.length > 0) {
         // Double check network state
         if (typeof navigator !== "undefined" && !navigator.onLine) {
+          if (this.disposed || this.session !== currentSession) return;
           this.updateStatus((prev) => ({ isOffline: true }));
           break;
         }
@@ -813,17 +835,20 @@ export class PersistenceManager {
             currentSnapshot,
             item.patches,
           );
-          if (!this.isTargetAlive) return;
+          if (this.disposed || this.session !== currentSession || !this.isTargetAlive) return;
 
           // Remove mutation from queue on success
           if (item.id !== undefined) {
             await this.storage.deleteQueue(item.id);
           }
 
+          if (this.disposed || this.session !== currentSession) return;
+
           if (mutation.onSuccess) {
             mutation.onSuccess(syncResult);
           }
         } catch (err) {
+          if (this.disposed || this.session !== currentSession) return;
           const error = err instanceof Error ? err : new Error(String(err));
           const shouldRollback =
             mutation.shouldRollback ?? defaultShouldRollback;
@@ -844,6 +869,8 @@ export class PersistenceManager {
               this.skipSyncing = false;
             }
 
+            if (this.disposed || this.session !== currentSession) return;
+
             // Remove failed mutation from queue since it was rolled back
             if (item.id !== undefined) {
               await this.storage.deleteQueue(item.id);
@@ -863,22 +890,27 @@ export class PersistenceManager {
           }
         }
 
+        if (this.disposed || this.session !== currentSession) return;
+
         // Fetch remaining queue items
         queue = await this.storage.getQueue(this.key);
-        if (!this.isTargetAlive) return;
+        if (this.disposed || this.session !== currentSession || !this.isTargetAlive) return;
         this.updateStatus((prev) => ({
           pendingSyncCount: queue.length,
         }));
       }
 
+      if (this.disposed || this.session !== currentSession) return;
+
       const finalQueue = await this.storage.getQueue(this.key);
-      if (!this.isTargetAlive) return;
+      if (this.disposed || this.session !== currentSession || !this.isTargetAlive) return;
       this.updateStatus((prev) => ({
         isSyncing: false,
         pendingSyncCount: finalQueue.length,
         error: finalQueue.length === 0 ? null : prev.error,
       }));
     } catch (err) {
+      if (this.disposed || this.session !== currentSession) return;
       const error = err instanceof Error ? err : new Error(String(err));
       this.updateStatus((prev) => ({
         isSyncing: false,
@@ -900,6 +932,8 @@ export class PersistenceManager {
   }
 
   dispose(): void {
+    this.disposed = true;
+    this.session++; // Invalidate active async queries/mutations
     activePersistenceManagers.delete(this.target);
     if (this.lifecycleDisposer) {
       this.lifecycleDisposer();
@@ -933,6 +967,10 @@ export class PersistenceManager {
         window.removeEventListener("focus", this.focusListener);
         this.focusListener = null;
       }
+    }
+
+    if (this.storage && typeof this.storage.close === "function") {
+      this.storage.close();
     }
   }
 }

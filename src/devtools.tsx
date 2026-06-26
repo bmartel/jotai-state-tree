@@ -1711,7 +1711,7 @@ export const JotaiStateTreeDevtools: React.ComponentType<DevtoolsProps> = observ
 });
 
 export function resetDevtoolsStore() {
-  if (_devtoolsStore && isAlive(_devtoolsStore)) {
+  if (_devtoolsStore) {
     try {
       (_devtoolsStore as any).stopPolling();
       if ((_devtoolsStore as any)._cleanupResize) {
@@ -1728,7 +1728,9 @@ export function resetDevtoolsStore() {
     }
     try {
       const { destroy } = require("./index");
-      destroy(_devtoolsStore);
+      if (isAlive(_devtoolsStore)) {
+        destroy(_devtoolsStore);
+      }
     } catch (e) {
       // ignore
     }

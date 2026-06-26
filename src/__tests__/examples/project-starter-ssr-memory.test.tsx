@@ -50,7 +50,7 @@ describe('Project Starter SSR Memory Leak Audit', () => {
       const { unmount } = render(<App />);
 
       // Allow render effects and state trees to instantiate
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await Bun.sleep(50);
 
       // Verify nodes have been registered
       const activeStats = getRegistryStats();
@@ -67,8 +67,8 @@ describe('Project Starter SSR Memory Leak Audit', () => {
 
     // 4. Force V8 Garbage Collection to collect dereferenced stores
     if (global.gc) {
-      for (let i = 0; i < 5; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 50));
+      for (let i = 0; i < 10; i++) {
+        await Bun.sleep(100);
         global.gc();
         cleanupStaleEntries();
         if (getRegistryStats().liveNodeCount === 0) {

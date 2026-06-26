@@ -5,9 +5,12 @@ import { vi } from "vitest";
 // Global Timer Tracking & Automatic Cleanup
 // ============================================================================
 const activeIntervals = new Set<any>();
+const activeTimeouts = new Set<any>();
 
 const originalSetInterval = globalThis.setInterval;
 const originalClearInterval = globalThis.clearInterval;
+const originalSetTimeout = globalThis.setTimeout;
+const originalClearTimeout = globalThis.clearTimeout;
 
 (globalThis as any).setInterval = (cb: any, delay: any, ...args: any[]) => {
   const timer = originalSetInterval(cb, delay, ...args);
@@ -20,10 +23,30 @@ const originalClearInterval = globalThis.clearInterval;
   originalClearInterval(id);
 };
 
+(globalThis as any).setTimeout = (cb: any, delay: any, ...args: any[]) => {
+  let timer: any;
+  const wrappedCb = () => {
+    activeTimeouts.delete(timer);
+    cb(...args);
+  };
+  timer = originalSetTimeout(wrappedCb, delay);
+  activeTimeouts.add(timer);
+  return timer;
+};
+
+(globalThis as any).clearTimeout = (id: any) => {
+  activeTimeouts.delete(id);
+  originalClearTimeout(id);
+};
+
 if (typeof window !== "undefined") {
   (window as any).setInterval = globalThis.setInterval;
   (window as any).clearInterval = globalThis.clearInterval;
+  (window as any).setTimeout = globalThis.setTimeout;
+  (window as any).clearTimeout = globalThis.clearTimeout;
 }
+
+
 
 import * as ReactRoot from "./node_modules/react";
 import * as ReactDOMRoot from "./node_modules/react-dom";
@@ -261,6 +284,47 @@ afterEach(() => {
     originalClearInterval(id);
   }
   activeIntervals.clear();
+
+  // Clear all pending/leaked timeouts
+  for (const id of activeTimeouts) {
+    originalClearTimeout(id);
+  }
+  activeTimeouts.clear();
+
+  try {
+    const { activeRouters } = require("./src/router.ts");
+    const { destroy, getStateTreeNode } = require("./src/tree.ts");
+    for (const ref of activeRouters) {
+      try {
+        const router = ref.deref();
+        if (router && getStateTreeNode(router).$isAlive) {
+          destroy(router);
+        }
+      } catch (err) {
+        // ignore
+      }
+    }
+    activeRouters.clear();
+  } catch (e) {
+    // ignore
+  }
+
+  try {
+    const { activePersistenceManagersSet } = require("./src/persistence.ts");
+    for (const ref of activePersistenceManagersSet) {
+      try {
+        const manager = ref.deref();
+        if (manager) {
+          manager.dispose();
+        }
+      } catch (err) {
+        // ignore
+      }
+    }
+    activePersistenceManagersSet.clear();
+  } catch (e) {
+    // ignore
+  }
 
   try {
     const { cleanup } = require("@testing-library/react");

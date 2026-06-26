@@ -1,4 +1,4 @@
-import { types, Instance } from 'jotai-state-tree';
+import { types, Instance, isAlive } from 'jotai-state-tree';
 
 export const Product = types.model('Product', {
   id: types.identifier,
@@ -128,7 +128,9 @@ export const ShopStore = types
       
       // Auto-reset state back to idle
       setTimeout(() => {
-        self.setCheckoutStatus('idle');
+        if (isAlive(self)) {
+          self.setCheckoutStatus('idle');
+        }
       }, 4000);
     },
   }));

@@ -11,7 +11,7 @@ import {
   cleanupStaleEntries,
 } from '../../index';
 import { resetDevtoolsStore } from '../../devtools';
-import { nodeRegistry } from '../../tree';
+import { nodeRegistry, activeReactRoots } from '../../tree';
 import { App } from '../../../examples/project-starter-ssr/src/App';
 
 
@@ -64,6 +64,7 @@ describe('Project Starter SSR Memory Leak Audit', () => {
     };
 
     await runRenderBlock();
+    await runRenderBlock();
 
     // 4. Force V8 Garbage Collection to collect dereferenced stores
     if (global.gc) {
@@ -83,6 +84,7 @@ describe('Project Starter SSR Memory Leak Audit', () => {
     const finalStats = getRegistryStats();
     if (finalStats.liveNodeCount > 0) {
       console.log('--- LEAKING NODES IN REGISTRY ---');
+      console.log('Active React Roots:', Array.from(activeReactRoots).map((r: any) => r.$treenode?.$type?.name));
       for (const [id, entry] of nodeRegistry.entries()) {
         const node = entry.node.deref();
         if (node) {

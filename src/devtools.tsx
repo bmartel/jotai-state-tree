@@ -595,6 +595,7 @@ const DevtoolsModel = types
     propStore: null as any,
     initialOpenSynced: false,
     isResizing: false,
+    isMounted: false,
     _cleanupInterval: null as any,
     _cleanupResize: null as any,
   }))
@@ -671,13 +672,22 @@ const DevtoolsModel = types
       self.expandedPaths = next;
     },
     updateRoots() {
-      const rootsMap = new Set<any>();
+      if (!self.isMounted) {
+        if (self.discoveredRoots.length > 0) {
+          self.discoveredRoots = [];
+          this.updateActiveStore();
+        }
+        return;
+      }
+
       const activeRootsFiltered = new Set(
         Array.from(activeReactRoots).filter(
           (r: any) => r.$treenode?.$type?.name !== "DevtoolsModel"
         )
       );
       const hasActiveReactRoots = activeRootsFiltered.size > 0;
+
+      const rootsMap = new Set<any>();
       for (const weakRef of rootNodesRegistry.values()) {
         const node = weakRef.deref();
         if (node && node.$isAlive) {
@@ -712,17 +722,26 @@ const DevtoolsModel = types
     },
     syncProps(propStore: any, initialOpen?: boolean) {
       let changed = false;
-      if (self.propStore !== propStore) {
-        self.propStore = propStore;
-        changed = true;
-        self.isOpen = initialOpen ?? false;
-        self.initialOpenSynced = false;
+      if (propStore === null) {
+        self.isMounted = false;
+        if (self.propStore !== null) {
+          self.propStore = null;
+          changed = true;
+        }
+      } else {
+        self.isMounted = true;
+        if (self.propStore !== propStore) {
+          self.propStore = propStore;
+          changed = true;
+          self.isOpen = initialOpen ?? false;
+          self.initialOpenSynced = false;
+        }
+        if (initialOpen !== undefined && self.initialOpenSynced === false) {
+          self.isOpen = initialOpen;
+          self.initialOpenSynced = true;
+        }
       }
-      if (initialOpen !== undefined && self.initialOpenSynced === false) {
-        self.isOpen = initialOpen;
-        self.initialOpenSynced = true;
-      }
-      if (self.isOpen) {
+      if (self.isOpen && self.isMounted) {
         (self as any).startPolling();
       } else {
         (self as any).stopPolling();
@@ -1077,6 +1096,9 @@ const JotaiStateTreeDevtoolsImpl: React.ComponentType<DevtoolsProps> = observer(
   // Sync props to devtoolsStore on mount/update (client-only)
   React.useEffect(() => {
     devtoolsStore.syncProps(propStore, initialOpen);
+    return () => {
+      devtoolsStore.syncProps(null);
+    };
   }, [propStore, initialOpen]);
 
   // Register propStore in activeReactRoots on mount/update

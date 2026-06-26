@@ -151,6 +151,14 @@ export function incrementRootRef(root: unknown): void {
   const count = activeReactRootsCounts.get(root) || 0;
   activeReactRootsCounts.set(root, count + 1);
   activeReactRoots.add(root);
+  try {
+    const { devtoolsStore } = require("./devtools");
+    if (devtoolsStore && typeof devtoolsStore.updateRoots === "function") {
+      devtoolsStore.updateRoots();
+    }
+  } catch (e) {
+    // ignore
+  }
 }
 
 export function decrementRootRef(root: unknown): void {
@@ -161,6 +169,14 @@ export function decrementRootRef(root: unknown): void {
     activeReactRoots.delete(root);
   } else {
     activeReactRootsCounts.set(root, count - 1);
+  }
+  try {
+    const { devtoolsStore } = require("./devtools");
+    if (devtoolsStore && typeof devtoolsStore.updateRoots === "function") {
+      devtoolsStore.updateRoots();
+    }
+  } catch (e) {
+    // ignore
   }
 }
 

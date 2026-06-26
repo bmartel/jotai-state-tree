@@ -385,6 +385,7 @@ function defaultShouldRollback(error: any): boolean {
 // ============================================================================
 
 export const activePersistenceManagers = new WeakMap<any, PersistenceManager>();
+export const activePersistenceManagersSet = new Set<WeakRef<PersistenceManager>>();
 
 export class PersistenceManager {
   readonly target: any;
@@ -433,6 +434,7 @@ export class PersistenceManager {
     this.target = target;
     this.options = options;
     activePersistenceManagers.set(target, this);
+    activePersistenceManagersSet.add(new WeakRef(this));
 
     if (typeof indexedDB === "undefined") {
       throw new Error(
@@ -935,6 +937,12 @@ export class PersistenceManager {
     this.disposed = true;
     this.session++; // Invalidate active async queries/mutations
     activePersistenceManagers.delete(this.target);
+    for (const ref of activePersistenceManagersSet) {
+      if (ref.deref() === this) {
+        activePersistenceManagersSet.delete(ref);
+        break;
+      }
+    }
     if (this.lifecycleDisposer) {
       this.lifecycleDisposer();
       this.lifecycleDisposer = null;

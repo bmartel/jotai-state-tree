@@ -30,6 +30,8 @@ const routerFinalizationRegistry = new FinalizationRegistry((cleanupFn: () => vo
   }
 });
 
+export const activeRouters = new Set<WeakRef<any>>();
+
 
 // ============================================================================
 // Route Definition Model
@@ -443,6 +445,7 @@ export const RouterModel = model("RouterModel", {
   };
 })
 .afterCreate((self) => {
+  activeRouters.add(new WeakRef(self));
   if (isBrowser()) {
     const routerRef = new WeakRef(self);
     const listener = createPopStateListener(routerRef);
@@ -456,6 +459,12 @@ export const RouterModel = model("RouterModel", {
   }
 })
 .beforeDestroy((self) => {
+  for (const ref of activeRouters) {
+    if (ref.deref() === self) {
+      activeRouters.delete(ref);
+      break;
+    }
+  }
   if (isBrowser()) {
     routerFinalizationRegistry.unregister(self);
     if (self._popStateListener) {
